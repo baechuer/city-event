@@ -33,6 +33,7 @@ export SMTP_USERNAME="user"
 export SMTP_PASSWORD="password"
 export SMTP_INSECURE="true"
 export MAILPIT_API="http://localhost:8026"
+export MAILPIT_API_PORT="8026"
 
 # Run tests
 cd "$SERVICE_ROOT"

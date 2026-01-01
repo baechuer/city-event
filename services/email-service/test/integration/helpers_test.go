@@ -5,7 +5,9 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -30,7 +32,11 @@ type Address struct {
 }
 
 func deleteAllEmails(t *testing.T) {
-	req, _ := http.NewRequest("DELETE", "http://localhost:8025/api/v1/messages", nil)
+	apiPort := os.Getenv("MAILPIT_API_PORT")
+	if apiPort == "" {
+		apiPort = "8025"
+	}
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("http://localhost:%s/api/v1/messages", apiPort), nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Logf("failed to clear emails (maybe mailpit not ready?): %v", err)
@@ -40,9 +46,13 @@ func deleteAllEmails(t *testing.T) {
 }
 
 func waitForEmail(t *testing.T, subject, to string, timeout time.Duration) {
+	apiPort := os.Getenv("MAILPIT_API_PORT")
+	if apiPort == "" {
+		apiPort = "8025"
+	}
 	start := time.Now()
 	for time.Since(start) < timeout {
-		resp, err := http.Get("http://localhost:8025/api/v1/messages")
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%s/api/v1/messages", apiPort))
 		if err != nil {
 			time.Sleep(500 * time.Millisecond)
 			continue
@@ -99,14 +109,16 @@ func publishEvent(t *testing.T, rabbitURL, exchange, key string, body interface{
 }
 
 func waitForQueue(t *testing.T, rabbitURL, queueName string) {
-	conn, err := amqp.Dial(rabbitURL)
-	if err != nil {
-		t.Fatalf("waitForQueue: failed to connect to rabbitmq: %v", err)
-	}
-	defer conn.Close()
+	deadline := time.Now().Add(30 * time.Second)
 
-	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
+		conn, err := amqp.Dial(rabbitURL)
+		if err != nil {
+			t.Logf("waitForQueue: dial failed: %v", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
 		// Channel closes on error, so we must recreate it if it died.
 		ch, err := conn.Channel()
 		if err != nil {
@@ -115,28 +127,28 @@ func waitForQueue(t *testing.T, rabbitURL, queueName string) {
 			continue
 		}
 
-		// Use Active Declare to force it if missing (idempotent if matches)
-		_, err = ch.QueueDeclare(queueName, true, false, false, false, nil)
-		if err != nil {
-			t.Logf("waitForQueue: active declare failed: %v", err)
-			ch.Close()
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-
-		// Force binding to ensure routing works (Consumer should do this, but it seems flaky?)
-		// We bind to "city.events" with "auth.email.#" (standard) or just "#" for test.
-		err = ch.QueueBind(queueName, "auth.email.#", "city.events", false, nil)
-		if err != nil {
-			t.Logf("waitForQueue: bind failed: %v", err)
-			ch.Close()
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-
+		_, err = ch.QueueDeclarePassive(queueName, true, false, false, false, nil)
 		ch.Close() // Close immediately
 
-		return // Queue exists and bound!
+		if err == nil {
+			// Found the queue!
+			// Now ensure the binding exists to avoid race where queue exists but binding doesn't.
+			// Re-open channel as it was closed by QueueDeclarePassive
+			ch, err = conn.Channel()
+			if err != nil {
+				t.Logf("waitForQueue: failed to re-open channel for binding: %v", err)
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			_ = ch.QueueBind(queueName, "auth.email.#", "city.events", false, nil)
+			ch.Close()
+			conn.Close()
+			return
+		}
+
+		t.Logf("waitForQueue: %v", err)
+		conn.Close() // Close connection if check failed
+		time.Sleep(500 * time.Millisecond)
 	}
 	t.Fatalf("waitForQueue: timed out waiting for queue %q to exist", queueName)
 }

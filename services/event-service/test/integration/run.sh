@@ -28,6 +28,13 @@ export DATABASE_URL="postgres://user:pass@127.0.0.1:5434/app?sslmode=disable"
 export REDIS_ADDR="127.0.0.1:6381"
 export RABBITMQ_URL="amqp://guest:guest@localhost:5675/"
 
+# Apply Migrations
+echo "Applying migrations..."
+for file in "$SERVICE_ROOT/migrations"/*.sql; do
+  echo "Applying $file..."
+  docker exec -i cityevents-event-it-postgres psql -U user -d app < "$file"
+done
+
 # Start App in background
 echo "Building app..."
 go build -o app api/cmd/main.go
