@@ -4,8 +4,8 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.test.yml"
-docker-compose -f "$PROJECT_ROOT/docker-compose.test.yml" down -v || true
-docker-compose -f "$PROJECT_ROOT/docker-compose.test.yml" up -d
+docker compose -f "$PROJECT_ROOT/docker-compose.test.yml" down -v || true
+docker compose -f "$PROJECT_ROOT/docker-compose.test.yml" up -d
 cleanup() {
   docker compose -f "$COMPOSE_FILE" down -v >/dev/null 2>&1 || true
 }
