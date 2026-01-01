@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        svc: [auth-service, event-service, join-service, email-service]
+        svc: [auth-service, event-service, join-service, email-service, bff-service]
 
     steps:
       - name: Checkout
