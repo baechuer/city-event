@@ -1,0 +1,114 @@
+openapi: 3.0.3
+info:
+  title: City Events Email Service
+  description: Public facing endpoints for Email Service (Verification & Password Reset). These act as proxies/BFF for Auth Service flows.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8090
+    description: Local Dev (Docker)
+paths:
+  /verify:
+    get:
+      summary: Email Verification Page (HTML)
+      description: Renders a static HTML page that executes client-side JS to call POST /api/verify.
+      tags: [Pages]
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: HTML Page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /reset:
+    get:
+      summary: Password Reset Page (HTML)
+      description: Renders a static HTML page that performs client-side validation and password update.
+      tags: [Pages]
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: HTML Page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /api/verify:
+    post:
+      summary: Confirm Email Verification
+      description: Proxies to Auth Service to verify the user's email.
+      tags: [API]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        200:
+          description: Verified
+        400:
+          description: Missing or Invalid Token
+        502:
+          description: Upstream Auth Service Error
+
+  /api/reset/validate:
+    post:
+      summary: Validate Reset Token
+      description: Checks if the reset token is valid before showing the password form. Proxies to Auth Service.
+      tags: [API]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        200:
+          description: Token Valid
+        400:
+          description: Invalid Token
+
+  /api/reset/confirm:
+    post:
+      summary: Complete Password Reset
+      description: Updates the user's password using the token. Proxies to Auth Service.
+      tags: [API]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+      responses:
+        200:
+          description: Password Updated
+        400:
+          description: Invalid Request

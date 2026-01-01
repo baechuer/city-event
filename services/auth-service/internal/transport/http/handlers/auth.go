@@ -8,6 +8,7 @@ import (
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/application/auth"
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/domain"
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/infrastructure/security"
+	"github.com/baechuer/real-time-ressys/services/auth-service/internal/logger"
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/transport/http/dto"
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/transport/http/middleware"
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/transport/http/response"
@@ -47,6 +48,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger.WithCtx(r.Context()).Info().
+		Str("user_id", res.User.ID).
+		Str("email", res.User.Email).
+		Msg("user_registered")
+
 	security.SetRefreshToken(w, res.Tokens.RefreshToken, h.refreshTTL, h.secureCookies)
 
 	data := dto.AuthData{
@@ -85,6 +91,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, r, err)
 		return
 	}
+
+	logger.WithCtx(r.Context()).Info().
+		Str("user_id", res.User.ID).
+		Msg("user_logged_in")
 
 	security.SetRefreshToken(w, res.Tokens.RefreshToken, h.refreshTTL, h.secureCookies)
 

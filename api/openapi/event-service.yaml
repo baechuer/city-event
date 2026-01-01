@@ -3,19 +3,29 @@ info:
   title: City Events Event Service
   version: 1.0.0
 servers:
+  - url: http://localhost:8081
+    description: Local Dev (Docker)
   - url: http://localhost:8080
+    description: CI Default
 paths:
-  /events/v1/public/events:
+  /healthz:
     get:
-      summary: List Events (Feed)
-      description: Returns a cursor-paginated list of events. Supports FTS and category filtering.
-      tags: [Events]
+      summary: Health Check
+      responses:
+        200:
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  /event/v1/events:
+    get:
+      summary: List Public Events (Feed)
+      description: Returns a cursor-paginated list of published events. Supports FTS and category filtering.
+      tags: [Public]
       parameters:
-        - name: page
-          in: query
-          description: Legacy offset pagination (prefer cursor)
-          schema:
-            type: integer
         - name: page_size
           in: query
           schema:
@@ -23,13 +33,13 @@ paths:
             default: 20
         - name: sort
           in: query
-          description: Sort order. Implies relevance if query 'q' is present.
+          description: "Sort order: start_time (default), created_at, relevance (if q present)"
           schema:
             type: string
             enum: [start_time, created_at, relevance]
         - name: cursor
           in: query
-          description: Opaque base64 cursor from previous response `next_cursor`.
+          description: Opaque cursor from previous response `next_cursor`.
           schema:
             type: string
         - name: q
@@ -47,11 +57,13 @@ paths:
             type: string
         - name: from
           in: query
+          description: Start time range (RFC3339)
           schema:
             type: string
             format: date-time
         - name: to
           in: query
+          description: End time range (RFC3339)
           schema:
             type: string
             format: date-time
@@ -61,27 +73,35 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Event'
-                  next_cursor:
-                    type: string
-                    nullable: true
-                  page:
-                    type: integer
-                  page_size:
-                    type: integer
-                  total:
-                    type: integer
-                    description: 0 if using keyset pagination
+                $ref: '#/components/schemas/PageResp_EventResp'
 
-  /events/v1/public/events/{event_id}:
+    post:
+      summary: Create Event
+      tags: [Organizer]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventReq'
+      responses:
+        201:
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataEnvelope_EventResp'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /event/v1/events/{event_id}:
     get:
-      summary: Get Event Details
-      tags: [Events]
+      summary: Get Event Details (Public)
+      tags: [Public]
       parameters:
         - name: event_id
           in: path
@@ -95,13 +115,168 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Event'
+                $ref: '#/components/schemas/DataEnvelope_EventResp'
         404:
           $ref: '#/components/responses/NotFound'
 
+    patch:
+      summary: Update Event
+      tags: [Organizer]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventReq'
+      responses:
+        200:
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataEnvelope_EventResp'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /event/v1/events/{event_id}/publish:
+    post:
+      summary: Publish Event
+      tags: [Organizer]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataEnvelope_EventResp'
+        409:
+          $ref: '#/components/responses/Conflict'
+
+  /event/v1/events/{event_id}/cancel:
+    post:
+      summary: Cancel Event
+      tags: [Organizer]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Canceled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataEnvelope_EventResp'
+        409:
+          $ref: '#/components/responses/Conflict'
+
+  /event/v1/organizer/events:
+    get:
+      summary: List My Events
+      description: List events created by the authenticated organizer
+      tags: [Organizer]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResp_EventResp'
+
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
-    Event:
+    # Requests
+    CreateEventReq:
+      type: object
+      required: [title, description, city, category, start_time, end_time, capacity]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        city:
+          type: string
+        category:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+          minimum: 0
+
+    UpdateEventReq:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        city:
+          type: string
+        category:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+          minimum: 0
+
+    # Responses
+    EventResp:
       type: object
       properties:
         id:
@@ -128,15 +303,42 @@ components:
           enum: [published, cancelled, draft]
         organizer_id:
           type: string
-          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
 
-  responses:
-    NotFound:
-      description: Not Found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+    DataEnvelope_EventResp:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/EventResp'
+        error:
+          type: object
+          nullable: true
+
+    PageResp_EventResp:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/EventResp'
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+            next_cursor:
+              type: string
+              nullable: true
+
     Error:
       type: object
       properties:
@@ -147,3 +349,37 @@ components:
               type: string
             message:
               type: string
+            meta:
+              type: object
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Conflict (e.g. State Transition)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

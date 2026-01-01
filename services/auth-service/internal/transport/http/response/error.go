@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/domain"
+	"github.com/baechuer/real-time-ressys/services/auth-service/internal/logger"
 )
 
 type ErrorBody struct {
@@ -35,6 +36,22 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 		meta = de.Meta
 	}
 
+	reqID := RequestIDFromContext(r)
+
+	// LOGGING: Log failure
+	logEvent := logger.WithCtx(r.Context()).Info()
+	if status >= 500 {
+		logEvent = logger.WithCtx(r.Context()).Error().Err(err)
+	} else if status >= 400 {
+		logEvent = logger.WithCtx(r.Context()).Warn().Err(err)
+	}
+
+	logEvent.
+		Str("code", code).
+		Int("status", status).
+		Str("path", r.URL.Path).
+		Msg("http_response_error")
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 
@@ -43,7 +60,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error) {
 			Code:      code,
 			Message:   message,
 			Meta:      meta,
-			RequestID: RequestIDFromContext(r),
+			RequestID: reqID,
 		},
 	})
 }

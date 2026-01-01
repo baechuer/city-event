@@ -1,33 +1,28 @@
 package main
 
 import (
-	"log"
 	"net/http"
-	"os"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-
-	customMiddleware "github.com/baechuer/real-time-ressys/services/bff-service/middleware"
+	"github.com/baechuer/real-time-ressys/services/bff-service/internal/api"
+	"github.com/baechuer/real-time-ressys/services/bff-service/internal/config"
+	"github.com/baechuer/real-time-ressys/services/bff-service/internal/logger"
+	zlog "github.com/rs/zerolog/log"
 )
 
 func main() {
-	port := os.Getenv("HTTP_PORT")
-	if port == "" {
-		port = "8080"
+	// 1. Load Config
+	cfg := config.Load()
+
+	// 1.5 Init Logger
+	logger.Init()
+	zlog.Info().Msg("logger initialized")
+
+	// 2. Setup Router
+	r := api.NewRouter(cfg)
+
+	// 3. Start Server
+	zlog.Info().Str("port", cfg.Port).Msg("BFF Service starting")
+	if err := http.ListenAndServe(":"+cfg.Port, r); err != nil {
+		zlog.Fatal().Err(err).Msg("Server failed")
 	}
-
-	r := chi.NewRouter()
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(customMiddleware.RequestID)
-	r.Use(customMiddleware.SecurityHeaders)
-
-	r.Get("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-
-	log.Printf("BFF Service starting on :%s", port)
-	http.ListenAndServe(":"+port, r)
 }

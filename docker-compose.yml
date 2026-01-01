@@ -75,7 +75,8 @@ services:
     build:
       context: ./services/email-service
       dockerfile: Dockerfile
-    # No public port, purely a consumer
+    ports:
+      - "8090:8090"
     environment:
       - APP_ENV=dev
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/

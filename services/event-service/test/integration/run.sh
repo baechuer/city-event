@@ -10,6 +10,12 @@ docker compose -f "$SERVICE_ROOT/test/integration/infra/compose.yaml" up -d
 # Cleanup on exit
 cleanup() {
   docker compose -f "$SERVICE_ROOT/test/integration/infra/compose.yaml" down -v >/dev/null 2>&1 || true
+  # Cat app log if exists
+  if [ -f app.log ]; then
+     echo "=== APP LOGS ==="
+     cat app.log
+     rm app.log
+  fi
 }
 trap cleanup EXIT
 
@@ -47,7 +53,7 @@ echo "Starting app..."
 # HTTP_ADDR is set.
 # REDIS_ADDR is set.
 # RABBIT_URL is set.
-./app &
+./app > app.log 2>&1 &
 APP_PID=$!
 
 # Wait for healthy
@@ -59,6 +65,7 @@ while ! curl -s http://localhost:8081/healthz >/dev/null; do
   timeout=$((timeout-1))
   if [ "$timeout" -le 0 ]; then
     echo "Timeout waiting for healthz"
+    cat app.log
     kill $APP_PID
     exit 1
   fi
