@@ -22,6 +22,7 @@ echo "Waiting for infra..."
 sleep 5 # Giving docker a moment to map ports clearly (better to use logic like join-service script but this is quick)
 
 # Export Env Vars for Test
+export HTTP_ADDR=":8081"
 export DATABASE_URL="postgres://user:pass@127.0.0.1:5434/app?sslmode=disable"
 # Redis? Event service might use it? compose has it.
 # Check infra/compose.yaml -> redis port 6381
