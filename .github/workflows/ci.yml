@@ -94,8 +94,8 @@ jobs:
       RABBIT_URL: ${{ matrix.rabbit_url }}
       
       # Event Service specific
-      EVENT_BASE_URL: "http://localhost:8080"
-      HTTP_ADDR: ":8080"
+      EVENT_BASE_URL: "http://localhost:8081"
+      HTTP_ADDR: ":8081"
 
       # Email Service specific
       SMTP_PORT: "1026"
