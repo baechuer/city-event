@@ -149,7 +149,7 @@ func TestWriteError_NonDomainError_HidesDetailsAndReturns500(t *testing.T) {
 		t.Fatalf("expected message 'internal error', got %q", body.Error.Message)
 	}
 	// meta should be empty/nil
-	if body.Error.Meta != nil && len(body.Error.Meta) != 0 {
+	if len(body.Error.Meta) != 0 {
 		t.Fatalf("expected empty meta, got %+v", body.Error.Meta)
 	}
 }

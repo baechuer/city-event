@@ -113,7 +113,7 @@ func (r *Repository) Kick(ctx context.Context, traceID string, eventID, targetUs
 					 VALUES ($1,$2,$3,$4,NOW(),'pending')`,
 					uuid.New(), traceID, "join.promoted", payload,
 				)
-			} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			} else if !errors.Is(err, pgx.ErrNoRows) {
 				return err
 			}
 		}

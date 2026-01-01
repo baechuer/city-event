@@ -89,7 +89,7 @@ func (r *Repository) JoinEvent(ctx context.Context, traceID string, eventID, use
 			return "", domain.ErrAlreadyJoined
 		}
 		// else: canceled/expired/rejected -> reuse row
-	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return "", err
 	}
 
@@ -262,7 +262,7 @@ func (r *Repository) CancelJoin(ctx context.Context, traceID string, eventID, us
 					 VALUES ($1, $2, $3, $4, NOW(), 'pending')`,
 					uuid.New(), traceID, "join.promoted", payload,
 				)
-			} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			} else if !errors.Is(err, pgx.ErrNoRows) {
 				return err
 			}
 		}
