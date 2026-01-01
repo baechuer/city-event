@@ -377,6 +377,7 @@ type PasswordResetEvent struct {
 
 func (c *Consumer) handleDelivery(ctx context.Context, d amqp.Delivery) error {
 	rk := strings.TrimSpace(d.RoutingKey)
+	c.lg.Info().Str("routing_key", rk).Msg("DEBUG: handleDelivery called")
 
 	switch rk {
 	case "auth.email.verify.requested":

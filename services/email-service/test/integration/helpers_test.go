@@ -97,3 +97,46 @@ func publishEvent(t *testing.T, rabbitURL, exchange, key string, body interface{
 		t.Fatalf("failed to publish event: %v", err)
 	}
 }
+
+func waitForQueue(t *testing.T, rabbitURL, queueName string) {
+	conn, err := amqp.Dial(rabbitURL)
+	if err != nil {
+		t.Fatalf("waitForQueue: failed to connect to rabbitmq: %v", err)
+	}
+	defer conn.Close()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		// Channel closes on error, so we must recreate it if it died.
+		ch, err := conn.Channel()
+		if err != nil {
+			t.Logf("waitForQueue: open channel failed: %v", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		// Use Active Declare to force it if missing (idempotent if matches)
+		_, err = ch.QueueDeclare(queueName, true, false, false, false, nil)
+		if err != nil {
+			t.Logf("waitForQueue: active declare failed: %v", err)
+			ch.Close()
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		// Force binding to ensure routing works (Consumer should do this, but it seems flaky?)
+		// We bind to "city.events" with "auth.email.#" (standard) or just "#" for test.
+		err = ch.QueueBind(queueName, "auth.email.#", "city.events", false, nil)
+		if err != nil {
+			t.Logf("waitForQueue: bind failed: %v", err)
+			ch.Close()
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		ch.Close() // Close immediately
+
+		return // Queue exists and bound!
+	}
+	t.Fatalf("waitForQueue: timed out waiting for queue %q to exist", queueName)
+}

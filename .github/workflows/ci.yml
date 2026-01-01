@@ -55,9 +55,9 @@ jobs:
             rabbit_url: "amqp://it:it@localhost:56731/"
           - svc: event-service
             compose_file: test/integration/infra/compose.yaml
-            pg_dsn: "postgres://user:pass@localhost:5432/app?sslmode=disable"
-            redis_addr: "localhost:6379"
-            rabbit_url: "amqp://guest:guest@localhost:5672/"
+            pg_dsn: "postgres://user:pass@localhost:5434/app?sslmode=disable"
+            redis_addr: "localhost:6381"
+            rabbit_url: "amqp://guest:guest@localhost:5675/"
           - svc: join-service
             compose_file: docker-compose.test.yml
             pg_dsn: "postgres://test_user:test_password@localhost:5433/join_service_test?sslmode=disable"
@@ -67,8 +67,8 @@ jobs:
             compose_file: test/integration/infra/compose.yaml
             # Email service doesn't use Postgres in integration test, but we can leave placeholder or empty
             pg_dsn: "" 
-            redis_addr: "localhost:6381"
-            rabbit_url: "amqp://guest:guest@localhost:5674/"
+            redis_addr: "localhost:6382"
+            rabbit_url: "amqp://guest:guest@localhost:5676/"
 
     env:
       # Common / Matrix

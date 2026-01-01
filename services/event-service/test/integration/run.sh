@@ -28,6 +28,38 @@ export DATABASE_URL="postgres://user:pass@127.0.0.1:5434/app?sslmode=disable"
 export REDIS_ADDR="127.0.0.1:6381"
 export RABBITMQ_URL="amqp://guest:guest@localhost:5675/"
 
+# Start App in background
+echo "Building app..."
+go build -o app api/cmd/main.go
+
+echo "Starting app..."
+# export vars needed by app (already exported above? check)
+# DATABASE_URL is set.
+# HTTP_ADDR is set.
+# REDIS_ADDR is set.
+# RABBIT_URL is set.
+./app &
+APP_PID=$!
+
+# Wait for healthy
+echo "Waiting for healthz..."
+# primitive wait
+timeout=30
+while ! curl -s http://localhost:8081/healthz >/dev/null; do
+  sleep 1
+  timeout=$((timeout-1))
+  if [ "$timeout" -le 0 ]; then
+    echo "Timeout waiting for healthz"
+    kill $APP_PID
+    exit 1
+  fi
+done
+
+echo "App ready!"
+
 # Run tests
 cd "$SERVICE_ROOT"
+# go test command...
 go test -tags=integration ./test/integration/... -count=1 -p=1
+
+kill $APP_PID

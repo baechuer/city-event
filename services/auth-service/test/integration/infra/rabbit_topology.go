@@ -53,9 +53,12 @@ func EnsureRabbitTopology(ctx context.Context, rabbitURL string) error {
 		return err
 	}
 
-	if err := ch.QueueBind(queue, binding, exchange, false, nil); err != nil {
-		return err
-	}
+	// FIX: Don't bind "auth.*" to this queue.
+	// It prevents testing "NoRoute" scenarios because it catches everything.
+	// Individual tests should declare their own bindings if they need to consume specific messages.
+	// if err := ch.QueueBind(queue, binding, exchange, false, nil); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }

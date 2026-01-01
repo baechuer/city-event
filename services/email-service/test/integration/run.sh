@@ -7,11 +7,13 @@ SERVICE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # Stand up infra
 docker compose -f "$SERVICE_ROOT/test/integration/infra/compose.yaml" up -d
 
-# Cleanup on exit
+# cleanup on exit
 cleanup() {
-  docker compose -f "$SERVICE_ROOT/test/integration/infra/compose.yaml" down -v >/dev/null 2>&1 || true
+  # DEBUG: disable cleanup to inspect queues
+  # docker compose -f ../../test/integration/infra/compose.yaml down -v
+  :
 }
-trap cleanup EXIT
+# trap cleanup EXIT
 
 # Wait for infra
 echo "Waiting for infra..."
@@ -23,7 +25,7 @@ sleep 5
 # Mailpit: 8026 / 1026
 
 export REDIS_ADDR="127.0.0.1:6382"
-export RABBITMQ_URL="amqp://guest:guest@localhost:5676/"
+export RABBIT_URL="amqp://guest:guest@localhost:5676/"
 export EMAIL_SENDER="smtp"
 export SMTP_HOST="localhost"
 export SMTP_PORT="1026"

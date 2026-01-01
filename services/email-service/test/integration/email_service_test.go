@@ -42,11 +42,17 @@ func TestIntegration_EmailFlow(t *testing.T) {
 	os.Setenv("RABBIT_QUEUE", "email-service.it.q")
 	os.Setenv("RABBIT_CONSUMER_TAG", "email-service-it")
 
+	t.Logf("DEBUG: RABBIT_URL=%q", os.Getenv("RABBIT_URL"))
+	t.Logf("DEBUG: RABBIT_QUEUE=%q", os.Getenv("RABBIT_QUEUE"))
+
 	os.Setenv("EMAIL_SENDER", "smtp")
-	os.Setenv("SMTP_HOST", "127.0.0.1")
-	os.Setenv("SMTP_PORT", "1025") // Mailpit SMTP
+	if os.Getenv("SMTP_HOST") == "" {
+		os.Setenv("SMTP_HOST", "127.0.0.1")
+	}
+	if os.Getenv("SMTP_PORT") == "" {
+		os.Setenv("SMTP_PORT", "1025") // Mailpit SMTP
+	}
 	os.Setenv("SMTP_USERNAME", "any")
-	os.Setenv("SMTP_PASSWORD", "any")
 	os.Setenv("SMTP_PASSWORD", "any")
 	os.Setenv("SMTP_FROM", "noreply@city.events")
 	os.Setenv("SMTP_INSECURE", "true")
@@ -55,7 +61,9 @@ func TestIntegration_EmailFlow(t *testing.T) {
 	os.Setenv("INTERNAL_SECRET_KEY", "test-secret")
 
 	os.Setenv("REDIS_ENABLED", "true")
-	os.Setenv("REDIS_ADDR", "localhost:6381")
+	if os.Getenv("REDIS_ADDR") == "" {
+		os.Setenv("REDIS_ADDR", "localhost:6381")
+	}
 
 	// 3. Clear Mailpit
 	deleteAllEmails(t)
@@ -79,7 +87,8 @@ func TestIntegration_EmailFlow(t *testing.T) {
 	}()
 
 	// Give it a moment to connect to RabbitMQ and declare queues
-	time.Sleep(2 * time.Second)
+	// Better: Poll for queue existence
+	waitForQueue(t, os.Getenv("RABBIT_URL"), os.Getenv("RABBIT_QUEUE"))
 
 	// 5. Trigger: Publish VerifyEmail Event
 	// Assuming "auth.email.verify.requested" takes JSON payload
