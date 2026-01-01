@@ -118,46 +118,20 @@ jobs:
           set -euo pipefail
           docker compose -f ${{ matrix.compose_file }} up -d --wait
 
-      - name: Apply Migrations (Event Service Only)
-        if: matrix.svc == 'event-service'
-        working-directory: services/event-service
-        run: |
-          set -euo pipefail
-          echo "Applying migrations..."
-          # Install postgresql-client to use psql if needed, OR use docker exec which is pre-installed
-          # The compose file uses container name 'cityevents-event-it-postgres'
-          
-          # Wait for PG to be truly ready (compose up --wait handles container ready, but maybe not DB ready)
-          sleep 5 
-          
-          for file in migrations/*.sql; do
-            echo "Applying $file..."
-            docker exec -i cityevents-event-it-postgres psql -U user -d app < "$file"
-          done
-
-      - name: Start Application (Event Service Only)
-        if: matrix.svc == 'event-service'
-        working-directory: services/event-service
-        run: |
-          set -euo pipefail
-          echo "Building event-service..."
-          go build -o app api/cmd/main.go
-          echo "Starting event-service..."
-          ./app &
-          
-          echo "Waiting for healthz..."
-          timeout 30 sh -c 'until curl -s http://localhost:8080/healthz; do sleep 1; done'
-          echo "Event Service valid and running!"
-
       - name: Integration tests
         working-directory: services/${{ matrix.svc }}
         run: |
           set -euo pipefail
-          echo "Debug: IT_PG_DSN=${IT_PG_DSN}"
-          echo "Debug: DB_ADDR=${DB_ADDR}"
+          echo "Running integration tests..."
           
-          # Only run integration tests if the directory exists (sanity check)
-          if [ -d "test/integration" ] || [ -d "internal" ]; then
+          if [ -f "test/integration/run.sh" ]; then
+            echo "Found run.sh, executing..."
+            bash test/integration/run.sh
+          elif [ -f "scripts/run_integration_tests.sh" ]; then
+            echo "Found scripts/run_integration_tests.sh, executing..."
+            bash scripts/run_integration_tests.sh
+          elif [ -d "test/integration" ] || [ -d "internal" ]; then
+             echo "No run script found, running go test directly..."
              go test -tags=integration ./... -count=1 -p=1 -v -timeout 5m
           else
              echo "No integration tests found"
