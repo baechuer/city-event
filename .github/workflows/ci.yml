@@ -97,6 +97,11 @@ jobs:
       EVENT_BASE_URL: "http://localhost:8080"
       HTTP_ADDR: ":8080"
 
+      # Email Service specific
+      SMTP_PORT: "1026"
+      MAILPIT_API_PORT: "8026"
+      MAILPIT_API: "http://localhost:8026"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,6 +117,23 @@ jobs:
         run: |
           set -euo pipefail
           docker compose -f ${{ matrix.compose_file }} up -d --wait
+
+      - name: Apply Migrations (Event Service Only)
+        if: matrix.svc == 'event-service'
+        working-directory: services/event-service
+        run: |
+          set -euo pipefail
+          echo "Applying migrations..."
+          # Install postgresql-client to use psql if needed, OR use docker exec which is pre-installed
+          # The compose file uses container name 'cityevents-event-it-postgres'
+          
+          # Wait for PG to be truly ready (compose up --wait handles container ready, but maybe not DB ready)
+          sleep 5 
+          
+          for file in migrations/*.sql; do
+            echo "Applying $file..."
+            docker exec -i cityevents-event-it-postgres psql -U user -d app < "$file"
+          done
 
       - name: Start Application (Event Service Only)
         if: matrix.svc == 'event-service'
