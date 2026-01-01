@@ -1,0 +1,159 @@
+openapi: 3.0.3
+info:
+  title: City Events Join Service
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /join/v1/join:
+    post:
+      summary: Join an Event
+      description: Idempotent operation to join an event.
+      tags: [Join]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: false
+          description: Client-generated UUID for traceability and idempotency support.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_id]
+              properties:
+                event_id:
+                  type: string
+                  format: uuid
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [active, waitlisted]
+        409:
+          $ref: '#/components/responses/Conflict'
+        404:
+          $ref: '#/components/responses/NotFound'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /join/v1/cancel/{eventID}:
+    post:
+      summary: Cancel Participation
+      tags: [Join]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: OK
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /join/v1/me/participation/{eventID}:
+    get:
+      summary: Get My Participation Status (Single Event)
+      tags: [Join]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: eventID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: OK (Joined)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+        404:
+          description: Not Joined (or Event Not Found)
+
+  /join/v1/me/joins:
+    get:
+      summary: List My Joins
+      tags: [Join]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          description: Comma separated list (active, waitlisted, cancelled)
+          schema:
+            type: string
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Participation'
+                  next_cursor:
+                    type: string
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Participation:
+      type: object
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, waitlisted, cancelled]
+        joined_at:
+          type: string
+          format: date-time
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    NotFound:
+      description: Not Found (or Event not exists)
+    Conflict:
+      description: Conflict (e.g. Event Full)

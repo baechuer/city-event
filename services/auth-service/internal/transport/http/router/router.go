@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/baechuer/real-time-ressys/services/auth-service/internal/transport/http/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -104,6 +105,7 @@ func New(deps Deps) (http.Handler, error) {
 	// --- Global middleware ---
 	// Must be first to ensure all subsequent logic (including logging) gets the ID
 	r.Use(deps.RequestIDMW)
+	r.Use(middleware.SecurityHeaders)
 
 	r.Get("/healthz", deps.Health.Healthz)
 

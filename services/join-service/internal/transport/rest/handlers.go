@@ -376,12 +376,43 @@ func (h *Handler) Unban(w http.ResponseWriter, r *http.Request) {
 	if traceID == "" {
 		traceID = "no-request-id"
 	}
-
 	if err := h.svc.Unban(r.Context(), traceID, eventID, targetUserID, auth.UserID, auth.Role); err != nil {
 		handleErr(w, r, err)
 		return
 	}
-	response.Data(w, http.StatusOK, map[string]any{"msg": "unbanned"})
+	response.Data(w, http.StatusOK, map[string]string{"status": "unbanned"})
+}
+
+func (h *Handler) GetMyParticipation(w http.ResponseWriter, r *http.Request) {
+	// 1. User from Context
+	auth, ok := GetAuth(r.Context())
+	if !ok {
+		fail(w, r, http.StatusUnauthorized, "auth.unauthorized", "unauthorized", nil)
+		return
+	}
+
+	// 2. EventID from path
+	eventIDStr := chi.URLParam(r, "eventID")
+	eventID, err := uuid.Parse(eventIDStr)
+	if err != nil {
+		fail(w, r, http.StatusBadRequest, "request.invalid", "invalid eventID", nil)
+		return
+	}
+
+	// 3. Service Call
+	rec, err := h.svc.GetMyParticipation(r.Context(), auth.UserID, eventID)
+	if err != nil {
+		handleErr(w, r, err)
+		return
+	}
+
+	// 4. Response
+	response.Data(w, http.StatusOK, map[string]any{
+		"event_id":  rec.EventID,
+		"user_id":   rec.UserID,
+		"status":    rec.Status,
+		"joined_at": rec.CreatedAt,
+	})
 }
 
 func parseLimit(s string) int {

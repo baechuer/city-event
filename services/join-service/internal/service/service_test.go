@@ -22,6 +22,11 @@ func (m *MockRepo) JoinEvent(ctx context.Context, tid string, eid, uid uuid.UUID
 func (m *MockRepo) CancelJoin(ctx context.Context, tid string, eid, uid uuid.UUID) error {
 	return m.Called(ctx, tid, eid, uid).Error(0)
 }
+func (m *MockRepo) GetByEventAndUser(ctx context.Context, eventID, userID uuid.UUID) (domain.JoinRecord, error) {
+	args := m.Called(ctx, eventID, userID)
+	return args.Get(0).(domain.JoinRecord), args.Error(1)
+}
+
 func (m *MockRepo) GetEventOwnerID(ctx context.Context, eid uuid.UUID) (uuid.UUID, error) {
 	args := m.Called(ctx, eid)
 	return args.Get(0).(uuid.UUID), args.Error(1)

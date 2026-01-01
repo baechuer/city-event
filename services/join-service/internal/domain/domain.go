@@ -73,6 +73,9 @@ type JoinRepository interface {
 	JoinEvent(ctx context.Context, traceID string, eventID, userID uuid.UUID) (JoinStatus, error)
 	CancelJoin(ctx context.Context, traceID string, eventID, userID uuid.UUID) error
 
+	// Single Check
+	GetByEventAndUser(ctx context.Context, eventID, userID uuid.UUID) (JoinRecord, error)
+
 	// ACL on shared DB
 	GetEventOwnerID(ctx context.Context, eventID uuid.UUID) (uuid.UUID, error)
 

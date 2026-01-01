@@ -1,18 +1,18 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: cityevents-postgres
+    container_name: cityevents-event-it-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pass}
       POSTGRES_DB: ${POSTGRES_DB:-app}
       POSTGRES_INITDB_ARGS: "--auth-host=md5 --auth-local=trust"
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-app}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-app}" ]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -20,14 +20,14 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: cityevents-redis
-    command: ["redis-server", "--appendonly", "yes"]
+    container_name: cityevents-event-it-redis
+    command: [ "redis-server", "--appendonly", "yes" ]
     ports:
-      - "6379:6379"
+      - "6381:6379"
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -35,16 +35,16 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: cityevents-rabbitmq
+    container_name: cityevents-event-it-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5675:5672"
+      - "15675:15672"
     healthcheck:
-      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
       interval: 5s
       timeout: 5s
       retries: 30

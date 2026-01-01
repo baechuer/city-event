@@ -35,13 +35,15 @@ func TestIntegration_EmailFlow(t *testing.T) {
 
 	// 2. Set Environment Variables for Service
 	os.Setenv("ENV", "test")
-	os.Setenv("RABBIT_URL", "amqp://guest:guest@localhost:5674/")
+	if os.Getenv("RABBIT_URL") == "" {
+		os.Setenv("RABBIT_URL", "amqp://guest:guest@localhost:5672/")
+	}
 	os.Setenv("RABBIT_EXCHANGE", "city.events")
 	os.Setenv("RABBIT_QUEUE", "email-service.it.q")
 	os.Setenv("RABBIT_CONSUMER_TAG", "email-service-it")
 
 	os.Setenv("EMAIL_SENDER", "smtp")
-	os.Setenv("SMTP_HOST", "localhost")
+	os.Setenv("SMTP_HOST", "127.0.0.1")
 	os.Setenv("SMTP_PORT", "1025") // Mailpit SMTP
 	os.Setenv("SMTP_USERNAME", "any")
 	os.Setenv("SMTP_PASSWORD", "any")

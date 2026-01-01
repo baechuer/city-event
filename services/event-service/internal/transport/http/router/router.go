@@ -22,7 +22,8 @@ func New(
 ) http.Handler {
 	r := chi.NewRouter()
 
-	r.Use(middleware.RequestID)
+	r.Use(authmw.RequestID)
+	r.Use(authmw.SecurityHeaders)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(authmw.AccessLog)

@@ -179,6 +179,22 @@ drain:
 		)
 
 	case conf := <-p.confirmCh:
+		fmt.Printf("DEBUG: Ack received. Tag=%d Ack=%v\n", conf.DeliveryTag, conf.Ack)
+		// Mandatory delivery: Return usually arrives before Ack.
+		// Check returnCh non-blockingly to avoid race if both are ready.
+		// Wait a tiny bit to ensure the Return frame is processed if it exists.
+		time.Sleep(1000 * time.Millisecond)
+		select {
+		case ret := <-p.returnCh:
+			fmt.Printf("DEBUG: Return captured after sleep. Code=%d\n", ret.ReplyCode)
+			return fmt.Errorf(
+				"rabbitmq unroutable: key=%s code=%d text=%s",
+				routingKey, ret.ReplyCode, ret.ReplyText,
+			)
+		default:
+			fmt.Println("DEBUG: No Return captured after sleep.")
+		}
+
 		if !conf.Ack {
 			return fmt.Errorf("rabbitmq nack: key=%s deliveryTag=%d", routingKey, conf.DeliveryTag)
 		}
@@ -186,6 +202,7 @@ drain:
 		return nil
 
 	case <-time.After(publishWait):
+		fmt.Printf("DEBUG: publish timeout. key=%s\n", routingKey)
 		// With confirm+mandatory, this usually only happens when the broker is extremely slow or unhealthy.
 		return fmt.Errorf("rabbitmq publish timeout: key=%s", routingKey)
 

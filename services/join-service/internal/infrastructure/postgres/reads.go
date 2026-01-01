@@ -190,3 +190,36 @@ func (r *Repository) GetStats(ctx context.Context, eventID uuid.UUID) (domain.Ev
 	}
 	return s, nil
 }
+
+func (r *Repository) GetByEventAndUser(ctx context.Context, eventID, userID uuid.UUID) (domain.JoinRecord, error) {
+	q := `
+		SELECT id, event_id, user_id, status,
+		       created_at, updated_at,
+		       activated_at, canceled_at,
+		       expired_at, expired_reason,
+		       canceled_by, canceled_reason,
+		       rejected_at, rejected_by, rejected_reason
+		FROM joins
+		WHERE event_id = $1 AND user_id = $2
+		LIMIT 1
+	`
+
+	var rec domain.JoinRecord
+	var status string
+	err := r.pool.QueryRow(ctx, q, eventID, userID).Scan(
+		&rec.ID, &rec.EventID, &rec.UserID, &status,
+		&rec.CreatedAt, &rec.UpdatedAt,
+		&rec.ActivatedAt, &rec.CanceledAt,
+		&rec.ExpiredAt, &rec.ExpiredReason,
+		&rec.CanceledBy, &rec.CanceledReason,
+		&rec.RejectedAt, &rec.RejectedBy, &rec.RejectedReason,
+	)
+	if err != nil {
+		// pgx.ErrNoRows -> logical not found
+		// we map checking "participation" to "not joined" if no record
+		return domain.JoinRecord{}, domain.ErrNotJoined
+	}
+
+	rec.Status = domain.JoinStatus(status)
+	return rec, nil
+}

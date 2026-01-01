@@ -14,23 +14,23 @@ trap cleanup EXIT
 docker compose -f "$COMPOSE_FILE" up -d
 
 # Wait for Postgres
-until docker exec -i join-postgres-test pg_isready -U test_user -d join_service_test >/dev/null 2>&1; do
+until docker exec -i join_service_test_db pg_isready -U test_user -d join_service_test >/dev/null 2>&1; do
   sleep 0.5
 done
 
 # Wait for Redis
-until docker exec -i join-redis-test redis-cli ping >/dev/null 2>&1; do
+until docker exec -i join_service_test_redis redis-cli ping >/dev/null 2>&1; do
   sleep 0.5
 done
 
 # Apply migrations
 for f in "$PROJECT_ROOT"/migrations/*.sql; do
-  docker exec -i join-postgres-test psql -U test_user -d join_service_test < "$f" >/dev/null
+  docker exec -i join_service_test_db psql -U test_user -d join_service_test < "$f" >/dev/null
 done
 
 export TEST_DB_DSN="postgres://test_user:test_password@127.0.0.1:5433/join_service_test?sslmode=disable"
 export TEST_REDIS_ADDR="127.0.0.1:6380"
-export TEST_RABBIT_URL="amqp://guest:guest@localhost:5674/"
+export TEST_RABBIT_URL="amqp://guest:guest@localhost:5673/"
 export TEST_RABBIT_EXCHANGE="city.events.test"
 
 cd "$PROJECT_ROOT"

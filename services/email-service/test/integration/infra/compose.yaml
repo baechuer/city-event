@@ -1,9 +1,10 @@
 services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
+    container_name: cityevents-email-it-rabbitmq
     ports:
-      - "5674:5672"
-      - "15674:15672"
+      - "5676:5672"
+      - "15676:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -15,8 +16,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: cityevents-email-it-redis
     ports:
-      - "6381:6379"
+      - "6382:6379"
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
@@ -25,9 +27,10 @@ services:
 
   mailpit:
     image: axllent/mailpit
+    container_name: cityevents-email-it-mailpit
     ports:
-      - "8025:8025" # UI/API
-      - "1025:1025" # SMTP
+      - "8026:8025" # UI/API
+      - "1026:1025" # SMTP
     environment:
       MP_MAX_MESSAGES: 500
       MP_SMTP_AUTH_ACCEPT_ANY: "true"

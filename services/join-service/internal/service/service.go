@@ -57,6 +57,11 @@ func (s *JoinService) Join(ctx context.Context, traceID string, eventID, userID 
 	return string(status), nil
 }
 
+func (s *JoinService) GetMyParticipation(ctx context.Context, userID, eventID uuid.UUID) (domain.JoinRecord, error) {
+	// Simple pass-through to repo
+	return s.repo.GetByEventAndUser(ctx, eventID, userID)
+}
+
 func (s *JoinService) Cancel(ctx context.Context, traceID string, eventID, userID uuid.UUID) error {
 	return s.repo.CancelJoin(ctx, traceID, eventID, userID)
 }

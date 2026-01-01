@@ -79,3 +79,8 @@ pnpm-debug.log*
 *.tfstate.*
 .crash.log
 *.txt
+
+# =========================
+# Temporary Artifacts from Agent
+# =========================
+web_trash/

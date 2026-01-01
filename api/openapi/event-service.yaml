@@ -1,0 +1,149 @@
+openapi: 3.0.3
+info:
+  title: City Events Event Service
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /events/v1/public/events:
+    get:
+      summary: List Events (Feed)
+      description: Returns a cursor-paginated list of events. Supports FTS and category filtering.
+      tags: [Events]
+      parameters:
+        - name: page
+          in: query
+          description: Legacy offset pagination (prefer cursor)
+          schema:
+            type: integer
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sort
+          in: query
+          description: Sort order. Implies relevance if query 'q' is present.
+          schema:
+            type: string
+            enum: [start_time, created_at, relevance]
+        - name: cursor
+          in: query
+          description: Opaque base64 cursor from previous response `next_cursor`.
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Search term (FTS)
+          schema:
+            type: string
+        - name: city
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Event'
+                  next_cursor:
+                    type: string
+                    nullable: true
+                  page:
+                    type: integer
+                  page_size:
+                    type: integer
+                  total:
+                    type: integer
+                    description: 0 if using keyset pagination
+
+  /events/v1/public/events/{event_id}:
+    get:
+      summary: Get Event Details
+      tags: [Events]
+      parameters:
+        - name: event_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        city:
+          type: string
+        category:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        capacity:
+          type: integer
+        status:
+          type: string
+          enum: [published, cancelled, draft]
+        organizer_id:
+          type: string
+          format: uuid
+
+  responses:
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string

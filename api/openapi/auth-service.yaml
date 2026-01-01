@@ -1,0 +1,210 @@
+openapi: 3.0.3
+info:
+  title: City Events Auth Service
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local gateway
+paths:
+  /auth/v1/register:
+    post:
+      summary: Register a new user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        201:
+          description: Created
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                description: HttpOnly Refresh Token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        409:
+          $ref: '#/components/responses/Conflict'
+
+  /auth/v1/login:
+    post:
+      summary: Login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        200:
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                description: HttpOnly Refresh Token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/v1/refresh:
+    post:
+      summary: Refresh Access Token
+      description: Uses refresh_token from HttpOnly cookie to issue new access token.
+      tags: [Auth]
+      responses:
+        200:
+          description: OK
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                description: Rotated Refresh Token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tokens:
+                    $ref: '#/components/schemas/Tokens'
+        401:
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/v1/logout:
+    post:
+      summary: Logout
+      description: Invalidates refresh token and clears cookie.
+      tags: [Auth]
+      responses:
+        204:
+          description: No Content
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                description: Clears cookie (Max-Age=0)
+
+  /auth/v1/me:
+    get:
+      summary: Get Current User Identity
+      security:
+        - BearerAuth: []
+      tags: [User]
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          $ref: '#/components/schemas/Tokens'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [user, admin]
+        email_verified:
+          type: boolean
+        locked:
+          type: boolean
+
+    Tokens:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Seconds until expiration (e.g. 900)
+
+    MeResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Conflict (e.g. email exists)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: request.invalid
+            message:
+              type: string
+            meta:
+              type: object
+              additionalProperties:
+                type: string

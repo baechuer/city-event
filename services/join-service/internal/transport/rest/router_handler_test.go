@@ -99,6 +99,20 @@ func (r *fakeRepo) InitCapacity(ctx context.Context, eventID uuid.UUID, capacity
 	return r.notImpl()
 }
 
+func (f *fakeRepo) GetByEventAndUser(ctx context.Context, eventID, userID uuid.UUID) (domain.JoinRecord, error) {
+	// Mock behavior: if eventID == "0000...0000" return ErrNotJoined, else return Active
+	if eventID == uuid.Nil {
+		return domain.JoinRecord{}, domain.ErrNotJoined
+	}
+	return domain.JoinRecord{
+		ID:        uuid.New(),
+		EventID:   eventID,
+		UserID:    userID,
+		Status:    domain.StatusActive,
+		CreatedAt: time.Now(),
+	}, nil
+}
+
 func (r *fakeRepo) ListMyJoins(ctx context.Context, userID uuid.UUID, statuses []domain.JoinStatus, from, to *time.Time, limit int, cursor *domain.KeysetCursor) ([]domain.JoinRecord, *domain.KeysetCursor, error) {
 	if r.listMyFn == nil {
 		return nil, nil, r.notImpl()
