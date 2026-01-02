@@ -48,7 +48,7 @@ func (c *AuthClient) GetEmail(ctx context.Context, userID string) (string, error
 	// Path: /admin/users/{id}/status
 	// NOTE: This assumes email-service is roughly "trusted" or on internal network.
 	// Real prod should use mTLS or proper Service-to-Service auth token.
-	url := fmt.Sprintf("%s/admin/users/%s/status", c.baseURL, userID)
+	url := fmt.Sprintf("%s/internal/users/%s", c.baseURL, userID)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {

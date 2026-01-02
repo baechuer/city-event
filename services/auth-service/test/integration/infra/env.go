@@ -14,11 +14,11 @@ type Env struct {
 }
 
 func LoadEnv() (Env, error) {
-	pg := getenv("IT_PG_DSN", "postgres://user:pass@localhost:54321/app?sslmode=disable")
-	redis := getenv("IT_REDIS_ADDR", "localhost:63791")
+	pg := getenv("IT_PG_DSN", "postgres://postgres:postgres@localhost:5432/auth_db?sslmode=disable")
+	redis := getenv("IT_REDIS_ADDR", "localhost:6379")
 
-	// ✅ compose: RABBITMQ_DEFAULT_USER=it, PASS=it
-	rabbit := getenv("IT_RABBIT_URL", "amqp://it:it@localhost:56731/")
+	// ✅ compose: RABBITMQ_DEFAULT_USER=guest, PASS=guest
+	rabbit := getenv("IT_RABBIT_URL", "amqp://guest:guest@localhost:5672/")
 
 	return Env{
 		PostgresDSN: pg,

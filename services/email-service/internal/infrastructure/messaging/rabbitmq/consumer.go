@@ -364,15 +364,15 @@ func (c *Consumer) consumeLoop(ctx context.Context) {
 
 // ---- payloads ----
 type VerifyEmailEvent struct {
-	UserID string `json:"UserID"`
-	Email  string `json:"Email"`
-	URL    string `json:"URL"`
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	URL    string `json:"url"`
 }
 
 type PasswordResetEvent struct {
-	UserID string `json:"UserID"`
-	Email  string `json:"Email"`
-	URL    string `json:"URL"`
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	URL    string `json:"url"`
 }
 
 func (c *Consumer) handleDelivery(ctx context.Context, d amqp.Delivery) error {
@@ -384,6 +384,8 @@ func (c *Consumer) handleDelivery(ctx context.Context, d amqp.Delivery) error {
 		if err := json.Unmarshal(d.Body, &evt); err != nil {
 			return c.toFinalDLQ(ctx, d, "bad_json", err)
 		}
+
+		c.lg.Info().Interface("evt", evt).Msg("unmarshaled verify email event")
 
 		// ✅ Rewrite email link to 8090 (don't change MQ payload)
 		link := c.rewriteURL(rk, evt.URL)

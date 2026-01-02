@@ -111,13 +111,13 @@ Strongly typed messages for MQ.
 Email-service does not need to understand tokens.
 */
 type VerifyEmailEvent struct {
-	UserID string
-	Email  string
-	URL    string
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	URL    string `json:"url"`
 }
 
 type PasswordResetEvent struct {
-	UserID string
-	Email  string
-	URL    string
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	URL    string `json:"url"`
 }

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rabbitmq/amqp091-go"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/require"
 
@@ -39,9 +38,10 @@ func Test_RabbitMQ_NoRoute_ReturnsError(t *testing.T) {
 	require.NoError(t, err)
 	defer ch.Close()
 
+	noRouteExchange := "noroute.at.exchange"
 	// 只保证 exchange 存在（不创建任何 queue/binding）
 	require.NoError(t, ch.ExchangeDeclare(
-		testExchange,
+		noRouteExchange,
 		"topic",
 		true,  // durable
 		false, // auto-delete
@@ -50,40 +50,18 @@ func Test_RabbitMQ_NoRoute_ReturnsError(t *testing.T) {
 		nil,
 	))
 
-	// FIX: rabbit_topology.go binds "auth.*" to "it.auth.events" by default.
-	// We must unbind it to test "No Route" scenario.
-	err = ch.QueueUnbind("it.auth.events", "auth.*", testExchange, nil)
-	require.NoError(t, err, "failed to unbind queue")
-
-	// DEBUG: Verify raw publish returns
-	returnCh := ch.NotifyReturn(make(chan amqp091.Return, 1))
-	confirmCh := ch.NotifyPublish(make(chan amqp091.Confirmation, 1))
-	err = ch.PublishWithContext(ctx, testExchange, "auth.email.verify.requested", true, false, amqp091.Publishing{
-		Body: []byte("{}"),
-	})
-	require.NoError(t, err)
-
-	select {
-	case <-confirmCh:
-	case <-time.After(time.Second):
-		t.Log("Timeout waiting for confirm")
-	}
-
-	select {
-	case ret := <-returnCh:
-		t.Logf("Raw Publish: Captured Return Code=%d Text=%s", ret.ReplyCode, ret.ReplyText)
-	case <-time.After(2 * time.Second):
-		t.Fatal("Raw Publish: Failed to capture Return! Binding still exists?")
-	}
-
 	pubImpl, ok := d.Pub.(*rmq.Publisher)
 	require.True(t, ok, "d.Pub should be *rabbitmq.Publisher")
+
+	// Set a unique exchange name to guarantee no routes exist
+	pubImpl.SetExchange(noRouteExchange)
 
 	ev := newVerifyEmailEventForIT(t)
 
 	// 这里应该触发 no-route（mandatory Return）=> error
 	err = pubImpl.PublishVerifyEmail(ctx, ev)
 	require.Error(t, err)
+	require.Contains(t, err.Error(), "rabbitmq unroutable")
 }
 
 func Test_RabbitMQ_Routed_Ack_AndMessageArrives(t *testing.T) {

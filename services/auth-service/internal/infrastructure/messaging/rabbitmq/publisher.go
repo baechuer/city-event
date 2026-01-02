@@ -58,6 +58,12 @@ func (p *Publisher) Close() error {
 	return nil
 }
 
+func (p *Publisher) SetExchange(name string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.exchange = name
+}
+
 // ---- auth.EventPublisher ----
 
 func (p *Publisher) PublishVerifyEmail(ctx context.Context, evt auth.VerifyEmailEvent) error {

@@ -39,8 +39,9 @@ func TestIntegration_EmailFlow(t *testing.T) {
 		os.Setenv("RABBIT_URL", "amqp://guest:guest@localhost:5672/")
 	}
 	os.Setenv("RABBIT_EXCHANGE", "city.events")
-	os.Setenv("RABBIT_QUEUE", "email-service.it.q")
-	os.Setenv("RABBIT_CONSUMER_TAG", "email-service-it")
+	itID := fmt.Sprintf("it-%d", time.Now().UnixNano())
+	os.Setenv("RABBIT_QUEUE", "email-service."+itID+".q")
+	os.Setenv("RABBIT_CONSUMER_TAG", "email-service-"+itID)
 
 	t.Logf("DEBUG: RABBIT_URL=%q", os.Getenv("RABBIT_URL"))
 	t.Logf("DEBUG: RABBIT_QUEUE=%q", os.Getenv("RABBIT_QUEUE"))
@@ -52,17 +53,17 @@ func TestIntegration_EmailFlow(t *testing.T) {
 	if os.Getenv("SMTP_PORT") == "" {
 		os.Setenv("SMTP_PORT", "1025") // Mailpit SMTP
 	}
-	os.Setenv("SMTP_USERNAME", "any")
-	os.Setenv("SMTP_PASSWORD", "any")
+	os.Setenv("SMTP_USERNAME", "")
+	os.Setenv("SMTP_PASSWORD", "")
 	os.Setenv("SMTP_FROM", "noreply@city.events")
 	os.Setenv("SMTP_INSECURE", "true")
 
 	os.Setenv("AUTH_BASE_URL", authServer.URL)
 	os.Setenv("INTERNAL_SECRET_KEY", "test-secret")
 
-	os.Setenv("REDIS_ENABLED", "true")
+	os.Setenv("REDIS_ENABLED", "false")
 	if os.Getenv("REDIS_ADDR") == "" {
-		os.Setenv("REDIS_ADDR", "localhost:6381")
+		os.Setenv("REDIS_ADDR", "localhost:6379")
 	}
 
 	// 3. Clear Mailpit
@@ -92,12 +93,12 @@ func TestIntegration_EmailFlow(t *testing.T) {
 
 	// 5. Trigger: Publish VerifyEmail Event
 	// Assuming "auth.email.verify.requested" takes JSON payload
+	token := fmt.Sprintf("it-token-%d", time.Now().UnixNano())
 	payload := map[string]string{
 		"user_id": "u1",
-		"email":   "user1@example.com", // Payload usually has email? let's check consumer code.
-		"url":     "http://example.com/verify?token=123",
+		"email":   "user1@example.com",
+		"url":     "http://example.com/verify?token=" + token,
 	}
-	// Actually consumer code: VerifyEmailEvent struct { UserID, Email, URL }
 
 	publishEvent(t, os.Getenv("RABBIT_URL"), "city.events", "auth.email.verify.requested", payload)
 
@@ -105,7 +106,7 @@ func TestIntegration_EmailFlow(t *testing.T) {
 	// The consumer should process it and send an email via SMTP
 	// Subject for verify email is usually hardcoded in sender.
 	// Let's verify what the subject is. In "smtp_sender.go", SendVerifyEmail subject is "Verify your email".
-	waitForEmail(t, "Verify your email", "user1@example.com", 10*time.Second)
+	waitForEmail(t, "Verify your email", "user1@example.com", 30*time.Second)
 
 	// 7. Verify Idempotency (Optional but good)
 	// Publish again

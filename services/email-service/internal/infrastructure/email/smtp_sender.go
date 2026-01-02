@@ -102,18 +102,20 @@ func (s *SMTPSender) send(ctx context.Context, to, subject, textBody, htmlBody s
 		tlsPolicy = mail.TLSOpportunistic
 	}
 
-	c, err := mail.NewClient(
-		s.host,
+	opts := []mail.Option{
 		mail.WithPort(s.port),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-		mail.WithUsername(s.user),
-		mail.WithPassword(s.pass),
 		mail.WithTLSPolicy(tlsPolicy),
-	)
+	}
+	if s.user != "" {
+		opts = append(opts, mail.WithSMTPAuth(mail.SMTPAuthPlain), mail.WithUsername(s.user), mail.WithPassword(s.pass))
+	}
+
+	c, err := mail.NewClient(s.host, opts...)
 	if err != nil {
 		return PermanentError{msg: "smtp client init failed: " + err.Error()}
 	}
 
+	s.lg.Info().Str("host", s.host).Int("port", s.port).Str("to", to).Str("subject", subject).Msg("attempting smtp send")
 	if err := c.DialAndSendWithContext(ctx, m); err != nil {
 		s.lg.Error().Err(err).Str("to", to).Msg("smtp send failed")
 

@@ -173,9 +173,8 @@ func TestOutboxWorker_MandatoryNoRoute_IncrementsAttemptAndSchedulesRetry(t *tes
 	conn, rabbitURL := dialRabbit(t)
 	defer conn.Close()
 
-	const exchange = "city.events"
-
-	// 只声明 exchange，不绑定任何 queue => mandatory 会触发 return
+	// 用一个全新的、没有任何绑定的 exchange，确保触发 NO_ROUTE
+	const exchange = "noroute.exchange"
 	ch, err := conn.Channel()
 	require.NoError(t, err)
 	defer ch.Close()
@@ -197,7 +196,7 @@ func TestOutboxWorker_MandatoryNoRoute_IncrementsAttemptAndSchedulesRetry(t *tes
 	repo.StartOutboxWorker(workerCtx, rabbitURL, exchange)
 
 	// 等 worker 扫描 1-2 次（你默认 1s ticker）
-	time.Sleep(1500 * time.Millisecond)
+	time.Sleep(3 * time.Second)
 
 	status, attempt, nextRetry, lastErr, err := readOutboxRow(ctx, pool, traceID, "join.created")
 	require.NoError(t, err)

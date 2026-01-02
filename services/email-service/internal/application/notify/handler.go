@@ -51,6 +51,7 @@ func NewService(sender Sender, resolver UserResolver, idem IdempotencyStore, ttl
 }
 
 func (s *Service) VerifyEmail(ctx context.Context, userID, email, link string) error {
+	s.lg.Info().Str("user_id", userID).Str("email", email).Msg("NotifyService.VerifyEmail called")
 	token := tokenFromLink(link)
 	key := fmt.Sprintf("email:verify:%s", tokenOrFallback(token, link))
 

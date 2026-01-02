@@ -85,8 +85,8 @@ func Load() (*Config, error) {
 	cfg.SMTPInsecure = getBool("SMTP_INSECURE", false)
 
 	if cfg.EmailSender == "smtp" {
-		if cfg.SMTPHost == "" || cfg.SMTPUsername == "" || cfg.SMTPPassword == "" {
-			return nil, fmt.Errorf("smtp sender selected but missing SMTP_HOST/SMTP_USERNAME/SMTP_PASSWORD")
+		if cfg.SMTPHost == "" {
+			return nil, fmt.Errorf("smtp sender selected but missing SMTP_HOST")
 		}
 	}
 

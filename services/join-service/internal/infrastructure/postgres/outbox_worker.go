@@ -201,24 +201,38 @@ func (r *Repository) processOutboxBatch(
 			continue
 		}
 
-		// 2) NO_ROUTE detection (mandatory return)
-		select {
-		case ret := <-returnCh:
-			r.failOutbox(ctx, m, fmt.Sprintf("NO_ROUTE: code=%d text=%s exchange=%s rk=%s",
-				ret.ReplyCode, ret.ReplyText, ret.Exchange, ret.RoutingKey))
-			continue
-		case <-time.After(confirmWait):
+		// 2) Wait for Confirm AND possible Return (mandatory)
+		// Usually Return arrives BEFORE Confirm.
+		var gotReturn bool
+		var gotConfirm bool
+		var conf amqp.Confirmation
+
+		deadline := time.After(confirmWait * 2) // Give it enough time
+	WaitLoop:
+		for !gotConfirm {
+			select {
+			case ret := <-returnCh:
+				gotReturn = true
+				r.failOutbox(ctx, m, fmt.Sprintf("NO_ROUTE: code=%d text=%s exchange=%s rk=%s",
+					ret.ReplyCode, ret.ReplyText, ret.Exchange, ret.RoutingKey))
+			case c := <-confirmCh:
+				gotConfirm = true
+				conf = c
+			case <-deadline:
+				r.failOutbox(ctx, m, "confirm/return timeout")
+				break WaitLoop
+			}
 		}
 
-		// 3) confirm ack/nack
-		select {
-		case conf := <-confirmCh:
-			if !conf.Ack {
-				r.failOutbox(ctx, m, fmt.Sprintf("NACK: delivery_tag=%d", conf.DeliveryTag))
-				continue
-			}
-		case <-time.After(confirmWait):
-			r.failOutbox(ctx, m, "confirm timeout")
+		if gotReturn {
+			continue // Already called failOutbox
+		}
+		if !gotConfirm {
+			continue // Timed out
+		}
+
+		if !conf.Ack {
+			r.failOutbox(ctx, m, fmt.Sprintf("NACK: delivery_tag=%d", conf.DeliveryTag))
 			continue
 		}
 

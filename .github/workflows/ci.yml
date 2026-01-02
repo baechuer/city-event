@@ -75,11 +75,14 @@ jobs:
       IT_PG_DSN: ${{ matrix.pg_dsn }}
       IT_REDIS_ADDR: ${{ matrix.redis_addr }}
       IT_RABBIT_URL: ${{ matrix.rabbit_url }}
+      TEST_INTEGRATION: "1"
 
       # Secrets
       JWT_SECRET: "test-secret"
       JWT_ISSUER: "self-project"
       INTERNAL_SECRET_KEY: "test-secret-key"
+      VERIFY_EMAIL_BASE_URL: "https://frontend/verify-email?token="
+      PASSWORD_RESET_BASE_URL: "https://frontend/reset-password?token="
 
       # Mappings for various services
       # Join
@@ -91,6 +94,7 @@ jobs:
       DB_ADDR: ${{ matrix.pg_dsn }}
       DATABASE_URL: ${{ matrix.pg_dsn }}
       REDIS_ADDR: ${{ matrix.redis_addr }}
+      REDIS_URL: "redis://${{ matrix.redis_addr }}/0"
       RABBIT_URL: ${{ matrix.rabbit_url }}
       
       # Event Service specific

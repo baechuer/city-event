@@ -187,6 +187,9 @@ func (h *EventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		handleDownstreamError(w, r, err, "failed to create event")
 		return
 	}
+	if ev != nil {
+		ev.CreatedBy = ev.OwnerID
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -205,6 +208,9 @@ func (h *EventHandler) PublishEvent(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		handleDownstreamError(w, r, err, "failed to publish event")
 		return
+	}
+	if ev != nil {
+		ev.CreatedBy = ev.OwnerID
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -310,6 +316,10 @@ func (h *EventHandler) GetEventView(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	wg.Wait()
+
+	if event != nil {
+		event.CreatedBy = event.OwnerID
+	}
 
 	isDegraded := false
 	var degradedInfo *DegradedInfo

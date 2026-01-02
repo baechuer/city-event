@@ -38,12 +38,13 @@ type User struct {
 type ParticipationStatus string
 
 type EventCard struct {
-	ID         uuid.UUID `json:"id"`
-	Title      string    `json:"title"`
-	CoverImage string    `json:"cover_image,omitempty"`
-	StartTime  time.Time `json:"start_time"`
-	City       string    `json:"city"`
-	Category   string    `json:"category"`
+	ID                 uuid.UUID `json:"id"`
+	Title              string    `json:"title"`
+	CoverImage         string    `json:"cover_image,omitempty"`
+	StartTime          time.Time `json:"start_time"`
+	City               string    `json:"city"`
+	Category           string    `json:"category"`
+	ActiveParticipants int       `json:"active_participants"`
 }
 
 type PaginatedResponse[T any] struct {

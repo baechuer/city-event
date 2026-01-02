@@ -208,3 +208,47 @@ func TestGetEventView_EventNotFound(t *testing.T) {
 	json.Unmarshal(w.Body.Bytes(), &apiErr)
 	assert.Equal(t, "resource_not_found", apiErr.Error.Code)
 }
+
+func TestListCreatedEvents_Success(t *testing.T) {
+	ec := new(mockEventClient)
+	h := NewEventHandler(ec, nil, nil)
+
+	userID := uuid.New()
+	token := "valid-token"
+
+	cards := []domain.EventCard{
+		{
+			ID:                 uuid.New(),
+			Title:              "My Event",
+			ActiveParticipants: 5,
+		},
+	}
+	resp := &domain.PaginatedResponse[domain.EventCard]{
+		Items:      cards,
+		NextCursor: "anything", // will be overridden by handler
+		HasMore:    true,
+	}
+
+	ec.On("ListMine", mock.Anything, "Bearer "+token, mock.Anything).Return(resp, nil)
+
+	req := httptest.NewRequest("GET", "/api/me/events?page_size=5", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	// Inject UserID and BearerToken into context
+	ctx := context.WithValue(req.Context(), middleware.UserIDKey, userID)
+	ctx = context.WithValue(ctx, middleware.BearerTokenKey, "Bearer "+token)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	h.ListCreatedEvents(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var result domain.PaginatedResponse[domain.EventCard]
+	err := json.Unmarshal(w.Body.Bytes(), &result)
+	assert.NoError(t, err)
+	assert.Len(t, result.Items, 1)
+	assert.Equal(t, "My Event", result.Items[0].Title)
+	assert.Equal(t, 5, result.Items[0].ActiveParticipants)
+	assert.Equal(t, "2", result.NextCursor)
+}
