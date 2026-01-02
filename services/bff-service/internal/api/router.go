@@ -45,6 +45,14 @@ func NewRouter(cfg *config.Config) http.Handler {
 	}
 	r.Mount("/api/events", eventProxy)
 
+	// 5. Feed Proxy (Strict Contract)
+	// Map /api/feed -> /event/v1/events
+	feedProxy, err := proxy.New(cfg.EventServiceURL, "/api/feed", "/event/v1/events")
+	if err != nil {
+		log.Fatalf("Invalid Feed URL: %v", err)
+	}
+	r.Mount("/api/feed", feedProxy)
+
 	log.Printf("Routes Mounted:")
 	log.Printf("  /api/auth   -> %s/auth/v1", cfg.AuthServiceURL)
 	log.Printf("  /api/events -> %s/event/v1/events", cfg.EventServiceURL)

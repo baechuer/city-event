@@ -83,12 +83,12 @@
 - `/api/events` 可用（即便只是透传）
 - 统一错误结构可在浏览器侧稳定解析
 ### DoD Checklist
-- [ ] React SPA 路由可用：`/login`, `/events`, `/events/:id`, `/me/joins`（页面可先占位）
-- [ ] TanStack Query 接入完成（QueryClientProvider 全局生效）
-- [ ] UI Foundation 完成且页面只使用 primitives（Button/Input/Toast/Skeleton/Empty/Error）
-- [ ] bff-service 提供 `/api/healthz` 与统一错误格式（所有错误返回同结构）
-- [ ] `/api/events` 可工作：SPA → BFF → event-service（抓包/日志可证明链路）
-- [ ] BFF 对下游的超时与错误映射策略写入 `docs/bff-api.md`（例如 5xx、timeout 统一转 502/504）
+- [x] React SPA 路由可用：`/login`, `/events`, `/events/:id`, `/me/joins`（页面可先占位）
+- [x] TanStack Query 接入完成（QueryClientProvider 全局生效）
+- [x] UI Foundation 完成且页面只使用 primitives（Button/Input/Toast/Skeleton/Empty/Error）
+- [x] bff-service 提供 `/api/healthz` 与统一错误格式（所有错误返回同结构）
+- [x] `/api/events` 可工作：SPA → BFF → event-service（抓包/日志可证明链路）
+- [x] BFF 对下游的超时与错误映射策略写入 `docs/bff-api.md`（例如 5xx、timeout 统一转 502/504）
 
 ---
 
@@ -319,7 +319,7 @@
 
 - [x] Phase 0：BFF endpoints + ViewModel + 错误格式文档完成
 - [x] Phase 1：Compose 本地闭环可跑
-- [ ] Phase 2：React SPA 骨架 + bff-service 骨架 + `/api/events` 可用
+- [x] Phase 2：React SPA 骨架 + bff-service 骨架 + `/api/events` 可用
 - [ ] Phase 3：Auth B1 全链路 + refresh 单飞
 - [ ] Phase 4：`/api/events/{id}/view` + join/cancel
 - [ ] Phase 5：前端关键页面闭环

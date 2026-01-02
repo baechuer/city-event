@@ -85,3 +85,6 @@ pnpm-debug.log*
 # Temporary Artifacts from Agent
 # =========================
 web_trash/
+
+.agent
+.shared

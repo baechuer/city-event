@@ -3,10 +3,6 @@ version: "3.8"
 include:
   - compose.infra.yml
 
-networks:
-  infra_default:
-    external: true
-
 services:
   # -------------------------------------------------------------------------
   # BACKEND SERVICES
@@ -19,12 +15,16 @@ services:
       - "8081:8080"
     environment:
       - APP_ENV=dev
-      - HTTP_PORT=8080
-      - DB_DSN=postgres://postgres:postgres@postgres:5432/auth_db?sslmode=disable
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-    networks:
-      - infra_default
+      - HTTP_ADDR=:8080
+      - DB_ADDR=postgres://postgres:postgres@cityevents-postgres:5432/auth_db?sslmode=disable
+      - REDIS_ADDR=cityevents-redis:6379
+      - REDIS_DB=0
+      - RABBIT_URL=amqp://guest:guest@cityevents-rabbitmq:5672/
+      - JWT_SECRET=change_me
+      - INTERNAL_SECRET_KEY=sharedkey
+      - VERIFY_EMAIL_BASE_URL=http://localhost:8080/auth/v1/verify-email/confirm?token=
+      - PASSWORD_RESET_BASE_URL=http://localhost:8080/auth/v1/password/reset/validate?token=
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -41,11 +41,13 @@ services:
       - "8082:8080"
     environment:
       - APP_ENV=dev
-      - HTTP_PORT=8080
-      - DB_DSN=postgres://postgres:postgres@postgres:5432/event_db?sslmode=disable
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-    networks:
-      - infra_default
+      - HTTP_ADDR=:8080
+      - DATABASE_URL=postgres://postgres:postgres@cityevents-postgres:5432/event_db?sslmode=disable
+      - RABBIT_URL=amqp://guest:guest@cityevents-rabbitmq:5672/
+      - JWT_SECRET=change_me
+      - REDIS_ENABLED=true
+      - REDIS_URL=redis://cityevents-redis:6379/1
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,11 +62,13 @@ services:
       - "8083:8080"
     environment:
       - APP_ENV=dev
-      - HTTP_PORT=8080
-      - DB_DSN=postgres://postgres:postgres@postgres:5432/join_db?sslmode=disable
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-    networks:
-      - infra_default
+      - PORT=8080
+      - DATABASE_URL=postgres://postgres:postgres@cityevents-postgres:5432/join_db?sslmode=disable
+      - RABBITMQ_URL=amqp://guest:guest@cityevents-rabbitmq:5672/
+      - JWT_SECRET=change_me
+      - REDIS_ADDR=cityevents-redis:6379
+      - REDIS_DB=2
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,11 +83,12 @@ services:
       - "8090:8090"
     environment:
       - APP_ENV=dev
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBIT_URL=amqp://guest:guest@cityevents-rabbitmq:5672/
+      - REDIS_ADDR=cityevents-redis:6379
+      - REDIS_ENABLED=true
+      - INTERNAL_SECRET_KEY=sharedkey
       - SMTP_HOST=mailhog
       - SMTP_PORT=1025
-    networks:
-      - infra_default
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -103,8 +108,7 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8080
       - EVENT_SERVICE_URL=http://event-service:8080
       - JOIN_SERVICE_URL=http://join-service:8080
-    networks:
-      - infra_default
+
     depends_on:
       - auth-service
       - event-service
@@ -119,5 +123,3 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:80"
-    networks:
-      - infra_default

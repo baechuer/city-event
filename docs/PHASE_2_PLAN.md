@@ -1,71 +1,95 @@
-# Phase 2: Frontend Foundation Implementation Plan
+# Phase 2: Frontend Foundation (React + Vite) Implementation Plan
 
 ## Goal
-Build a modern, responsive Single Page Application (SPA) using React that allows users to Register, Login, and generate real-time events. The SPA will communicate exclusively with the `bff-service`.
+Build a robust, type-safe Single Page Application (SPA) using React that serves as the visual interface for the City Events Platform. The SPA will communicate **exclusively** with the `bff-service` via `/api/*` proxies, adhering to the B1 Authentication Strategy (HttpOnly Refresh Cookie + In-Memory Access Token).
 
 ## Technology Stack
 - **Framework**: React 18+ (Vite)
-- **Language**: TypeScript
-- **Styling**: TailwindCSS (Utility-first, responsive) + Clean/Premium Aesthetics
+- **Language**: TypeScript (Strict)
+- **Styling**: TailwindCSS + Shadcn/UI (Radix Primitives)
+  - **Theme**: **Emerald** (Primary) + **Zinc** (Base) for a "Healthy/Community" vibe.
+  - **Radius**: **0.75rem - 1rem** (Friendly/Meetup style).
 - **Routing**: React Router v6
-- **State Management**: 
+- **State Management**:
   - **Server State**: TanStack Query (React Query)
-  - **Auth State**: React Context + Axios Interceptors
-- **Icons**: Lucide React / Heroicons
+  - **Auth State**: React Context (Auth **Status** only).
+  - **Token Storage**: **Module-level memory store** (Closure) `src/auth/tokenStore.ts`.
+- **HTTP Client**: Axios (configured for B1 Auth)
 
-## User Workflows (The "Happy Paths")
+---
 
-### 1. Authentication Flow
-- **Registration**:
-  - User lands on `/register`.
-  - Enters Email/Password -> Clicks "Sign Up".
-  - System sends verification email (simulated via Mailpit).
-  - User sees "Check your email" prompt.
-- **Verification**:
-  - User clicks link in pseudo-email -> `/verify-email?token=xyz`.
-  - App calls API to verify -> Auto-redirects to Login.
-- **Login**:
-  - User lands on `/login`.
-  - Enters credentials -> Clicks "Sign In".
-  - **Success**: JWT Cookie set (HttpOnly). App redirects to `/dashboard`.
-  - **Failure**: Show global toast notification (e.g., "Invalid credentials").
+## Strict Implementation Rules (Mandatory)
 
-### 2. Dashboard & Event Simulation
-- **Dashboard (`/dashboard`)**:
-  - **User Profile**: Displays "Welcome, [Email]" (Fetched via `/api/auth/me`).
-  - **Status Card**: Shows "Verified: Yes/No", "Role: User/Admin".
-- **Event Generator**:
-  - A conceptual "Shop" or "Feed" UI.
-  - User clicks "View Item" or "Add to Cart".
-  - App sends background POST to `/api/events` (fire-and-forget).
-  - **Visual Feedback**: instant "toast" or distinct UI animation showing "Event Sent".
+### A. API Types (`src/types/api.ts`)
+Must exactly mirror `docs/bff-api.md`.
+```typescript
+export interface ApiError {
+  code: string;
+  message: string;
+  request_id: string;
+  meta?: Record<string, unknown>;
+}
+// ... CursorEnvelope, EventCard, EventView
+```
+
+### B. API Client Architecture (`src/lib/apiClient.ts`)
+**Rule:** Axios is **NOT** allowed to toast or redirect directly.
+- **BaseURL**: `/api` (Strictly relative)
+- **Settings**: `withCredentials: true` (Critical for B1/Phase 3).
+- **Auth**: Injects `Authorization: Bearer <token>` from module-level store.
+- **Errors**: Normalizes non-2xx responses to `ApiError`. Throws `ApiError`.
+- **401 Handling**:
+  - **Interceptor**: Only normalize 401 to `ApiError.code = 'UNAUTHENTICATED'`.
+  - **NO** Redirect or Logout logic here.
+
+### C. Global Error Handling & Auth Controller (`src/lib/auth.tsx`)
+**Rule:** `AuthProvider` handles logout/redirect via Event Bus.
+- **Mechanism**: `QueryClient.onError` detects `UNAUTHENTICATED` -> Emits event `auth:logout` -> `AuthProvider` listens.
+- **Conditional Logout (Rule A)**:
+  - Only trigger logout if `getAccessToken() !== null`.
+  - Otherwise, treat as generic error (stay on page).
+- **Clean Logout (Rule B)**:
+  - `logout()` must call `queryClient.clear()`/`removeQueries()` to wipe sensitive data.
+- **Logout Idempotency**:
+  - `isLoggingOut` module-level guard.
+
+### D. Global Toast (Rule C)
+- **Deduping**: Prevent flooding by deduplicating toasts with same `message` or `code` within N seconds.
+- **401 Silence**: Do NOT toast if error code is `UNAUTHENTICATED` (handled by Auth logic).
+
+### E. Phase 2 Known Limitation
+- **Page Reload**: Will require re-login because `tokenStore` (memory) is cleared.
+
+---
 
 ## Implementation Steps
 
-### Step 1: Project Configuration & Styling
-- [ ] **Install Dependencies**: `react-router-dom`, `axios`, `@tanstack/react-query`, `lucide-react`, `clsx`, `tailwind-merge`.
-- [ ] **Configure Tailwind**: Set up a premium color palette (Slate/Zinc, Indigo/Violet accents) and font (Inter/Outfit).
-- [ ] **Setup Axios Client**:
-  - Base URL: `/` (Proxied by Vite to BFF).
-  - Interceptors for global error handling (401 -> Redirect to Login).
+### Step 1: Types & Core Infrastructure
+1. Define Strict Types.
+2. Create `src/auth/tokenStore.ts`.
+3. Implement `apiClient` (Axios):
+   - `withCredentials: true`.
+   - **401**: Just return error code `UNAUTHENTICATED`.
+4. Configure `queryClient`:
+   - `onError`: Emit 'auth:unauthorized' if 401. Else toast (deduped).
 
-### Step 2: Global Components & Layout
-- [ ] **UI Kit**: Button (variants), Input, Card, Toast/Notification System.
-- [ ] **Layouts**:
-  - `AuthLayout`: Centered card for Login/Register.
-  - `DashboardLayout`: Navbar (with Logout), Sidebar (optional), Main Content area.
+### Step 2: Auth Provider & Logout Logic
+1. Implement `AuthProvider`:
+   - Listens for 'auth:unauthorized'.
+   - `logout()`: `isLoggingOut` check -> `queryClient.clear()` -> Clear Token -> Navigate `/login`.
+   - Only react if currently authenticated.
 
-### Step 3: Authentication Feature
-- [ ] **AuthProvider**: Context to hold `user` object and `isAuthenticated` state.
-- [ ] **Login Page**: Form validation, API integration.
-- [ ] **Register Page**: Form, Success state.
-- [ ] **Route Protection**: `RequireAuth` wrapper component to protect dashboard routes.
+### Step 3: UI Foundation & Pages
+1. Setup Tailwind + Shadcn/UI (Emerald/Zinc).
+2. Create State Components.
+3. `/login`, `/events` (Feed), `/events/:id`.
 
-### Step 4: Event Simulation Feature
-- [ ] **EventService**: API wrapper for `/api/events`.
-- [ ] **Simulation Component**: Buttons to trigger 'item_viewed', 'item_purchased' events.
-- [ ] **Live Feed (Optional/Future)**: If we have WS later, show events appearing. For now, just show "Event Sent" logs in a UI console.
+---
 
-### 5. Integration Verification
-- [ ] **End-to-End Manual Test**:
-  - Register -> Verify -> Login -> Click Buttons -> Check Backend Logs (BFF/Event Service).
+## DoD (Definition of Done) - Hard Gates
+Phase 2 is **NOT** complete unless:
+- [x] `/events` renders real data from `/api/feed`.
+- [x] 401 triggers clean Redirect to Login (Idempotent, no loops, only if logged in).
+- [x] Logout clears Query Cache (Verified).
+- [x] Axios has `withCredentials: true`.
+- [x] Toast does not flood on 500s.
