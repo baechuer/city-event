@@ -99,7 +99,7 @@ func TestConcurrentJoin_DoesNotOversellCapacity(t *testing.T) {
 		userID := uuid.New()
 		go func(uid uuid.UUID) {
 			defer wg.Done()
-			st, err := repo.JoinEvent(ctx, "trace-concurrent", eventID, uid)
+			st, err := repo.JoinEvent(ctx, "trace-concurrent", "", eventID, uid)
 			ch <- res{status: st, err: err}
 		}(userID)
 	}
@@ -182,7 +182,7 @@ func TestConcurrentJoin_SameUser_OneRowOnly(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			_, err := repo.JoinEvent(ctx, "trace-same-user", eventID, userID)
+			_, err := repo.JoinEvent(ctx, "trace-same-user", "", eventID, userID)
 			// 允许：nil（幂等返回成功） or ErrAlreadyJoined（你 domain 里有这个）
 			if err != nil && !errors.Is(err, domain.ErrAlreadyJoined) {
 				errs <- err
@@ -226,21 +226,50 @@ func TestConcurrentCancel_PromotesWaitlist_NoDuplicates_NoNegativeCounts(t *test
 	require.NoError(t, repo.InitCapacity(ctx, eventID, capacity))
 
 	// 先填满：1 active + k waitlisted（不超过 waitlist max，避免全是 ErrEventFull）
-	activeUser := uuid.New()
-	_, err := repo.JoinEvent(ctx, "trace-seed", eventID, activeUser)
-	require.NoError(t, err)
+	user1 := uuid.New()
+	user2 := uuid.New()
+	user3 := uuid.New()
 
-	k := domain.WaitlistMax(capacity)
-	if k > 8 {
-		k = 8
+	// 1) Join 1
+	status, err := repo.JoinEvent(context.Background(), "t1", "", eventID, user1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	waitUsers := make([]uuid.UUID, 0, k)
-	for i := 0; i < k; i++ {
-		uid := uuid.New()
-		waitUsers = append(waitUsers, uid)
-		_, err := repo.JoinEvent(ctx, "trace-seed", eventID, uid)
+	require.Equal(t, domain.StatusActive, status)
+
+	// 2) Join 2 (Waitlist)
+	status, err = repo.JoinEvent(context.Background(), "t2", "", eventID, user2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	require.Equal(t, domain.StatusWaitlisted, status)
+
+	// 3) Fill waitlist until full. WaitlistMax(1) is 20.
+	// We already have user2 in waitlist (1/20).
+	for i := 0; i < 19; i++ {
+		_, err = repo.JoinEvent(context.Background(), "t-fill", "", eventID, uuid.New())
 		require.NoError(t, err)
 	}
+
+	// 4) Join 3 (Full) - This should now actually fail.
+	status, err = repo.JoinEvent(context.Background(), "t3", "", eventID, user3)
+	if !errors.Is(err, domain.ErrEventFull) {
+		t.Fatalf("expected full, got %v", err)
+	}
+	if status != "" {
+		t.Errorf("expected empty status on error, got %s", status)
+	}
+
+	// 5) Cancel 1 -> Promotes 2
+	err = repo.CancelJoin(context.Background(), "c1", "", eventID, user1)
+	if err != nil {
+		t.Fatalf("cancel failed: %v", err)
+	}
+
+	// Verify Join 2 is now active
+	rec, err := repo.GetByEventAndUser(context.Background(), eventID, user2)
+	require.NoError(t, err)
+	require.Equal(t, domain.StatusActive, rec.Status) // User2 should now be active
 
 	// 并发：cancel active + 多个新 join 抢占（测试 promote/计数一致性）
 	var wg sync.WaitGroup
@@ -250,7 +279,7 @@ func TestConcurrentCancel_PromotesWaitlist_NoDuplicates_NoNegativeCounts(t *test
 
 	go func() {
 		defer wg.Done()
-		err := repo.CancelJoin(ctx, "trace-cancel", eventID, activeUser)
+		err := repo.CancelJoin(ctx, "trace-cancel", "", eventID, user1)
 		// cancel 不应该报错
 		errs <- err
 	}()
@@ -259,7 +288,7 @@ func TestConcurrentCancel_PromotesWaitlist_NoDuplicates_NoNegativeCounts(t *test
 		go func() {
 			defer wg.Done()
 			uid := uuid.New()
-			_, err := repo.JoinEvent(ctx, "trace-join-after-cancel", eventID, uid)
+			_, err := repo.JoinEvent(ctx, "trace-join-after-cancel", "", eventID, uid)
 			// 允许 full（极端情况下 waitlist 被顶满）
 			if err != nil && !errors.Is(err, domain.ErrEventFull) {
 				errs <- err

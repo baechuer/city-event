@@ -28,9 +28,9 @@ func TestListMyJoins_KeysetPagination_Basic(t *testing.T) {
 	require.NoError(t, repo.InitCapacity(ctx, event1, 1))
 	require.NoError(t, repo.InitCapacity(ctx, event2, 0)) // 通常会进入 waitlist（取决于你 repo 语义）
 
-	_, err := repo.JoinEvent(ctx, "trace_"+uuid.NewString(), event1, userID)
+	_, err := repo.JoinEvent(ctx, "trace_"+uuid.NewString(), "", event1, userID)
 	require.NoError(t, err)
-	_, err = repo.JoinEvent(ctx, "trace_"+uuid.NewString(), event2, userID)
+	_, err = repo.JoinEvent(ctx, "trace_"+uuid.NewString(), "", event2, userID)
 	require.NoError(t, err)
 
 	limit := 1

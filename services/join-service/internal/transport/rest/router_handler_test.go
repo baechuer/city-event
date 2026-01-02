@@ -68,6 +68,27 @@ type fakeRepo struct {
 	notImplErr error
 }
 
+// MockService
+type MockService struct {
+	JoinFunc   func(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) (string, error)
+	CancelFunc func(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) error
+	// ... other methods if needed by handler tests
+}
+
+func (m *MockService) Join(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) (string, error) {
+	if m.JoinFunc != nil {
+		return m.JoinFunc(ctx, traceID, idempotencyKey, eventID, userID)
+	}
+	return "active", nil
+}
+
+func (m *MockService) Cancel(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) error {
+	if m.CancelFunc != nil {
+		return m.CancelFunc(ctx, traceID, idempotencyKey, eventID, userID)
+	}
+	return nil
+}
+
 func (r *fakeRepo) notImpl() error {
 	if r.notImplErr != nil {
 		return r.notImplErr
@@ -77,14 +98,14 @@ func (r *fakeRepo) notImpl() error {
 
 // --- domain.JoinRepository ---
 
-func (r *fakeRepo) JoinEvent(ctx context.Context, traceID string, eventID, userID uuid.UUID) (domain.JoinStatus, error) {
+func (r *fakeRepo) JoinEvent(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) (domain.JoinStatus, error) {
 	if r.joinFn == nil {
 		return "", r.notImpl()
 	}
 	return r.joinFn(ctx, traceID, eventID, userID)
 }
 
-func (r *fakeRepo) CancelJoin(ctx context.Context, traceID string, eventID, userID uuid.UUID) error {
+func (r *fakeRepo) CancelJoin(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) error {
 	if r.cancelFn == nil {
 		return r.notImpl()
 	}

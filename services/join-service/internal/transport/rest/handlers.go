@@ -52,7 +52,12 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := h.svc.Join(r.Context(), traceID, eventID, auth.UserID)
+	idempotencyKey := r.Header.Get("Idempotency-Key")
+	if idempotencyKey == "" {
+		idempotencyKey = r.Header.Get("X-Idempotency-Key") // fallback support
+	}
+
+	status, err := h.svc.Join(r.Context(), traceID, idempotencyKey, eventID, auth.UserID)
 	if err != nil {
 		handleErr(w, r, err)
 		return
@@ -83,7 +88,12 @@ func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.svc.Cancel(r.Context(), traceID, eventID, auth.UserID); err != nil {
+	idempotencyKey := r.Header.Get("Idempotency-Key")
+	if idempotencyKey == "" {
+		idempotencyKey = r.Header.Get("X-Idempotency-Key")
+	}
+
+	if err := h.svc.Cancel(r.Context(), traceID, idempotencyKey, eventID, auth.UserID); err != nil {
 		handleErr(w, r, err)
 		return
 	}
@@ -97,6 +107,13 @@ func handleErr(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, domain.ErrEventFull):
 		fail(w, r, http.StatusConflict, "event.full", err.Error(), nil)
+		return
+	case errors.Is(err, domain.ErrIdempotencyKeyMismatch):
+		fail(w, r, http.StatusConflict, "idempotency_key_mismatch", err.Error(), nil)
+		return
+	case errors.Is(err, domain.ErrAlreadyJoined):
+		// BFF will treat this as success (idempotent result)
+		fail(w, r, http.StatusConflict, "state_already_reached", err.Error(), nil)
 		return
 
 	case errors.Is(err, domain.ErrEventClosed):

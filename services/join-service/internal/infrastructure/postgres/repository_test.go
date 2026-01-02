@@ -53,7 +53,7 @@ func TestJoinFlow_CapacityLimits(t *testing.T) {
 
 	// 2. User A joins: Should be 'active' as it's the first person.
 	u1 := uuid.New()
-	status, err := repo.JoinEvent(ctx, "trace-1", eventID, u1)
+	status, err := repo.JoinEvent(ctx, "trace-1", "", eventID, u1)
 	assert.NoError(t, err)
 	assert.Equal(t, domain.StatusActive, status)
 
@@ -64,7 +64,7 @@ func TestJoinFlow_CapacityLimits(t *testing.T) {
 
 	// 3. User B joins: Capacity is full, so they must be 'waitlisted'.
 	u2 := uuid.New()
-	status, err = repo.JoinEvent(ctx, "trace-2", eventID, u2)
+	status, err = repo.JoinEvent(ctx, "trace-2", "", eventID, u2)
 	assert.NoError(t, err)
 	assert.Equal(t, domain.StatusWaitlisted, status)
 
@@ -85,11 +85,11 @@ func TestCancelJoin_PromotesWaitlist(t *testing.T) {
 	repo.InitCapacity(ctx, eventID, 1)
 
 	// U1 gets the active slot, U2 goes to waitlist.
-	repo.JoinEvent(ctx, "t1", eventID, u1)
-	repo.JoinEvent(ctx, "t2", eventID, u2)
+	repo.JoinEvent(ctx, "t1", "", eventID, u1)
+	repo.JoinEvent(ctx, "t2", "", eventID, u2)
 
 	// U1 cancels their participation.
-	err := repo.CancelJoin(ctx, "t3", eventID, u1)
+	err := repo.CancelJoin(ctx, "t3", "", eventID, u1)
 	assert.NoError(t, err)
 
 	// Verify U1 is now 'canceled'.
@@ -113,18 +113,56 @@ func TestJoin_Idempotency(t *testing.T) {
 	repo, _ := setupRepo(t)
 	ctx := context.Background()
 	eventID := uuid.New()
-	u1 := uuid.New()
+	userA, userB, userC, userD := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 
-	repo.InitCapacity(ctx, eventID, 10)
+	repo.InitCapacity(ctx, eventID, 1) // Start with capacity 1
 
-	// First join attempt.
-	status, err := repo.JoinEvent(ctx, "t1", eventID, u1)
-	assert.NoError(t, err)
-	assert.Equal(t, domain.StatusActive, status)
+	// 1. Join A
+	status, err := repo.JoinEvent(context.Background(), "trace1", "", eventID, userA)
+	require.NoError(t, err)
+	require.Equal(t, domain.StatusActive, status)
 
-	// Second join attempt: Should trigger the business rule error[cite: 77].
-	_, err = repo.JoinEvent(ctx, "t2", eventID, u1)
-	assert.ErrorIs(t, err, domain.ErrAlreadyJoined)
+	// 2. Join A again -> AlreadyJoined
+	_, err = repo.JoinEvent(context.Background(), "trace2", "", eventID, userA)
+	require.ErrorIs(t, err, domain.ErrAlreadyJoined)
+
+	// 3. User B joins -> Waitlisted
+	status, err = repo.JoinEvent(context.Background(), "trace3", "", eventID, userB)
+	require.NoError(t, err)
+	require.Equal(t, domain.StatusWaitlisted, status)
+
+	// 4. Cancel A -> B promoted
+	err = repo.CancelJoin(context.Background(), "trace4", "", eventID, userA)
+	require.NoError(t, err)
+
+	// 5. Check B promoted (by listing participants or join event)
+	// Using JoinEvent for "get status" via err check is hacky but confirms status
+	status, err = repo.JoinEvent(context.Background(), "trace5", "", eventID, userB)
+	// Should be AlreadyJoined (logic) but actually we can check DB or List
+	require.ErrorIs(t, err, domain.ErrAlreadyJoined)
+	// We can't easily check current status via JoinEvent return value when it errors,
+	// assuming JoinEvent returns correct status even on ErrAlreadyJoined is risky unless we changed implementation.
+	// Actually JoinEvent returns "" on ErrAlreadyJoined currently in repo.
+
+	// Let's use ListParticipants to verify B is active
+	list, _, err := repo.ListParticipants(context.Background(), eventID, 10, nil)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	require.Equal(t, userB, list[0].UserID)
+
+	// 6. Init Capacity Update
+	err = repo.InitCapacity(context.Background(), eventID, 5)
+	require.NoError(t, err)
+
+	// 7. Join C -> Active
+	status, err = repo.JoinEvent(context.Background(), "trace6", "", eventID, userC)
+	require.NoError(t, err)
+	require.Equal(t, domain.StatusActive, status)
+
+	// 8. Join D -> Active
+	status, err = repo.JoinEvent(context.Background(), "trace7", "", eventID, userD)
+	require.NoError(t, err)
+	require.Equal(t, domain.StatusActive, status)
 }
 
 // TestHandleEventCanceled verifies bulk expiration logic when an event is canceled[cite: 90, 94, 97].
@@ -139,7 +177,7 @@ func TestHandleEventCanceled(t *testing.T) {
 
 	u1 := uuid.New()
 	// User must be successfully joined as 'active' before testing the cancel flow.
-	status, err := repo.JoinEvent(ctx, "trace-setup", eventID, u1)
+	status, err := repo.JoinEvent(ctx, "trace-setup", "", eventID, u1)
 	require.NoError(t, err)
 	require.Equal(t, domain.StatusActive, status)
 

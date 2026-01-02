@@ -30,14 +30,42 @@ func New(pool *pgxpool.Pool) *Repository {
 // This prevents cycles between JoinEvent/CancelJoin/Consumer(event.canceled).
 // -------------------------
 
-func (r *Repository) JoinEvent(ctx context.Context, traceID string, eventID, userID uuid.UUID) (domain.JoinStatus, error) {
+func (r *Repository) JoinEvent(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) (domain.JoinStatus, error) {
 	traceID = strings.TrimSpace(traceID)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
 
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 0) Idempotency Check
+	if idempotencyKey != "" {
+		var insertedKey string
+		err := tx.QueryRow(ctx, `
+			INSERT INTO idempotency_keys (key, user_id, event_id, action, created_at)
+			VALUES ($1, $2, $3, 'join', NOW())
+			ON CONFLICT (key) DO NOTHING
+			RETURNING key
+		`, idempotencyKey, userID, eventID).Scan(&insertedKey)
+
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Key exists. Verify payload.
+			var existUser, existEvent uuid.UUID
+			var existAction string
+			err := tx.QueryRow(ctx, `SELECT user_id, event_id, action FROM idempotency_keys WHERE key = $1`, idempotencyKey).Scan(&existUser, &existEvent, &existAction)
+			if err != nil {
+				return "", err
+			}
+			if existUser != userID || existEvent != eventID || existAction != "join" {
+				return "", domain.ErrIdempotencyKeyMismatch
+			}
+			// Payload matches: Allow fall-through to see if we are already joined.
+		} else if err != nil {
+			return "", err
+		}
+	}
 
 	// 1) Lock capacity FIRST (global lock for this event_id)
 	var capacity, activeCount, waitlistCount int
@@ -160,14 +188,42 @@ func (r *Repository) JoinEvent(ctx context.Context, traceID string, eventID, use
 	return newStatus, nil
 }
 
-func (r *Repository) CancelJoin(ctx context.Context, traceID string, eventID, userID uuid.UUID) error {
+func (r *Repository) CancelJoin(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) error {
 	traceID = strings.TrimSpace(traceID)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
 
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 0) Idempotency Check
+	if idempotencyKey != "" {
+		var insertedKey string
+		err := tx.QueryRow(ctx, `
+			INSERT INTO idempotency_keys (key, user_id, event_id, action, created_at)
+			VALUES ($1, $2, $3, 'cancel', NOW())
+			ON CONFLICT (key) DO NOTHING
+			RETURNING key
+		`, idempotencyKey, userID, eventID).Scan(&insertedKey)
+
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Key exists. Verify payload.
+			var existUser, existEvent uuid.UUID
+			var existAction string
+			err := tx.QueryRow(ctx, `SELECT user_id, event_id, action FROM idempotency_keys WHERE key = $1`, idempotencyKey).Scan(&existUser, &existEvent, &existAction)
+			if err != nil {
+				return err
+			}
+			if existUser != userID || existEvent != eventID || existAction != "cancel" {
+				return domain.ErrIdempotencyKeyMismatch
+			}
+			// Payload matches: Allow fall-through.
+		} else if err != nil {
+			return err
+		}
+	}
 
 	// 1) Lock capacity FIRST
 	var capacity, waitlistCount int

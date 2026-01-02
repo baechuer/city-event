@@ -111,12 +111,12 @@
 - 刷新页面仍保持登录（通过 refresh 恢复）
 - 并发 401 不会触发 refresh 风暴（最多 1 次 refresh）
 ### DoD Checklist
-- [ ] `/api/auth/login` 成功后：浏览器收到 refresh cookie（HttpOnly），响应体包含 access token
-- [ ] 刷新页面后可自动恢复会话（通过 `/api/auth/refresh` → `/api/auth/me`）
-- [ ] 401 全局处理完成：并发 401 只触发一次 refresh（可用日志计数证明）
-- [ ] refresh 失败会清理客户端会话并跳转登录（无死循环）
-- [ ] 429 展示明确提示（而不是无限重试/无提示）
-- [ ] Dev/Prod cookie 行为差异记录在 `docs/auth.md`（例如 Secure、SameSite、__Host-）
+- [x] `/api/auth/login` 成功后：浏览器收到 refresh cookie（HttpOnly），响应体包含 access token
+- [x] 刷新页面后可自动恢复会话（通过 `/api/auth/refresh` → `/api/auth/me`）
+- [x] 401 全局处理完成：并发 401 只触发一次 refresh（可用日志计数证明）
+- [x] refresh 失败会清理客户端会话并跳转登录（无死循环）
+- [x] 429 展示明确提示（而不是无限重试/无提示）
+- [x] Dev/Prod cookie 行为差异记录在 `docs/auth.md`（例如 Secure、SameSite、__Host-）
 
 ---
 
@@ -320,7 +320,7 @@
 - [x] Phase 0：BFF endpoints + ViewModel + 错误格式文档完成
 - [x] Phase 1：Compose 本地闭环可跑
 - [x] Phase 2：React SPA 骨架 + bff-service 骨架 + `/api/events` 可用
-- [ ] Phase 3：Auth B1 全链路 + refresh 单飞
+- [x] Phase 3：Auth B1 全链路 + refresh 单飞
 - [ ] Phase 4：`/api/events/{id}/view` + join/cancel
 - [ ] Phase 5：前端关键页面闭环
 - [ ] Phase 6：Minikube 部署 + Ingress 单入口

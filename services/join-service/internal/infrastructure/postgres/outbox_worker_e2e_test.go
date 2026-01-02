@@ -140,7 +140,7 @@ func TestOutboxWorker_E2E_PublishesAndMarksSent(t *testing.T) {
 	require.NoError(t, repo.InitCapacity(ctx, eventID, 1))
 
 	// 触发 outbox：JoinEvent 会插入 join.created
-	_, err := repo.JoinEvent(ctx, traceID, eventID, userID)
+	_, err := repo.JoinEvent(ctx, traceID, "", eventID, userID)
 	require.NoError(t, err)
 
 	workerCtx, workerCancel := context.WithCancel(ctx)
@@ -175,7 +175,7 @@ func TestOutboxWorker_MandatoryNoRoute_IncrementsAttemptAndSchedulesRetry(t *tes
 
 	const exchange = "city.events"
 
-	// 只声明 exchange，不绑定任何 queue => mandatory 会触发 return (NO_ROUTE)
+	// 只声明 exchange，不绑定任何 queue => mandatory 会触发 return
 	ch, err := conn.Channel()
 	require.NoError(t, err)
 	defer ch.Close()
@@ -187,7 +187,7 @@ func TestOutboxWorker_MandatoryNoRoute_IncrementsAttemptAndSchedulesRetry(t *tes
 	traceID := "trace-outbox-noroute"
 
 	require.NoError(t, repo.InitCapacity(ctx, eventID, 1))
-	_, err = repo.JoinEvent(ctx, traceID, eventID, userID)
+	_, err = repo.JoinEvent(ctx, traceID, "", eventID, userID)
 	require.NoError(t, err)
 
 	workerCtx, workerCancel := context.WithCancel(ctx)
@@ -231,7 +231,7 @@ func TestOutboxWorker_Idempotent_NoDoubleSendAfterSent(t *testing.T) {
 	traceID := "trace-outbox-idem"
 
 	require.NoError(t, repo.InitCapacity(ctx, eventID, 1))
-	_, err := repo.JoinEvent(ctx, traceID, eventID, userID)
+	_, err := repo.JoinEvent(ctx, traceID, "", eventID, userID)
 	require.NoError(t, err)
 
 	msgs, err := ch.Consume(q.Name, "", true, true, false, false, nil)

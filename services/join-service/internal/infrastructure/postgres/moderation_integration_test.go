@@ -29,11 +29,11 @@ func TestModeration_Kick_PromotesWaitlist_AndWritesOutbox(t *testing.T) {
 	u1 := uuid.New()
 	u2 := uuid.New()
 
-	st, err := repo.JoinEvent(ctx, "t1", eventID, u1)
+	st, err := repo.JoinEvent(ctx, "t1", "", eventID, u1)
 	require.NoError(t, err)
 	require.Equal(t, "active", string(st))
 
-	st, err = repo.JoinEvent(ctx, "t2", eventID, u2)
+	st, err = repo.JoinEvent(ctx, "t2", "", eventID, u2)
 	require.NoError(t, err)
 	require.Equal(t, "waitlisted", string(st))
 
@@ -76,7 +76,7 @@ func TestModeration_Ban_And_Unban_WritesOutbox_AndEnforcesBanRow(t *testing.T) {
 	target := uuid.New()
 
 	require.NoError(t, repo.InitCapacity(ctx, eventID, 1))
-	_, _ = repo.JoinEvent(ctx, "t1", eventID, target)
+	_, _ = repo.JoinEvent(ctx, "t1", "", eventID, target)
 
 	require.NoError(t, repo.Ban(ctx, "trace-ban", eventID, target, actorID, "spam", nil))
 
@@ -115,11 +115,11 @@ func TestModeration_Kick_PromotesWaitlist_UpdatesCounters_AndOutbox(t *testing.T
 
 	require.NoError(t, repo.InitCapacity(ctx, eventID, 1))
 
-	st, err := repo.JoinEvent(ctx, "t-join-1", eventID, u1)
+	st, err := repo.JoinEvent(ctx, "t-join-1", "", eventID, u1)
 	require.NoError(t, err)
 	require.Equal(t, domain.StatusActive, st)
 
-	st, err = repo.JoinEvent(ctx, "t-join-2", eventID, u2)
+	st, err = repo.JoinEvent(ctx, "t-join-2", "", eventID, u2)
 	require.NoError(t, err)
 	require.Equal(t, domain.StatusWaitlisted, st)
 
@@ -172,7 +172,7 @@ func TestModeration_Ban_BlocksJoin_AndWritesOutbox(t *testing.T) {
 	trace := "trace-ban-1"
 	require.NoError(t, repo.Ban(ctx, trace, eventID, target, actorID, "spam", nil))
 
-	_, err := repo.JoinEvent(ctx, "t-join-banned", eventID, target)
+	_, err := repo.JoinEvent(ctx, "t-join-banned", "", eventID, target)
 	require.ErrorIs(t, err, domain.ErrBanned)
 
 	var exists bool
@@ -202,7 +202,7 @@ func TestModeration_Ban_ExpiresAt_AllowsJoinAfterExpiry(t *testing.T) {
 	exp := time.Now().Add(-1 * time.Minute).UTC()
 	require.NoError(t, repo.Ban(ctx, "trace-ban-expired", eventID, target, actorID, "temp", &exp))
 
-	st, err := repo.JoinEvent(ctx, "t-join-after-exp", eventID, target)
+	st, err := repo.JoinEvent(ctx, "t-join-after-exp", "", eventID, target)
 	require.NoError(t, err)
 	require.True(t, st == domain.StatusActive || st == domain.StatusWaitlisted)
 

@@ -27,9 +27,9 @@ func TestReads_ListMyJoins_KeysetPaging(t *testing.T) {
 	require.NoError(t, repo.InitCapacity(ctx, e1, 10))
 	require.NoError(t, repo.InitCapacity(ctx, e2, 10))
 
-	_, err := repo.JoinEvent(ctx, "t1", e1, userID)
+	_, err := repo.JoinEvent(ctx, "t1", "", e1, userID)
 	require.NoError(t, err)
-	_, err = repo.JoinEvent(ctx, "t2", e2, userID)
+	_, err = repo.JoinEvent(ctx, "t2", "", e2, userID)
 	require.NoError(t, err)
 
 	var j1, j2 uuid.UUID
@@ -69,11 +69,11 @@ func TestReads_ListParticipants_And_Waitlist_FilterStatusOnly(t *testing.T) {
 	u1 := uuid.New()
 	u2 := uuid.New()
 
-	st, err := repo.JoinEvent(ctx, "t1", eventID, u1)
+	st, err := repo.JoinEvent(ctx, "t1", "", eventID, u1)
 	require.NoError(t, err)
 	require.Equal(t, "active", string(st))
 
-	st, err = repo.JoinEvent(ctx, "t2", eventID, u2)
+	st, err = repo.JoinEvent(ctx, "t2", "", eventID, u2)
 	require.NoError(t, err)
 	require.Equal(t, "waitlisted", string(st))
 

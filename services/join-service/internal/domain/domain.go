@@ -30,6 +30,9 @@ var (
 	ErrAlreadyJoined = errors.New("already joined event")
 	ErrEventNotKnown = errors.New("unknown event") // capacity row missing (your current join path)
 	ErrNotJoined     = errors.New("event not joined")
+
+	// Idempotency
+	ErrIdempotencyKeyMismatch = errors.New("idempotency key mismatch")
 )
 
 type KeysetCursor struct {
@@ -70,8 +73,8 @@ type EventStats struct {
 
 // JoinRepository handles DB transactions, locking, outbox, and read endpoints.
 type JoinRepository interface {
-	JoinEvent(ctx context.Context, traceID string, eventID, userID uuid.UUID) (JoinStatus, error)
-	CancelJoin(ctx context.Context, traceID string, eventID, userID uuid.UUID) error
+	JoinEvent(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) (JoinStatus, error)
+	CancelJoin(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) error
 
 	// Single Check
 	GetByEventAndUser(ctx context.Context, eventID, userID uuid.UUID) (JoinRecord, error)

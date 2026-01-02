@@ -38,7 +38,7 @@ func (s *JoinService) requireOrganizerOrAdmin(ctx context.Context, eventID uuid.
 	return nil
 }
 
-func (s *JoinService) Join(ctx context.Context, traceID string, eventID, userID uuid.UUID) (string, error) {
+func (s *JoinService) Join(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) (string, error) {
 	// cache fast-fail stays
 	if s.cache != nil {
 		capacity, err := s.cache.GetEventCapacity(ctx, eventID)
@@ -50,7 +50,7 @@ func (s *JoinService) Join(ctx context.Context, traceID string, eventID, userID 
 			// ignore redis errors
 		}
 	}
-	status, err := s.repo.JoinEvent(ctx, traceID, eventID, userID)
+	status, err := s.repo.JoinEvent(ctx, traceID, idempotencyKey, eventID, userID)
 	if err != nil {
 		return "", err
 	}
@@ -62,8 +62,8 @@ func (s *JoinService) GetMyParticipation(ctx context.Context, userID, eventID uu
 	return s.repo.GetByEventAndUser(ctx, eventID, userID)
 }
 
-func (s *JoinService) Cancel(ctx context.Context, traceID string, eventID, userID uuid.UUID) error {
-	return s.repo.CancelJoin(ctx, traceID, eventID, userID)
+func (s *JoinService) Cancel(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) error {
+	return s.repo.CancelJoin(ctx, traceID, idempotencyKey, eventID, userID)
 }
 
 // Reads
