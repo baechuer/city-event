@@ -8,23 +8,23 @@ import (
 )
 
 type Event struct {
-	ID                 string
-	OwnerID            string
-	Title              string
-	Description        string
-	City               string
-	Category           string
-	StartTime          time.Time
-	EndTime            time.Time
-	Capacity           int // 0 = unlimited
-	ActiveParticipants int
+	ID                 string    `json:"id"`
+	OwnerID            string    `json:"owner_id"`
+	Title              string    `json:"title"`
+	Description        string    `json:"description"`
+	City               string    `json:"city"`
+	Category           string    `json:"category"`
+	StartTime          time.Time `json:"start_time"`
+	EndTime            time.Time `json:"end_time"`
+	Capacity           int       `json:"capacity"` // 0 = unlimited
+	ActiveParticipants int       `json:"active_participants"`
 
-	Status      EventStatus
-	PublishedAt *time.Time
-	CanceledAt  *time.Time
+	Status      EventStatus `json:"status"`
+	PublishedAt *time.Time  `json:"published_at,omitempty"`
+	CanceledAt  *time.Time  `json:"canceled_at,omitempty"`
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func NewDraft(ownerID, title, description, city, category string, start, end time.Time, capacity int, now time.Time) (*Event, error) {

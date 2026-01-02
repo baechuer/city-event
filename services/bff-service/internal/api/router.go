@@ -28,7 +28,7 @@ func NewRouter(cfg *config.Config) http.Handler {
 	// 6. Business Handlers (Aggregation & Policy)
 	eventClient := downstream.NewEventClient(cfg.EventServiceURL)
 	joinClient := downstream.NewJoinClient(cfg.JoinServiceURL)
-	authClient := downstream.NewAuthClient(cfg.AuthServiceURL)
+	authClient := downstream.NewAuthClient(cfg.AuthServiceURL, cfg.InternalSecretKey)
 	eventHandler := handlers.NewEventHandler(eventClient, joinClient, authClient)
 
 	// 2. Health check and Proxies
@@ -51,6 +51,7 @@ func NewRouter(cfg *config.Config) http.Handler {
 
 			r.Get("/feed", eventHandler.ListFeed)
 			r.Get("/me/joins", eventHandler.ListMyJoins)
+			r.Get("/me/events", eventHandler.ListCreatedEvents)
 			r.Get("/events", eventHandler.ListEvents)
 			r.Post("/events", eventHandler.CreateEvent)
 			r.Get("/events/{id}/view", eventHandler.GetEventView)

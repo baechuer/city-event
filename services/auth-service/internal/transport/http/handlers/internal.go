@@ -35,5 +35,5 @@ func (h *AuthHandler) InternalGetUser(w http.ResponseWriter, r *http.Request) {
 		Locked:        u.Locked,
 	}
 
-	response.OK(w, map[string]interface{}{"user": data})
+	response.OK(w, data)
 }

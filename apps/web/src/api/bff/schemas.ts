@@ -63,9 +63,9 @@ export const EventSchema = z.object({
     end_time: z.string().nullish().catch(null),
     location: z.string().catch(""),
     capacity: z.number().catch(0),
-    filled_count: z.number().catch(0),
+    active_participants: z.number().catch(0),
     status: z.enum(["draft", "published", "canceled"]).catch("published"),
-    organizer_id: z.string().catch(""),
+    owner_id: z.string().catch(""),
     organizer_name: z.string().catch("-"),
     created_by: z.string().catch(""),
 }).passthrough();

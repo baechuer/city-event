@@ -86,7 +86,7 @@ AND (
 	q := `
 SELECT
   id, owner_id, title, description, city, category,
-  start_time, end_time, capacity, status,
+  start_time, end_time, capacity, active_participants, status,
   published_at, canceled_at, created_at, updated_at,
   ts_rank_cd(search_vector, plainto_tsquery('simple', $` + fmt.Sprintf("%d", qPos) + `)) AS rank
 FROM events
@@ -111,7 +111,7 @@ LIMIT $` + fmt.Sprintf("%d", argN)
 		var rank float64
 		if err := rows.Scan(
 			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
-			&e.StartTime, &e.EndTime, &e.Capacity, &status,
+			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
 			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
 			&rank,
 		); err != nil {
@@ -165,7 +165,7 @@ func scanEvents(rows *sql.Rows) ([]*domain.Event, error) {
 		var status string
 		if err := rows.Scan(
 			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
-			&e.StartTime, &e.EndTime, &e.Capacity, &status,
+			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
 			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, err

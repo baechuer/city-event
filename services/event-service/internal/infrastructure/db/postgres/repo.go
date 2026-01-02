@@ -97,7 +97,7 @@ LIMIT $2 OFFSET $3
 		var status string
 		if err := rows.Scan(
 			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
-			&e.StartTime, &e.EndTime, &e.Capacity, &status,
+			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
 			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, 0, err
@@ -193,7 +193,7 @@ LIMIT $` + fmt.Sprintf("%d", argN) + ` OFFSET $` + fmt.Sprintf("%d", argN+1)
 		var status string
 		if err := rows.Scan(
 			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
-			&e.StartTime, &e.EndTime, &e.Capacity, &status,
+			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
 			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, 0, err

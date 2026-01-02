@@ -109,6 +109,7 @@ services:
       - EVENT_SERVICE_URL=http://event-service:8080
       - JOIN_SERVICE_URL=http://join-service:8080
       - JWT_SECRET=change_me
+      - INTERNAL_SECRET_KEY=sharedkey
 
     depends_on:
       - auth-service

@@ -16,16 +16,17 @@ func ToEventResp(e *domain.Event, now time.Time) EventResp {
 	joinable := (e.Status == domain.StatusPublished) && !ended && (e.Status != domain.StatusCanceled)
 
 	return EventResp{
-		ID:          e.ID,
-		OwnerID:     e.OwnerID,
-		Title:       e.Title,
-		Description: e.Description,
-		City:        e.City,
-		Category:    e.Category,
-		StartTime:   e.StartTime,
-		EndTime:     e.EndTime,
-		Capacity:    e.Capacity,
-		Status:      string(e.Status),
+		ID:                 e.ID,
+		OwnerID:            e.OwnerID,
+		Title:              e.Title,
+		Description:        e.Description,
+		City:               e.City,
+		Category:           e.Category,
+		StartTime:          e.StartTime,
+		EndTime:            e.EndTime,
+		Capacity:           e.Capacity,
+		ActiveParticipants: e.ActiveParticipants,
+		Status:             string(e.Status),
 
 		PublishedAt: e.PublishedAt,
 		CanceledAt:  e.CanceledAt,

@@ -78,6 +78,17 @@ export const bffClient = {
     },
 
     /**
+     * List user's created events (Organized)
+     */
+    async listCreatedEvents(params: {
+        cursor?: string;
+        limit?: number;
+    }, signal?: AbortSignal): Promise<PaginatedEvents> {
+        const res = await apiClient.get('/me/events', { params, signal });
+        return parseResponse(PaginatedResponseSchema(EventCardSchema), res.data);
+    },
+
+    /**
      * Join an event (Idempotent)
      */
     async joinEvent(id: string, idempotencyKey: string): Promise<JoinState> {

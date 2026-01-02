@@ -36,39 +36,39 @@ var (
 )
 
 type KeysetCursor struct {
-	CreatedAt time.Time
-	ID        uuid.UUID
+	CreatedAt time.Time `json:"created_at"`
+	ID        uuid.UUID `json:"id"`
 }
 
 type JoinRecord struct {
-	ID uuid.UUID
+	ID uuid.UUID `json:"id"`
 
-	EventID uuid.UUID
-	UserID  uuid.UUID
-	Status  JoinStatus
+	EventID uuid.UUID  `json:"event_id"`
+	UserID  uuid.UUID  `json:"user_id"`
+	Status  JoinStatus `json:"status"`
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 
-	ActivatedAt   *time.Time
-	CanceledAt    *time.Time
-	ExpiredAt     *time.Time
-	ExpiredReason *string
+	ActivatedAt   *time.Time `json:"activated_at,omitempty"`
+	CanceledAt    *time.Time `json:"canceled_at,omitempty"`
+	ExpiredAt     *time.Time `json:"expired_at,omitempty"`
+	ExpiredReason *string    `json:"expired_reason,omitempty"`
 
-	CanceledBy     *uuid.UUID
-	CanceledReason *string
+	CanceledBy     *uuid.UUID `json:"canceled_by,omitempty"`
+	CanceledReason *string    `json:"canceled_reason,omitempty"`
 
-	RejectedAt     *time.Time
-	RejectedBy     *uuid.UUID
-	RejectedReason *string
+	RejectedAt     *time.Time `json:"rejected_at,omitempty"`
+	RejectedBy     *uuid.UUID `json:"rejected_by,omitempty"`
+	RejectedReason *string    `json:"rejected_reason,omitempty"`
 }
 
 type EventStats struct {
-	EventID       uuid.UUID
-	Capacity      int
-	ActiveCount   int
-	WaitlistCount int
-	UpdatedAt     time.Time
+	EventID       uuid.UUID `json:"event_id"`
+	Capacity      int       `json:"capacity"`
+	ActiveCount   int       `json:"active_count"`
+	WaitlistCount int       `json:"waitlist_count"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // JoinRepository handles DB transactions, locking, outbox, and read endpoints.

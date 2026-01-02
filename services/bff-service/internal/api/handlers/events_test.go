@@ -54,6 +54,14 @@ func (m *mockEventClient) PublishEvent(ctx context.Context, bearerToken, eventID
 	return args.Get(0).(*domain.Event), args.Error(1)
 }
 
+func (m *mockEventClient) ListMine(ctx context.Context, bearerToken string, query url.Values) (*domain.PaginatedResponse[domain.EventCard], error) {
+	args := m.Called(ctx, bearerToken, query)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.PaginatedResponse[domain.EventCard]), args.Error(1)
+}
+
 type mockJoinClient struct {
 	mock.Mock
 }

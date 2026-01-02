@@ -17,7 +17,8 @@ type EventResp struct {
 	EndTime   time.Time `json:"end_time"`
 
 	// 0 means unlimited
-	Capacity int `json:"capacity"`
+	Capacity           int `json:"capacity"`
+	ActiveParticipants int `json:"active_participants"`
 
 	Status string `json:"status"`
 

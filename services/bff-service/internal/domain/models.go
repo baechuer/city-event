@@ -13,20 +13,20 @@ var (
 )
 
 type Event struct {
-	ID            uuid.UUID `json:"id"`
-	Title         string    `json:"title"`
-	Description   string    `json:"description"`
-	City          string    `json:"city"`
-	Category      string    `json:"category"`
-	CoverImage    string    `json:"cover_image,omitempty"`
-	StartTime     time.Time `json:"start_time"`
-	EndTime       time.Time `json:"end_time"`
-	Location      string    `json:"location"`
-	Capacity      int       `json:"capacity"`
-	FilledCount   int       `json:"filled_count"`
-	CreatedBy     uuid.UUID `json:"created_by"`
-	OrganizerID   uuid.UUID `json:"organizer_id"`
-	OrganizerName string    `json:"organizer_name,omitempty"`
+	ID                 uuid.UUID `json:"id"`
+	Title              string    `json:"title"`
+	Description        string    `json:"description"`
+	City               string    `json:"city"`
+	Category           string    `json:"category"`
+	CoverImage         string    `json:"cover_image,omitempty"`
+	StartTime          time.Time `json:"start_time"`
+	EndTime            time.Time `json:"end_time"`
+	Location           string    `json:"location"`
+	Capacity           int       `json:"capacity"`
+	ActiveParticipants int       `json:"active_participants"`
+	CreatedBy          uuid.UUID `json:"created_by"` // Deprecated?
+	OwnerID            uuid.UUID `json:"owner_id"`
+	OrganizerName      string    `json:"organizer_name,omitempty"`
 }
 
 type User struct {

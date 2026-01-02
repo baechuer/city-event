@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -21,6 +23,7 @@ type EventClient interface {
 	ListEvents(ctx context.Context, query url.Values) (*domain.PaginatedResponse[domain.EventCard], error)
 	CreateEvent(ctx context.Context, bearerToken string, body interface{}) (*domain.Event, error)
 	PublishEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error)
+	ListMine(ctx context.Context, bearerToken string, query url.Values) (*domain.PaginatedResponse[domain.EventCard], error)
 }
 
 type JoinClient interface {
@@ -209,6 +212,45 @@ func (h *EventHandler) PublishEvent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ev)
 }
 
+func (h *EventHandler) ListCreatedEvents(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+
+	bearerToken := middleware.GetBearerToken(r.Context())
+
+	// Convert frontend 'cursor' (if any) to 'page'
+	q := r.URL.Query()
+	pageStr := q.Get("cursor")
+	if pageStr == "" {
+		pageStr = "1"
+	}
+	q.Set("page", pageStr)
+	q.Set("page_size", "10") // fixed size
+
+	res, err := h.eventClient.ListMine(ctx, bearerToken, q)
+	if err != nil {
+		handleDownstreamError(w, r, err, "failed to fetch created events")
+		return
+	}
+
+	// Adapt Page based to Cursor based for infinite scroll compatibility
+	// NextCursor = Page + 1
+	if res.HasMore {
+		// Start current page
+		// If page=1, HasMore=true -> Next=2
+		p, _ := strconv.Atoi(pageStr) // Safe since we set it default "1" or it comes from valid source
+		if p == 0 {
+			p = 1
+		}
+		res.NextCursor = fmt.Sprintf("%d", p+1)
+	} else {
+		res.NextCursor = ""
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
+}
+
 func (h *EventHandler) GetEventView(w http.ResponseWriter, r *http.Request) {
 	eventIDStr := chi.URLParam(r, "id")
 	eventID, err := uuid.Parse(eventIDStr)
@@ -264,7 +306,7 @@ func (h *EventHandler) GetEventView(w http.ResponseWriter, r *http.Request) {
 		defer wg.Done()
 		ctx, cancel := context.WithTimeout(r.Context(), 800*time.Millisecond)
 		defer cancel()
-		user, userErr = h.authClient.GetUser(ctx, event.OrganizerID)
+		user, userErr = h.authClient.GetUser(ctx, event.OwnerID)
 	}()
 
 	wg.Wait()

@@ -106,7 +106,7 @@ export function EventDetail() {
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest leading-none mb-1">Availability</span>
-                                        <span className="text-base font-semibold">{event.capacity - event.filled_count} / {event.capacity} Spots Remaining</span>
+                                        <span className="text-base font-semibold">{event.capacity - event.active_participants} / {event.capacity} Spots Remaining</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4 glass-card px-5 py-4 rounded-2xl">

@@ -405,14 +405,68 @@ func (c *EventClient) ListEvents(ctx context.Context, query url.Values) (*domain
 	}, nil
 }
 
-type AuthClient struct {
-	BaseURL    string
-	HTTPClient *http.Client
+func (c *EventClient) ListMine(ctx context.Context, bearerToken string, query url.Values) (*domain.PaginatedResponse[domain.EventCard], error) {
+	u, _ := url.Parse(fmt.Sprintf("%s/event/v1/organizer/events", c.BaseURL))
+	u.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if bearerToken != "" {
+		req.Header.Set("Authorization", bearerToken)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, decodeError(resp)
+	}
+
+	var wrapper dataEnvelope[struct {
+		Items    []domain.EventCard `json:"items"`
+		Page     int                `json:"page"`
+		PageSize int                `json:"page_size"`
+		Total    int                `json:"total"`
+	}]
+
+	if err := json.NewDecoder(resp.Body).Decode(&wrapper); err != nil {
+		return nil, err
+	}
+
+	items := wrapper.Data.Items
+	if items == nil {
+		items = make([]domain.EventCard, 0)
+	}
+
+	// Mapper logic might be needed if EventCard structure differs from EventResp?
+	// EventResp (Service) -> EventCard (BFF).
+	// Service EventResp JSON tags match EventCard JSON tags mostly?
+	// EventStats (Service) vs EventCard.
+	// Assume direct mapping for now as fields align (ID, Title, etc.)
+
+	return &domain.PaginatedResponse[domain.EventCard]{
+		Items:      items,
+		NextCursor: "",                                  // Pagination is Page/Size based in Handler?
+		HasMore:    len(items) == wrapper.Data.PageSize, // Approximation
+	}, nil
 }
 
-func NewAuthClient(baseURL string) *AuthClient {
+type AuthClient struct {
+	BaseURL           string
+	InternalSecretKey string
+	HTTPClient        *http.Client
+}
+
+func NewAuthClient(baseURL, internalSecretKey string) *AuthClient {
 	return &AuthClient{
-		BaseURL: baseURL,
+		BaseURL:           baseURL,
+		InternalSecretKey: internalSecretKey,
 		HTTPClient: &http.Client{
 			Timeout: 1000 * time.Millisecond,
 		},
@@ -425,6 +479,10 @@ func (c *AuthClient) GetUser(ctx context.Context, userID uuid.UUID) (*domain.Use
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if c.InternalSecretKey != "" {
+		req.Header.Set("X-Internal-Secret", c.InternalSecretKey)
 	}
 
 	resp, err := c.HTTPClient.Do(req)
