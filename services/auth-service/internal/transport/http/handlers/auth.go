@@ -123,7 +123,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	toks, err := h.svc.Refresh(r.Context(), refreshTok)
+	toks, user, err := h.svc.Refresh(r.Context(), refreshTok)
 	if err != nil {
 		response.WriteError(w, r, err)
 		return
@@ -136,6 +136,13 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 			AccessToken: toks.AccessToken,
 			TokenType:   toks.TokenType,
 			ExpiresIn:   toks.ExpiresIn,
+		},
+		User: dto.UserView{
+			ID:            user.ID,
+			Email:         user.Email,
+			Role:          user.Role,
+			EmailVerified: user.EmailVerified,
+			Locked:        user.Locked,
 		},
 	}
 

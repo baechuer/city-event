@@ -19,10 +19,10 @@ function AppRoutes() {
         <Route path="/events" element={<EventsFeed />} />
         <Route path="/events/:id" element={<EventDetail />} />
         <Route path="/me/joins" element={<MyJoins />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/" element={<Navigate to="/events" replace />} />
       </Route>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
     </Routes>
   );
 }

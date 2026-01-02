@@ -40,7 +40,7 @@ func TestRefresh_Empty_Invalid(t *testing.T) {
 
 	svc, _, _, _, _, _, _, _ := newSvcForTest(t)
 
-	_, err := svc.Refresh(context.Background(), "")
+	_, _, err := svc.Refresh(context.Background(), "")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -53,7 +53,7 @@ func TestRefresh_TokenNotFound_Invalid(t *testing.T) {
 	svc, _, _, _, sessions, _, _, _ := newSvcForTest(t)
 	sessions.getUserErr = errors.New("not found")
 
-	_, err := svc.Refresh(context.Background(), "rft:missing")
+	_, _, err := svc.Refresh(context.Background(), "refresh-invalid")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -69,7 +69,7 @@ func TestRefresh_UserMissing_Invalid(t *testing.T) {
 	sessions.byToken["rft:u1"] = "u1"
 	users.getByIDErr = errors.New("no user")
 
-	_, err := svc.Refresh(context.Background(), "rft:u1")
+	_, _, err := svc.Refresh(context.Background(), "rft:u1")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -83,7 +83,7 @@ func TestRefresh_LockedUser_ReturnsAccountLocked(t *testing.T) {
 	sessions.byToken["rft:u1"] = "u1"
 	users.byID["u1"] = domain.User{ID: "u1", Email: "e@x.com", Role: "user", Locked: true}
 
-	_, err := svc.Refresh(context.Background(), "rft:u1")
+	_, _, err := svc.Refresh(context.Background(), "rft:u1")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -98,7 +98,7 @@ func TestRefresh_Success_RotatesAndIssuesAccess(t *testing.T) {
 	users.byID["u1"] = domain.User{ID: "u1", Email: "e@x.com", Role: "user", Locked: false}
 	sessions.byToken["rft:u1"] = "u1"
 
-	toks, err := svc.Refresh(context.Background(), "rft:u1")
+	toks, _, err := svc.Refresh(context.Background(), "rft:u1")
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)
 	}
@@ -130,7 +130,7 @@ func TestRefresh_RotateFails_ReturnsRefreshTokenInvalid(t *testing.T) {
 	sessions.byToken["rft:u1"] = "u1"
 	sessions.rotateErr = errors.New("rotate fail")
 
-	_, err := svc.Refresh(context.Background(), "rft:u1")
+	_, _, err := svc.Refresh(context.Background(), "rft:u1")
 	requireErrCode(t, err, "refresh_token_invalid")
 }
 
@@ -146,6 +146,6 @@ func TestRefresh_SignFails_ReturnsTokenSignFailed(t *testing.T) {
 		return "", errors.New("sign fail")
 	}
 
-	_, err := svc.Refresh(context.Background(), "rft:u1")
+	_, _, err := svc.Refresh(context.Background(), "rft:u1")
 	requireErrCode(t, err, "token_sign_failed")
 }

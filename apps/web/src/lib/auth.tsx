@@ -1,14 +1,15 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { apiClient } from './apiClient';
 import { tokenStore } from '../auth/tokenStore';
 import { authEvents, eventBus } from './events';
 import { queryClient } from './queryClient';
-import type { User } from '../types/api';
+import type { User, RefreshResponse } from '../types/api';
 
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
+    loading: boolean;
     login: (credentials: any) => Promise<void>;
     register: (data: any) => Promise<void>;
     logout: () => Promise<void>;
@@ -18,8 +19,35 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
+    const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
     const location = useLocation();
+    const bootstrapRef = useRef(false);
+
+    // Bootstrap Session (Single Flight)
+    useEffect(() => {
+        if (bootstrapRef.current) return;
+        bootstrapRef.current = true;
+
+        const initAuth = async () => {
+            try {
+                // Attempt to refresh session (HttpOnly cookie)
+                // Now returns { tokens, user }
+                const res = await apiClient.post<RefreshResponse>('/auth/refresh');
+
+                tokenStore.setToken(res.data.access_token);
+                setUser(res.data.user);
+            } catch (err) {
+                // If refresh fails (401/403), we are logged out
+                tokenStore.setToken(null);
+                setUser(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        initAuth();
+    }, []);
 
     // Helper to safely navigate to login
     const navigateToLogin = useCallback(() => {
@@ -37,7 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             tokenStore.setLoggingOut(true);
 
             // 1. Call API to clear HttpOnly cookie
-            // We don't care if this fails (e.g. 401), we proceed to clean up client state.
             await apiClient.post('/auth/logout').catch(() => { });
 
             // 2. Clean up Client State (Critical!)
@@ -86,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         <AuthContext.Provider value={{
             user,
             isAuthenticated: !!user,
+            loading, // Expose loading state
             login,
             register,
             logout

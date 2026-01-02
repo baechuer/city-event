@@ -31,7 +31,7 @@ func Test_Login_Then_Refresh_Rotates(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, login.Tokens.RefreshToken)
 
-	rotated, err := d.Svc.Refresh(ctx, login.Tokens.RefreshToken)
+	rotated, _, err := d.Svc.Refresh(ctx, login.Tokens.RefreshToken)
 	require.NoError(t, err)
 
 	// rotated 是 auth.AuthTokens（不是带 Tokens 字段的 struct）
@@ -39,6 +39,6 @@ func Test_Login_Then_Refresh_Rotates(t *testing.T) {
 	require.NotEqual(t, login.Tokens.RefreshToken, rotated.RefreshToken)
 
 	// 老 refresh 应该失效（rotate delete old）
-	_, err = d.Svc.Refresh(ctx, login.Tokens.RefreshToken)
+	_, _, err = d.Svc.Refresh(ctx, login.Tokens.RefreshToken)
 	require.Error(t, err)
 }

@@ -18,15 +18,18 @@ export function EventsFeed() {
         error,
         refetch
     } = useInfiniteQuery({
-        queryKey: ['feed'],
+        queryKey: ['feed', 'v2'],
         queryFn: async ({ pageParam }) => {
-            const res = await apiClient.get<CursorEnvelope<EventCardType>>('/feed', {
+            // The API returns { data: CursorEnvelope }.
+            // Axios res.data is the JSON body.
+            // So we need res.data.data to get the envelope.
+            const res = await apiClient.get<{ data: CursorEnvelope<EventCardType> }>('/feed', {
                 params: {
                     cursor: pageParam,
                     limit: 10,
                 },
             });
-            return res.data;
+            return res.data.data;
         },
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (lastPage) => lastPage.next_cursor || undefined,
@@ -40,7 +43,7 @@ export function EventsFeed() {
         />
     );
 
-    const allEvents = data?.pages.flatMap((page) => page.items) || [];
+    const allEvents = data?.pages.flatMap((page) => page?.items || []) || [];
 
     return (
         <main className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">

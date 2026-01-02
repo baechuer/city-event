@@ -32,6 +32,6 @@ func Test_SessionsRevoke_InvalidatesRefresh(t *testing.T) {
 
 	require.NoError(t, d.Svc.SessionsRevoke(ctx, reg.User.ID))
 
-	_, err = d.Svc.Refresh(ctx, login.Tokens.RefreshToken)
+	_, _, err = d.Svc.Refresh(ctx, login.Tokens.RefreshToken)
 	require.Error(t, err)
 }

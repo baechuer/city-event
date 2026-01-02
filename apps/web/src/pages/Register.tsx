@@ -34,7 +34,7 @@ export function Register() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-muted/20 px-4">
+        <div className="flex flex-1 items-center justify-center bg-muted/20 px-4 pb-14">
             <div className="w-full max-w-md space-y-8 rounded-xl border bg-card p-8 shadow-sm">
                 <div className="text-center">
                     <h1 className="text-3xl font-bold tracking-tight text-emerald-600">CityEvents</h1>

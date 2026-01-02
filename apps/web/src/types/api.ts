@@ -67,6 +67,13 @@ export interface EventCard {
     score?: number;
 }
 
+export type RefreshResponse = {
+    access_token: string;
+    token_type: string;
+    expires_in: number;
+    user: User; // Backend now returns user on refresh
+}
+
 export interface ViewerContext {
     participation_status: ParticipationStatus;
     can_join: boolean;

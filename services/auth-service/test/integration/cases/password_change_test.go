@@ -36,7 +36,7 @@ func Test_PasswordChange_RevokesSessions(t *testing.T) {
 	}
 
 	// refresh token 应该被 revoke（若你实现里 password change 会触发 revokeAll/token version bump）
-	_, err = d.Svc.Refresh(ctx, login.Tokens.RefreshToken)
+	_, _, err = d.Svc.Refresh(ctx, login.Tokens.RefreshToken)
 	require.Error(t, err)
 
 	// 新密码应该能登录

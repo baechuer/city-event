@@ -9,8 +9,12 @@ import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";
 
+import { GlobalErrorBoundary } from './components/GlobalErrorBoundary.tsx'
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <GlobalErrorBoundary>
+      <App />
+    </GlobalErrorBoundary>
   </StrictMode>,
 )

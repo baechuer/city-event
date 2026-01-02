@@ -103,6 +103,7 @@ type AuthData struct {
 // RefreshData is returned by refresh.
 type RefreshData struct {
 	Tokens TokensView `json:"tokens"`
+	User   UserView   `json:"user"`
 }
 
 // MeData is returned by /me.
