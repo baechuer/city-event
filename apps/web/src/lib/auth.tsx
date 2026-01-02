@@ -97,16 +97,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         navigate('/login');
     };
 
-    // Subscribe to Global 401 Events
+    // Subscribe to Global Events
     useEffect(() => {
-        const unsubscribe = eventBus.on(authEvents.UNAUTHORIZED, () => {
-            // Only logout if we think we are logged in (have a user or token)
-            // This prevents loops where a public endpoint returns 401
+        const unsubUnauthorized = eventBus.on(authEvents.UNAUTHORIZED, () => {
             if (tokenStore.getToken() || user) {
                 logout();
             }
         });
-        return unsubscribe;
+
+        const unsubLogout = eventBus.on(authEvents.LOGOUT, () => {
+            logout();
+        });
+
+        const unsubUserUpdate = eventBus.on(authEvents.USER_UPDATE, (newUser: User) => {
+            setUser(newUser);
+        });
+
+        return () => {
+            unsubUnauthorized();
+            unsubLogout();
+            unsubUserUpdate();
+        };
     }, [logout, user]);
 
     return (

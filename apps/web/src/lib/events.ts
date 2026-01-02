@@ -1,10 +1,12 @@
 // Simple Event Bus for global app events (decoupling Auth from API)
 
-type EventCallback = () => void;
+type EventCallback = (data?: any) => void;
 const listeners: Record<string, Set<EventCallback>> = {};
 
 export const authEvents = {
     UNAUTHORIZED: 'auth:unauthorized',
+    LOGOUT: 'auth:logout',
+    USER_UPDATE: 'auth:user-update',
 };
 
 export const eventBus = {
@@ -18,7 +20,7 @@ export const eventBus = {
         };
     },
 
-    emit: (event: string) => {
-        listeners[event]?.forEach((cb) => cb());
+    emit: (event: string, data?: any) => {
+        listeners[event]?.forEach((cb) => cb(data));
     },
 };
