@@ -8,15 +8,16 @@ import (
 )
 
 type Event struct {
-	ID          string
-	OwnerID     string
-	Title       string
-	Description string
-	City        string
-	Category    string
-	StartTime   time.Time
-	EndTime     time.Time
-	Capacity    int // 0 = unlimited
+	ID                 string
+	OwnerID            string
+	Title              string
+	Description        string
+	City               string
+	Category           string
+	StartTime          time.Time
+	EndTime            time.Time
+	Capacity           int // 0 = unlimited
+	ActiveParticipants int
 
 	Status      EventStatus
 	PublishedAt *time.Time

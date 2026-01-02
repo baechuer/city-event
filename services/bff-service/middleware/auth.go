@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 
@@ -39,6 +40,7 @@ func Auth(secret string) func(http.Handler) http.Handler {
 			})
 
 			if err != nil || !token.Valid {
+				log.Printf("BFF auth error: %v, valid: %v", err, token.Valid)
 				next.ServeHTTP(w, r)
 				return
 			}

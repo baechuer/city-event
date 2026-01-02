@@ -11,7 +11,7 @@ export function EventCard({ event }: EventCardProps) {
 
     return (
         <div
-            className="group relative flex flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md cursor-pointer"
+            className="group relative flex flex-col overflow-hidden rounded-xl glass-card glass-card-hover cursor-pointer"
             onClick={() => navigate(`/events/${event.id}`)}
         >
             <div className="aspect-video w-full overflow-hidden bg-muted">

@@ -8,9 +8,17 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o server ./api/cmd
 
 # Run Stage
 FROM alpine:latest
+RUN apk add --no-cache curl
+# Install golang-migrate
+RUN curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz && \
+    mv migrate /usr/local/bin/migrate && \
+    chmod +x /usr/local/bin/migrate
+
 WORKDIR /app
 COPY --from=builder /app/server .
-# Copy migrations if needed (assuming using go-migrate or similar)
-# COPY --from=builder /app/migrations ./migrations 
+COPY --from=builder /app/migrations ./migrations
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
 EXPOSE 8080
-CMD ["./server"]
+ENTRYPOINT ["./entrypoint.sh"]

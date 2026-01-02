@@ -10,6 +10,7 @@ import (
 	"github.com/baechuer/real-time-ressys/services/event-service/internal/application/event"
 	"github.com/baechuer/real-time-ressys/services/event-service/internal/domain"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -71,6 +72,13 @@ func (m *mockRepo) ListPublicTimeKeyset(ctx context.Context, f event.ListFilter,
 
 func (m *mockRepo) ListPublicRelevanceKeyset(ctx context.Context, f event.ListFilter, hasCursor bool, afterRank float64, afterStart time.Time, afterID string) ([]*domain.Event, []float64, error) {
 	return []*domain.Event{}, []float64{}, nil
+}
+
+func (m *mockRepo) IncrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
+	return nil
+}
+func (m *mockRepo) DecrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
+	return nil
 }
 
 // Satisfy Transaction requirements

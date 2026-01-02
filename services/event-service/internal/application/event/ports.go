@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/baechuer/real-time-ressys/services/event-service/internal/domain"
+	"github.com/google/uuid"
 )
 
 type EventRepo interface {
@@ -32,6 +33,10 @@ type EventRepo interface {
 		afterStart time.Time,
 		afterID string,
 	) ([]*domain.Event, []float64, error)
+
+	// Participant count management
+	IncrementParticipantCount(ctx context.Context, eventID uuid.UUID) error
+	DecrementParticipantCount(ctx context.Context, eventID uuid.UUID) error
 
 	// WithTx runs fn in a DB transaction.
 	// The TxEventRepo must be used for all reads/writes inside the callback.

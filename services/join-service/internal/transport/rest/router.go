@@ -49,6 +49,7 @@ func NewRouter(d RouterDeps) http.Handler {
 
 		// reads
 		r.Get("/me/joins", d.Handler.MeJoins)
+		r.Get("/events/{eventID}/participation", d.Handler.GetMyParticipation)
 
 		r.Get("/events/{eventID}/participants", d.Handler.Participants)
 		r.Get("/events/{eventID}/waitlist", d.Handler.Waitlist)

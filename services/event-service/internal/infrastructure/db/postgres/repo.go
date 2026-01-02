@@ -32,7 +32,7 @@ func (r *Repo) GetByID(ctx context.Context, id string) (*domain.Event, error) {
 	var status string
 	err := row.Scan(
 		&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
-		&e.StartTime, &e.EndTime, &e.Capacity, &status,
+		&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
 		&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -79,7 +79,7 @@ func (r *Repo) ListByOwner(ctx context.Context, ownerID string, page, pageSize i
 
 	rows, err := r.db.QueryContext(ctx, `
 SELECT id, owner_id, title, description, city, category,
-       start_time, end_time, capacity, status,
+       start_time, end_time, capacity, active_participants, status,
        published_at, canceled_at, created_at, updated_at
 FROM events
 WHERE owner_id=$1
@@ -172,7 +172,7 @@ func (r *Repo) ListPublic(ctx context.Context, f event.ListFilter) ([]*domain.Ev
 
 	listSQL := `
 SELECT id, owner_id, title, description, city, category,
-       start_time, end_time, capacity, status,
+       start_time, end_time, capacity, active_participants, status,
        published_at, canceled_at, created_at, updated_at
 FROM events
 ` + whereSQL + `

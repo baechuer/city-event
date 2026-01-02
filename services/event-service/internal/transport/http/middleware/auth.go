@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -49,6 +50,7 @@ func (a *AuthMiddleware) Require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		uid, role, ver, err := a.parse(r)
 		if err != nil {
+			log.Printf("auth parse error: %v", err)
 			// auth-service style error body
 			response.Fail(
 				w,
@@ -89,6 +91,7 @@ func (a *AuthMiddleware) Require(next http.Handler) http.Handler {
 
 func (a *AuthMiddleware) parse(r *http.Request) (string, string, int64, error) {
 	h := strings.TrimSpace(r.Header.Get("Authorization"))
+	log.Printf("Authorization header received: [%s]", h)
 	if !strings.HasPrefix(h, "Bearer ") {
 		return "", "", 0, errors.New("missing bearer token")
 	}
@@ -101,7 +104,10 @@ func (a *AuthMiddleware) parse(r *http.Request) (string, string, int64, error) {
 		}
 		return a.secret, nil
 	}, jwt.WithLeeway(30*time.Second))
-	if err != nil || !tok.Valid {
+	if err != nil {
+		return "", "", 0, err
+	}
+	if !tok.Valid {
 		return "", "", 0, errors.New("invalid token")
 	}
 

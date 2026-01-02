@@ -13,16 +13,26 @@ var (
 )
 
 type Event struct {
-	ID          uuid.UUID `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	StartTime   time.Time `json:"start_time"`
-	EndTime     time.Time `json:"end_time"`
-	Location    string    `json:"location"`
-	Capacity    int       `json:"capacity"`
-	FilledCount int       `json:"filled_count"`
-	CreatedBy   uuid.UUID `json:"created_by"`
-	OrganizerID uuid.UUID `json:"organizer_id"`
+	ID            uuid.UUID `json:"id"`
+	Title         string    `json:"title"`
+	Description   string    `json:"description"`
+	City          string    `json:"city"`
+	Category      string    `json:"category"`
+	CoverImage    string    `json:"cover_image,omitempty"`
+	StartTime     time.Time `json:"start_time"`
+	EndTime       time.Time `json:"end_time"`
+	Location      string    `json:"location"`
+	Capacity      int       `json:"capacity"`
+	FilledCount   int       `json:"filled_count"`
+	CreatedBy     uuid.UUID `json:"created_by"`
+	OrganizerID   uuid.UUID `json:"organizer_id"`
+	OrganizerName string    `json:"organizer_name,omitempty"`
+}
+
+type User struct {
+	ID    uuid.UUID `json:"id"`
+	Email string    `json:"email"`
+	Role  string    `json:"role"`
 }
 
 type ParticipationStatus string
@@ -50,6 +60,14 @@ const (
 	StatusRejected   ParticipationStatus = "rejected"
 	StatusExpired    ParticipationStatus = "expired"
 )
+
+type JoinRecord struct {
+	ID        uuid.UUID `json:"id"`
+	EventID   uuid.UUID `json:"event_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
 
 type Participation struct {
 	EventID  uuid.UUID           `json:"event_id"`

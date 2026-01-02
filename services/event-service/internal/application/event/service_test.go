@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/baechuer/real-time-ressys/services/event-service/internal/domain"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -84,6 +85,15 @@ func (m *memRepo) ListPublicRelevanceKeyset(ctx context.Context, f ListFilter, h
 
 func (m *memRepo) ListByOwner(ctx context.Context, ownerID string, page, pageSize int) ([]*domain.Event, int, error) {
 	return []*domain.Event{}, 0, nil
+}
+
+func (m *memRepo) IncrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
+	// Simple no-op or simulate update if needed
+	return nil
+}
+
+func (m *memRepo) DecrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
+	return nil
 }
 
 func mustTime(t *testing.T, s string) time.Time {

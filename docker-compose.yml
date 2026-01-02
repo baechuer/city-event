@@ -108,6 +108,7 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8080
       - EVENT_SERVICE_URL=http://event-service:8080
       - JOIN_SERVICE_URL=http://join-service:8080
+      - JWT_SECRET=change_me
 
     depends_on:
       - auth-service

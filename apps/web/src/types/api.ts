@@ -1,26 +1,40 @@
-// Strict TypeScript definitions mirroring docs/bff-api.md
+import { z } from "zod";
+import {
+    EventCardSchema,
+    EventViewSchema,
+    ParticipationSchema,
+    ActionPolicySchema,
+    DegradedInfoSchema,
+    JoinStateSchema,
+    ErrorSchema
+} from "@/api/bff/schemas";
+
+/**
+ * 1. Base Response Envelope
+ */
+export interface BaseResponse<T> {
+    data: T;
+}
 
 /**
  * Unified API Error Structure
- * Matches: docs/bff-api.md Section 1
  */
-export interface ApiErrorResponse {
-    error: {
-        code: string;
-        message: string;
-        request_id: string;
-        meta?: Record<string, any>;
+export type ApiErrorResponse = z.infer<typeof ErrorSchema>;
+
+export type RefreshResponse = {
+    tokens: {
+        access_token: string;
+        token_type: string;
+        expires_in: number;
     };
+    user: User;
 }
 
-// Type Guard for ApiErrorResponse
-export function isApiErrorResponse(data: unknown): data is ApiErrorResponse {
-    return (
-        typeof data === 'object' &&
-        data !== null &&
-        'error' in data &&
-        typeof (data as any).error?.code === 'string'
-    );
+export interface AuthData {
+    tokens: {
+        access_token: string;
+    };
+    user: User;
 }
 
 // Enums for stable error codes
@@ -37,61 +51,43 @@ export type ApiErrorCode = typeof ApiErrorCode[keyof typeof ApiErrorCode];
 
 /**
  * Pagination Envelope
- * Matches: docs/bff-api.md Section 2
  */
 export interface CursorParams {
     cursor?: string;
     limit?: number;
 }
 
-export interface CursorEnvelope<T> {
+export type PaginatedResponse<T> = {
     items: T[];
-    next_cursor: string | null;
+    next_cursor?: string;
     has_more: boolean;
-}
+};
 
 /**
  * View Models
- * Matches: docs/bff-api.md Section 4
  */
+export type EventCard = z.infer<typeof EventCardSchema>;
+export type EventView = z.infer<typeof EventViewSchema>;
+export type Participation = z.infer<typeof ParticipationSchema>;
+export type ActionPolicy = z.infer<typeof ActionPolicySchema>;
+export type DegradedInfo = z.infer<typeof DegradedInfoSchema>;
+export type ParticipationStatus = Participation['status'];
+export type JoinState = z.infer<typeof JoinStateSchema>;
 
-export type ParticipationStatus = 'active' | 'waitlisted' | 'cancelled' | 'none';
-
-export interface EventCard {
-    id: string;
-    title: string;
-    cover_image?: string;
-    start_time: string; // ISO8601
-    city: string;
-    category: string;
-    score?: number;
-}
-
-export type RefreshResponse = {
-    access_token: string;
-    token_type: string;
-    expires_in: number;
-    user: User; // Backend now returns user on refresh
-}
-
-export interface ViewerContext {
-    participation_status: ParticipationStatus;
-    can_join: boolean;
-    can_cancel: boolean;
-}
-
-export interface EventView {
-    event: EventCard & {
-        description: string;
-        capacity: number;
-        filled_count: number;
-        organizer_id: string;
+export type RefreshResponseLegacy = {
+    tokens: {
+        access_token: string;
+        token_type: string;
+        expires_in: number;
     };
-    viewer_context: ViewerContext;
+    user: User;
 }
 
 export interface User {
     id: string;
     email: string;
-    name: string;
+    name?: string;
+    role?: string;
+    email_verified?: boolean;
 }
+

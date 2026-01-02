@@ -1,6 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { tokenStore } from '../auth/tokenStore';
-import type { ApiErrorResponse, RefreshResponse } from '../types/api';
+import type { ApiErrorResponse, RefreshResponse, BaseResponse } from '../types/api';
 import { ApiErrorCode } from '../types/api';
 import { authEvents, eventBus } from './events';
 
@@ -107,11 +107,13 @@ apiClient.interceptors.response.use(
 
             // 4. Single-Flight Refresh Logic
             if (!refreshPromise) {
-                refreshPromise = refreshClient.post<RefreshResponse>('/auth/refresh')
+                refreshPromise = refreshClient.post<BaseResponse<RefreshResponse>>('/auth/refresh')
                     .then((res) => {
-                        tokenStore.setToken(res.data.access_token);
-                        // Sync User State
-                        eventBus.emit(authEvents.USER_UPDATE, res.data.user);
+                        const data = res.data?.data || (res.data as any);
+                        if (data?.tokens?.access_token) {
+                            tokenStore.setToken(data.tokens.access_token);
+                            eventBus.emit(authEvents.USER_UPDATE, data.user);
+                        }
                     })
                     .catch((err) => {
                         // Critical Failure -> Logout
@@ -153,7 +155,7 @@ apiClient.interceptors.response.use(
             throw new ApiError(
                 data.error.code,
                 data.error.message,
-                data.error.request_id,
+                data.error.request_id || 'unknown',
                 data.error.meta,
                 error
             );

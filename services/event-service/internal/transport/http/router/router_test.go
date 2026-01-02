@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/baechuer/real-time-ressys/services/event-service/internal/application/event"
 	"github.com/baechuer/real-time-ressys/services/event-service/internal/config"
 	"github.com/baechuer/real-time-ressys/services/event-service/internal/domain"
@@ -38,6 +40,13 @@ func (s *stubRepo) ListPublicTimeKeyset(ctx context.Context, f event.ListFilter,
 
 func (s *stubRepo) ListPublicRelevanceKeyset(ctx context.Context, f event.ListFilter, hasCursor bool, afterRank float64, afterStart time.Time, afterID string) ([]*domain.Event, []float64, error) {
 	return []*domain.Event{}, []float64{}, nil
+}
+
+func (s *stubRepo) IncrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
+	return nil
+}
+func (s *stubRepo) DecrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
+	return nil
 }
 
 // FIX: Added WithTx to satisfy the EventRepo interface

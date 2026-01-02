@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/baechuer/real-time-ressys/services/event-service/internal/domain"
 	"github.com/google/uuid"
@@ -31,8 +32,8 @@ func (s *Service) Publish(ctx context.Context, eventID, actorID, actorRole strin
 
 		now := s.clock.Now().UTC()
 
-		// MVP rule: cannot publish if start_time is in the past
-		if !ev.StartTime.IsZero() && ev.StartTime.Before(now) {
+		// MVP rule: cannot publish if start_time is in the past (allowing 5m grace)
+		if !ev.StartTime.IsZero() && ev.StartTime.Before(now.Add(-5*time.Minute)) {
 			return domain.ErrValidationMeta("invalid start_time", map[string]string{
 				"start_time": "cannot publish event in the past",
 			})

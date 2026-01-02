@@ -4,68 +4,53 @@
 
 @layer base {
   :root {
-    /* Emerald Primary (approximate) */
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
-
     --card: 0 0% 100%;
     --card-foreground: 240 10% 3.9%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-
     --primary: 142.1 76.2% 36.3%;
-    /* Emerald 600 */
     --primary-foreground: 355.7 100% 97.3%;
-
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
-
     --muted: 240 4.8% 95.9%;
     --muted-foreground: 240 3.8% 46.1%;
-
     --accent: 240 4.8% 95.9%;
     --accent-foreground: 240 5.9% 10%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 142.1 76.2% 36.3%;
-
-    --radius: 0.75rem;
+    --radius: 1rem;
+    --glass-bg: rgba(255, 255, 255, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.2);
   }
 
   .dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
-
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
-
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-
     --primary: 142.1 70.6% 45.3%;
-    /* Emerald 500 */
     --primary-foreground: 144.9 80.4% 10%;
-
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
-
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
-
     --accent: 240 3.7% 15.9%;
     --accent-foreground: 0 0% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 142.4 71.8% 29.2%;
+    --radius: 1rem;
+    --glass-bg: rgba(15, 23, 42, 0.75);
+    --glass-border: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -75,7 +60,12 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-slate-50 dark:bg-slate-950 text-foreground;
+    font-family: 'Open Sans', sans-serif;
+    background-image:
+      radial-gradient(at 0% 0%, hsla(142, 76%, 36%, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(142, 76%, 36%, 0.05) 0px, transparent 50%);
+    min-height: 100vh;
   }
 
   h1,
@@ -84,6 +74,31 @@
   h4,
   h5,
   h6 {
-    @apply font-heading;
+    @apply font-semibold tracking-tight;
+    font-family: 'Poppins', sans-serif;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--glass-border);
+    @apply shadow-sm transition-all duration-300;
+  }
+
+  @supports not (backdrop-filter: blur(14px)) {
+    .glass-card {
+      background: rgb(245, 245, 245);
+    }
+
+    .dark .glass-card {
+      background: rgb(30, 41, 59);
+    }
+  }
+
+  .glass-card-hover {
+    @apply hover:shadow-xl hover:bg-white/85 dark:hover:bg-slate-900/85 hover:-translate-y-0.5 active:translate-y-0;
   }
 }

@@ -38,6 +38,22 @@ func (m *mockEventClient) ListEvents(ctx context.Context, query url.Values) (*do
 	return args.Get(0).(*domain.PaginatedResponse[domain.EventCard]), args.Error(1)
 }
 
+func (m *mockEventClient) CreateEvent(ctx context.Context, bearerToken string, body interface{}) (*domain.Event, error) {
+	args := m.Called(ctx, bearerToken, body)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Event), args.Error(1)
+}
+
+func (m *mockEventClient) PublishEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error) {
+	args := m.Called(ctx, bearerToken, eventID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Event), args.Error(1)
+}
+
 type mockJoinClient struct {
 	mock.Mock
 }
@@ -60,10 +76,31 @@ func (m *mockJoinClient) CancelJoin(ctx context.Context, eventID uuid.UUID, bear
 	return args.Error(0)
 }
 
+func (m *mockJoinClient) ListMyJoins(ctx context.Context, bearerToken string, query url.Values) (*domain.PaginatedResponse[domain.JoinRecord], error) {
+	args := m.Called(ctx, bearerToken, query)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.PaginatedResponse[domain.JoinRecord]), args.Error(1)
+}
+
+type mockAuthClient struct {
+	mock.Mock
+}
+
+func (m *mockAuthClient) GetUser(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+
 func TestGetEventView_Success(t *testing.T) {
 	ec := new(mockEventClient)
 	jc := new(mockJoinClient)
-	h := NewEventHandler(ec, jc)
+	ac := new(mockAuthClient)
+	h := NewEventHandler(ec, jc, ac)
 
 	eventID := uuid.New()
 	userID := uuid.New()
@@ -73,6 +110,7 @@ func TestGetEventView_Success(t *testing.T) {
 
 	ec.On("GetEvent", mock.Anything, eventID).Return(event, nil)
 	jc.On("GetParticipation", mock.Anything, eventID, userID, mock.Anything).Return(part, nil)
+	ac.On("GetUser", mock.Anything, mock.Anything).Return(&domain.User{Email: "test@example.com"}, nil)
 
 	req := httptest.NewRequest("GET", "/api/events/"+eventID.String()+"/view", nil)
 
@@ -102,7 +140,8 @@ func TestGetEventView_Success(t *testing.T) {
 func TestGetEventView_Degraded(t *testing.T) {
 	ec := new(mockEventClient)
 	jc := new(mockJoinClient)
-	h := NewEventHandler(ec, jc)
+	ac := new(mockAuthClient)
+	h := NewEventHandler(ec, jc, ac)
 
 	eventID := uuid.New()
 	userID := uuid.New()
@@ -110,6 +149,7 @@ func TestGetEventView_Degraded(t *testing.T) {
 
 	ec.On("GetEvent", mock.Anything, eventID).Return(event, nil)
 	jc.On("GetParticipation", mock.Anything, eventID, userID, mock.Anything).Return(nil, downstream.ErrTimeout)
+	ac.On("GetUser", mock.Anything, mock.Anything).Return(&domain.User{Email: "test@example.com"}, nil)
 
 	req := httptest.NewRequest("GET", "/api/events/"+eventID.String()+"/view", nil)
 	rctx := chi.NewRouteContext()
@@ -139,7 +179,8 @@ func TestGetEventView_Degraded(t *testing.T) {
 func TestGetEventView_EventNotFound(t *testing.T) {
 	ec := new(mockEventClient)
 	jc := new(mockJoinClient)
-	h := NewEventHandler(ec, jc)
+	ac := new(mockAuthClient)
+	h := NewEventHandler(ec, jc, ac)
 
 	eventID := uuid.New()
 	ec.On("GetEvent", mock.Anything, eventID).Return(nil, downstream.ErrNotFound)

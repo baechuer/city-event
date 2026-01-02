@@ -25,49 +25,39 @@ func NewRouter(cfg *config.Config) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.SecurityHeaders)
 
-	// 2. Health check (BFF itself)
-	r.Get("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-
-	// 3. Auth Service Proxy
-	// Map /api/auth -> /auth/v1
-	authProxy, err := proxy.New(cfg.AuthServiceURL, "/api/auth", "/auth/v1")
-	if err != nil {
-		log.Fatalf("Invalid Auth URL: %v", err)
-	}
-	r.Mount("/api/auth", authProxy)
-
-	// 4. Event Service Proxy
-	// Map /api/events -> /event/v1/events
-	eventProxy, err := proxy.New(cfg.EventServiceURL, "/api/events", "/event/v1/events")
-	if err != nil {
-		log.Fatalf("Invalid Event URL: %v", err)
-	}
-	r.Mount("/api/events", eventProxy)
-
-	// 5. Feed Proxy (Strict Contract)
-	// Map /api/feed -> /event/v1/events
-	feedProxy, err := proxy.New(cfg.EventServiceURL, "/api/feed", "/event/v1/events")
-	if err != nil {
-		log.Fatalf("Invalid Feed URL: %v", err)
-	}
-	r.Mount("/api/feed", feedProxy)
-
 	// 6. Business Handlers (Aggregation & Policy)
 	eventClient := downstream.NewEventClient(cfg.EventServiceURL)
 	joinClient := downstream.NewJoinClient(cfg.JoinServiceURL)
-	eventHandler := handlers.NewEventHandler(eventClient, joinClient)
+	authClient := downstream.NewAuthClient(cfg.AuthServiceURL)
+	eventHandler := handlers.NewEventHandler(eventClient, joinClient, authClient)
 
+	// 2. Health check and Proxies
 	r.Route("/api", func(r chi.Router) {
-		r.Use(middleware.Auth(cfg.JWTSecret))
+		r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK"))
+		})
 
-		r.Get("/feed", eventHandler.ListFeed)
-		r.Get("/events", eventHandler.ListEvents)
-		r.Get("/events/{id}/view", eventHandler.GetEventView)
-		r.Post("/events/{id}/join", eventHandler.JoinEvent)
-		r.Post("/events/{id}/cancel", eventHandler.CancelJoin)
+		// Auth Service Proxy
+		authProxy, err := proxy.New(cfg.AuthServiceURL, "/api/auth", "/auth/v1")
+		if err != nil {
+			log.Fatalf("Invalid Auth URL: %v", err)
+		}
+		r.Mount("/auth", authProxy)
+
+		// Business Handlers (Authenticated)
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Auth(cfg.JWTSecret))
+
+			r.Get("/feed", eventHandler.ListFeed)
+			r.Get("/me/joins", eventHandler.ListMyJoins)
+			r.Get("/events", eventHandler.ListEvents)
+			r.Post("/events", eventHandler.CreateEvent)
+			r.Get("/events/{id}/view", eventHandler.GetEventView)
+			r.Post("/events/{id}/publish", eventHandler.PublishEvent)
+			r.Post("/events/{id}/join", eventHandler.JoinEvent)
+			r.Post("/events/{id}/cancel", eventHandler.CancelJoin)
+		})
 	})
 
 	log.Printf("Routes Mounted:")

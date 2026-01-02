@@ -31,7 +31,7 @@ func (r *Repo) ListPublicTimeKeyset(
 
 	q := `
 SELECT id, owner_id, title, description, city, category,
-       start_time, end_time, capacity, status,
+       start_time, end_time, capacity, active_participants, status,
        published_at, canceled_at, created_at, updated_at
 FROM events
 ` + whereSQL + `

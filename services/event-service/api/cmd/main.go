@@ -126,6 +126,15 @@ func NewApp(cfg *config.Config, db *sql.DB) *App {
 	// Publishing is now done via outbox worker, not in request path.
 	svc := event.New(repo, sysClock{}, cache, cfg.CacheTTLDetails, cfg.CacheTTLList)
 
+	// ✅ Start consumer to listen for join events (after service is created)
+	if cfg.RabbitURL != "" {
+		consumer, err := rabbitpub.NewConsumer(cfg.RabbitURL, cfg.RabbitExchange, svc)
+		if err != nil {
+			zlog.Fatal().Err(err).Msg("rabbit consumer init failed")
+		}
+		consumer.Start(context.Background())
+	}
+
 	h := handlers.NewEventsHandler(svc, sysClock{})
 	auth := authmw.NewAuth(cfg.JWTSecret, cfg.JWTIssuer, rc)
 	z := handlers.NewHealthHandler()

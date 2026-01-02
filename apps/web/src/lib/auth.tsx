@@ -4,7 +4,7 @@ import { apiClient } from './apiClient';
 import { tokenStore } from '../auth/tokenStore';
 import { authEvents, eventBus } from './events';
 import { queryClient } from './queryClient';
-import type { User, RefreshResponse } from '../types/api';
+import type { User, RefreshResponse, BaseResponse, AuthData } from '../types/api';
 
 interface AuthContextType {
     user: User | null;
@@ -33,10 +33,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
                 // Attempt to refresh session (HttpOnly cookie)
                 // Now returns { tokens, user }
-                const res = await apiClient.post<RefreshResponse>('/auth/refresh');
+                const res = await apiClient.post<BaseResponse<RefreshResponse>>('/auth/refresh');
 
-                tokenStore.setToken(res.data.access_token);
-                setUser(res.data.user);
+                // Robust extraction: Check both wrapped and unwrapped
+                const data = res.data?.data || (res.data as any);
+                if (data?.tokens?.access_token) {
+                    tokenStore.setToken(data.tokens.access_token);
+                    setUser(data.user);
+                }
             } catch (err) {
                 // If refresh fails (401/403), we are logged out
                 tokenStore.setToken(null);
@@ -83,11 +87,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [navigateToLogin]);
 
     const login = async (credentials: any) => {
-        const res = await apiClient.post('/auth/login', credentials);
-        // B1: Store token in memory only
-        tokenStore.setToken(res.data.access_token);
-        setUser(res.data.user);
-        navigate('/events');
+        const res = await apiClient.post<BaseResponse<AuthData>>('/auth/login', credentials);
+
+        const data = res.data?.data || (res.data as any);
+        if (data?.tokens?.access_token) {
+            tokenStore.setToken(data.tokens.access_token);
+            setUser(data.user);
+            navigate('/events');
+        } else {
+            throw new Error("Invalid login response format");
+        }
     };
 
     const register = async (data: any) => {

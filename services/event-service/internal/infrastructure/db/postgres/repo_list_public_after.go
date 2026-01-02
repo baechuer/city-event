@@ -128,7 +128,7 @@ func (r *Repo) ListPublicAfter(
 SELECT
   ts_rank(search_vector, plainto_tsquery('simple', $1)) AS rank,
   id, owner_id, title, description, city, category,
-  start_time, end_time, capacity, status,
+  start_time, end_time, capacity, active_participants, status,
   published_at, canceled_at, created_at, updated_at
 FROM events
 ` + whereSQL + `
@@ -160,7 +160,7 @@ LIMIT $` + fmt.Sprintf("%d", limitParam)
 			if err := rows.Scan(
 				&rr.rank,
 				&rr.ev.ID, &rr.ev.OwnerID, &rr.ev.Title, &rr.ev.Description, &rr.ev.City, &rr.ev.Category,
-				&rr.ev.StartTime, &rr.ev.EndTime, &rr.ev.Capacity, &status,
+				&rr.ev.StartTime, &rr.ev.EndTime, &rr.ev.Capacity, &rr.ev.ActiveParticipants, &status,
 				&rr.ev.PublishedAt, &rr.ev.CanceledAt, &rr.ev.CreatedAt, &rr.ev.UpdatedAt,
 			); err != nil {
 				return nil, 0, "", err
@@ -185,7 +185,7 @@ LIMIT $` + fmt.Sprintf("%d", limitParam)
 	// time sort
 	listSQL := `
 SELECT id, owner_id, title, description, city, category,
-       start_time, end_time, capacity, status,
+       start_time, end_time, capacity, active_participants, status,
        published_at, canceled_at, created_at, updated_at
 FROM events
 ` + whereSQL + `
@@ -204,7 +204,7 @@ LIMIT $` + fmt.Sprintf("%d", limitParam)
 		var status string
 		if err := rows.Scan(
 			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
-			&e.StartTime, &e.EndTime, &e.Capacity, &status,
+			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
 			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, 0, "", err

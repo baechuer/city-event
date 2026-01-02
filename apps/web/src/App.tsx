@@ -9,8 +9,13 @@ import { Register } from './pages/Register';
 import { EventsFeed } from './pages/EventsFeed';
 import { EventDetail } from './pages/EventDetail';
 import { MyJoins } from './pages/MyJoins';
+import { Profile } from './pages/Profile';
+
+import { CreateEvent } from './pages/CreateEvent';
 
 import { Layout } from './components/Layout';
+
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 function AppRoutes() {
   return (
@@ -18,7 +23,33 @@ function AppRoutes() {
       <Route element={<Layout />}>
         <Route path="/events" element={<EventsFeed />} />
         <Route path="/events/:id" element={<EventDetail />} />
-        <Route path="/me/joins" element={<MyJoins />} />
+
+        {/* Protected Routes */}
+        <Route
+          path="/me/joins"
+          element={
+            <ProtectedRoute>
+              <MyJoins />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/events/new"
+          element={
+            <ProtectedRoute>
+              <CreateEvent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/" element={<Navigate to="/events" replace />} />

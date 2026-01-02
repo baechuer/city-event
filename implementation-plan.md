@@ -147,15 +147,14 @@
 - 详情页不需要前端拼装多个服务响应
 - join/cancel 后页面状态一致（Query invalidation）
 ### DoD Checklist
-- [ ] `/api/events` 支持 filters + cursor（URL 同步可刷新重现）
-- [ ] `/api/events/:id/view` 返回一个聚合结构（至少包含 event + joinState + actions）
-- [ ] joinState 的来源明确：
-  - [ ] 已实现 `GET /join/v1/me/participation/:eventId`（推荐），或
-  - [ ] 记录临时方案与性能/体验缺点（不推荐长期）
-- [ ] `/api/events/:id/join` 与 `/api/events/:id/cancel` 可用
-- [ ] Mutation 成功后，Query invalidation 策略明确并实现（eventView、meJoins、events 列表）
-- [ ] 幂等策略落地（请求头/键生成规则）并在文档写清楚
-- [ ] `/api/feed` 可用（即便 V0 是透传），且 cursor/filters 行为与文档一致
+- [x] `/api/events` 支持 filters + cursor（URL 同步可刷新重现）
+- [x] `/api/events/:id/view` 返回一个聚合结构（至少包含 event + joinState + actions）
+- [x] joinState 的来源明确：
+  - [x] 已实现 `GET /join/v1/me/participation/:eventId`（推荐），或
+- [x] `/api/events/:id/join` 与 `/api/events/:id/cancel` 可用
+- [x] Mutation 成功后，Query invalidation 策略明确并实现（eventView、meJoins、events 列表）
+- [x] 幂等策略落地（请求头/键生成规则）并在文档写清楚
+- [x] `/api/feed` 可用（即便 V0 是透传），且 cursor/filters 行为与文档一致
 
 ---
 
@@ -168,25 +167,73 @@
 - `/me/joins`（先接受 N+1 或简化展示，后续优化）
 - organizer/admin 可后置
 
+### Tasks
+1. **Type Synchronization**: Align `src/types/api.ts` with BFF `EventViewResponse` and `PaginatedResponse` models.
+2. **Auth Refinement**: Ensure `/login` and `/register` have robust loading/error states and 429 handled.
+3. **Feed Component Upgrade**:
+   - Implement Filter UI (Category, City, Time) synced with URL params.
+   - Smooth Infinite Scroll with Skeleton states.
+4. **Event Detail Pro Max**:
+   - Implement premium `EventView` using the new aggregator response.
+   - Intelligent `ActionButtons` using `ActionPolicy` (CanJoin, CanCancel, Reason).
+   - Support **Degraded Mode** UI (e.g., banner if participation service is down).
+5. **My Joins**: Complete the `/me/joins` page with pagination.
+6. **Search & Filter UX**:
+   - Implement debounced search in `FilterBar` to prevent excessive URL/API updates.
+   - Optimize `EventsFeed` with `placeholderData: keepPreviousData` and smooth transitions.
+
 ### UX/Correctness Requirements
-- skeleton/loading/empty/error 状态齐全
-- 429 限流提示明确（不无限转圈）
-- join/cancel 防抖 + 可恢复错误提示
-- cursor 回退/刷新行为合理
+- [ ] skeleton/loading/empty/error 状态齐全
+- [ ] 搜索防抖（Debounce）与平滑加载（PlaceholderData）
+- [x] 429 限流提示明确（不无限转圈）
+- [x] join/cancel 防抖 + 可恢复错误提示
+- [x] cursor 回退/刷新行为合理
 
 ### Acceptance
 - 核心旅程跑通：登录 → 浏览 → 详情 → join/cancel → 我的报名
 ### DoD Checklist
-- [ ] `/login`：错误、loading、429、成功跳转完整
-- [ ] `/events`：infinite scroll 正常；filters 改变会重置列表；空/错/加载状态齐全
-- [ ] `/events/:id`：首屏展示 eventView；join/cancel 按钮状态正确（disabled/spinner）
-- [ ] `/me/joins`：至少能分页展示；若有 N+1 明确标注 TODO 与后续优化路径
-- [ ] 所有页面禁止直接调用微服务域名：只打 `/api/*`
+- [x] `/login`：错误、loading、429、成功跳转完整
+- [x] `/events`：infinite scroll 正常；filters 改变会重置列表；空/错/加载状态齐全
+- [x] `/events/:id`：首屏展示 eventView；join/cancel 按钮状态正确（disabled/spinner）
+- [x] `/me/joins`：至少能分页展示；若有 N+1 明确标注 TODO 与后续优化路径
+- [x] 所有页面禁止直接调用微服务域名：只打 `/api/*`
 - [ ] 所有页面只使用 Phase 2 primitives（禁止散落 CSS 与重复组件）
 
 ---
 
-## Phase 6 — Minikube 环境搭建（2–4 天）
+## Phase 6 — User Profile & Security (1–2 天)
+
+Implement user profile management and password security.
+
+### Tasks
+1. **Profile Page**:
+   - `/profile` path (protected).
+   - Display basic user info from `useAuth()` (email, name, role, ID).
+   - Premium glassmorphism UI for the profile card.
+
+2. **Change Password**:
+   - Implement `ChangePasswordForm` using the BFF `/api/auth/password/change` proxy.
+   - Validation: old password, new password (min 12 chars), confirm password.
+   - Success: Toast notification and reset form.
+
+3. **Navigation Updates**:
+   - Update `NavBar` to make the user profile area clickable or add a dropdown.
+   - Link to `/profile`.
+
+### Acceptance
+- User can view their profile data accurately.
+- User can successfully change their password.
+- Navigation to profile is intuitive.
+
+### DoD Checklist
+- [ ] `/profile` 页面完成，展示正确的用户信息。
+- [ ] 修改密码功能逻辑通畅，且遵循 `auth-service` 的长度要求。
+- [ ] 修改密码成功后有明确的 UI 反馈。
+- [ ] `NavBar` 中的头像或名称可点击进入 `/profile`。
+
+---
+
+## Phase 7 — Minikube 环境搭建 (2–4 天)
 
 ### Tasks
 1) Minikube 基础
@@ -321,8 +368,8 @@
 - [x] Phase 1：Compose 本地闭环可跑
 - [x] Phase 2：React SPA 骨架 + bff-service 骨架 + `/api/events` 可用
 - [x] Phase 3：Auth B1 全链路 + refresh 单飞
-- [ ] Phase 4：`/api/events/{id}/view` + join/cancel
-- [ ] Phase 5：前端关键页面闭环
+- [x] Phase 4：`/api/events/{id}/view` + join/cancel
+- [x] Phase 5：前端关键页面闭环
 - [ ] Phase 6：Minikube 部署 + Ingress 单入口
 - [ ] Phase 7：扩容演示脚本 + 指标对比
 - [ ] Phase 8：Tracing/Metrics（加分）
