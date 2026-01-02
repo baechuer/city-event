@@ -1,0 +1,161 @@
+package handlers
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"testing"
+	"time"
+
+	"github.com/baechuer/real-time-ressys/services/bff-service/internal/domain"
+	"github.com/baechuer/real-time-ressys/services/bff-service/internal/downstream"
+	"github.com/baechuer/real-time-ressys/services/bff-service/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+type mockEventClient struct {
+	mock.Mock
+}
+
+func (m *mockEventClient) GetEvent(ctx context.Context, eventID uuid.UUID) (*domain.Event, error) {
+	args := m.Called(ctx, eventID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Event), args.Error(1)
+}
+
+func (m *mockEventClient) ListEvents(ctx context.Context, query url.Values) (*domain.PaginatedResponse[domain.EventCard], error) {
+	args := m.Called(ctx, query)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.PaginatedResponse[domain.EventCard]), args.Error(1)
+}
+
+type mockJoinClient struct {
+	mock.Mock
+}
+
+func (m *mockJoinClient) GetParticipation(ctx context.Context, eventID, userID uuid.UUID, bearerToken string) (*domain.Participation, error) {
+	args := m.Called(ctx, eventID, userID, bearerToken)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Participation), args.Error(1)
+}
+
+func (m *mockJoinClient) JoinEvent(ctx context.Context, eventID uuid.UUID, bearerToken, idempotencyKey, requestID string) (domain.ParticipationStatus, error) {
+	args := m.Called(ctx, eventID, bearerToken, idempotencyKey, requestID)
+	return args.Get(0).(domain.ParticipationStatus), args.Error(1)
+}
+
+func (m *mockJoinClient) CancelJoin(ctx context.Context, eventID uuid.UUID, bearerToken, idempotencyKey, requestID string) error {
+	args := m.Called(ctx, eventID, bearerToken, idempotencyKey, requestID)
+	return args.Error(0)
+}
+
+func TestGetEventView_Success(t *testing.T) {
+	ec := new(mockEventClient)
+	jc := new(mockJoinClient)
+	h := NewEventHandler(ec, jc)
+
+	eventID := uuid.New()
+	userID := uuid.New()
+
+	event := &domain.Event{ID: eventID, Title: "Test Event", StartTime: time.Now().Add(24 * time.Hour)}
+	part := &domain.Participation{EventID: eventID, UserID: userID, Status: domain.StatusActive}
+
+	ec.On("GetEvent", mock.Anything, eventID).Return(event, nil)
+	jc.On("GetParticipation", mock.Anything, eventID, userID, mock.Anything).Return(part, nil)
+
+	req := httptest.NewRequest("GET", "/api/events/"+eventID.String()+"/view", nil)
+
+	// Add chi context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", eventID.String())
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	// Inject UserID into context
+	ctx := context.WithValue(req.Context(), middleware.UserIDKey, userID)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	h.GetEventView(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var res EventViewResponse
+	err := json.Unmarshal(w.Body.Bytes(), &res)
+	assert.NoError(t, err)
+	assert.Equal(t, "Test Event", res.Event.Title)
+	assert.Equal(t, domain.StatusActive, res.Participation.Status)
+	assert.Nil(t, res.Degraded)
+	assert.True(t, res.Actions.CanCancel)
+}
+
+func TestGetEventView_Degraded(t *testing.T) {
+	ec := new(mockEventClient)
+	jc := new(mockJoinClient)
+	h := NewEventHandler(ec, jc)
+
+	eventID := uuid.New()
+	userID := uuid.New()
+	event := &domain.Event{ID: eventID, Title: "Test Event", StartTime: time.Now().Add(24 * time.Hour)}
+
+	ec.On("GetEvent", mock.Anything, eventID).Return(event, nil)
+	jc.On("GetParticipation", mock.Anything, eventID, userID, mock.Anything).Return(nil, downstream.ErrTimeout)
+
+	req := httptest.NewRequest("GET", "/api/events/"+eventID.String()+"/view", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", eventID.String())
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	// Inject UserID into context
+	ctx := context.WithValue(req.Context(), middleware.UserIDKey, userID)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	h.GetEventView(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var res EventViewResponse
+	err := json.Unmarshal(w.Body.Bytes(), &res)
+	assert.NoError(t, err)
+	assert.Equal(t, "Test Event", res.Event.Title)
+	assert.Nil(t, res.Participation)
+	assert.NotNil(t, res.Degraded)
+	assert.Equal(t, "timeout", res.Degraded.Participation)
+	assert.False(t, res.Actions.CanJoin)
+	assert.Equal(t, "participation_unavailable", res.Actions.Reason)
+}
+
+func TestGetEventView_EventNotFound(t *testing.T) {
+	ec := new(mockEventClient)
+	jc := new(mockJoinClient)
+	h := NewEventHandler(ec, jc)
+
+	eventID := uuid.New()
+	ec.On("GetEvent", mock.Anything, eventID).Return(nil, downstream.ErrNotFound)
+	jc.On("GetParticipation", mock.Anything, eventID, mock.Anything, mock.Anything).Return(&domain.Participation{Status: domain.StatusNone}, nil)
+
+	req := httptest.NewRequest("GET", "/api/events/"+eventID.String()+"/view", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", eventID.String())
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	w := httptest.NewRecorder()
+	h.GetEventView(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var apiErr domain.APIError
+	json.Unmarshal(w.Body.Bytes(), &apiErr)
+	assert.Equal(t, "resource_not_found", apiErr.Error.Code)
+}

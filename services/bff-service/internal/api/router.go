@@ -7,7 +7,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/baechuer/real-time-ressys/services/bff-service/internal/api/handlers"
 	"github.com/baechuer/real-time-ressys/services/bff-service/internal/config"
+	"github.com/baechuer/real-time-ressys/services/bff-service/internal/downstream"
 	"github.com/baechuer/real-time-ressys/services/bff-service/internal/logger"
 	"github.com/baechuer/real-time-ressys/services/bff-service/internal/proxy"
 	"github.com/baechuer/real-time-ressys/services/bff-service/middleware"
@@ -52,6 +54,21 @@ func NewRouter(cfg *config.Config) http.Handler {
 		log.Fatalf("Invalid Feed URL: %v", err)
 	}
 	r.Mount("/api/feed", feedProxy)
+
+	// 6. Business Handlers (Aggregation & Policy)
+	eventClient := downstream.NewEventClient(cfg.EventServiceURL)
+	joinClient := downstream.NewJoinClient(cfg.JoinServiceURL)
+	eventHandler := handlers.NewEventHandler(eventClient, joinClient)
+
+	r.Route("/api", func(r chi.Router) {
+		r.Use(middleware.Auth(cfg.JWTSecret))
+
+		r.Get("/feed", eventHandler.ListFeed)
+		r.Get("/events", eventHandler.ListEvents)
+		r.Get("/events/{id}/view", eventHandler.GetEventView)
+		r.Post("/events/{id}/join", eventHandler.JoinEvent)
+		r.Post("/events/{id}/cancel", eventHandler.CancelJoin)
+	})
 
 	log.Printf("Routes Mounted:")
 	log.Printf("  /api/auth   -> %s/auth/v1", cfg.AuthServiceURL)
