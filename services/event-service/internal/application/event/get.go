@@ -58,3 +58,9 @@ func (s *Service) GetForOwner(ctx context.Context, id, actorID, actorRole string
 	}
 	return e, nil
 }
+
+// GetBatch returns multiple events by their IDs (only published events).
+// Used by BFF to avoid N+1 queries when enriching join records.
+func (s *Service) GetBatch(ctx context.Context, ids []string) ([]*domain.Event, error) {
+	return s.repo.GetByIDs(ctx, ids)
+}

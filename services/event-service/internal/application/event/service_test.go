@@ -100,6 +100,16 @@ func (m *memRepo) GetCitySuggestions(ctx context.Context, query string, limit in
 	return []string{}, nil
 }
 
+func (m *memRepo) GetByIDs(ctx context.Context, ids []string) ([]*domain.Event, error) {
+	var result []*domain.Event
+	for _, id := range ids {
+		if e, ok := m.byID[id]; ok && e.Status == domain.StatusPublished {
+			result = append(result, e)
+		}
+	}
+	return result, nil
+}
+
 func mustTime(t *testing.T, s string) time.Time {
 	tt, err := time.Parse(time.RFC3339, s)
 	if err != nil {

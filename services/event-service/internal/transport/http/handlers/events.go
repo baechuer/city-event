@@ -360,3 +360,53 @@ func (h *EventsHandler) Unpublish(w http.ResponseWriter, r *http.Request) {
 	now := h.clock.Now().UTC()
 	response.Data(w, http.StatusOK, dto.ToEventResp(ev, now))
 }
+
+// GetBatch returns multiple events by their IDs.
+// Used by BFF to avoid N+1 queries when enriching join records.
+// POST /event/v1/events/batch
+// Body: {"event_ids": ["uuid1", "uuid2", ...]}
+// Response: {"data": {"uuid1": {...}, "uuid2": {...}}}
+func (h *EventsHandler) GetBatch(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		EventIDs []string `json:"event_ids"`
+	}
+	if err := validate.DecodeJSON(r, &req); err != nil {
+		response.Err(w, r, domain.ErrValidationMeta("invalid json body", map[string]string{
+			"body": "malformed JSON or invalid fields",
+		}))
+		return
+	}
+
+	// Validate max batch size
+	if len(req.EventIDs) > 50 {
+		response.Err(w, r, domain.ErrValidationMeta("batch too large", map[string]string{
+			"event_ids": "max 50 events per batch",
+		}))
+		return
+	}
+
+	// Validate each ID is a UUID
+	for _, id := range req.EventIDs {
+		if !validate.IsUUID(id) {
+			response.Err(w, r, domain.ErrValidationMeta("invalid event_id", map[string]string{
+				"event_ids": "all IDs must be valid UUIDs",
+			}))
+			return
+		}
+	}
+
+	events, err := h.svc.GetBatch(r.Context(), req.EventIDs)
+	if err != nil {
+		response.Err(w, r, err)
+		return
+	}
+
+	// Convert to map[event_id]EventResp for easy client-side lookup
+	now := h.clock.Now().UTC()
+	result := make(map[string]dto.EventResp)
+	for _, ev := range events {
+		result[ev.ID] = dto.ToEventResp(ev, now)
+	}
+
+	response.Data(w, http.StatusOK, result)
+}

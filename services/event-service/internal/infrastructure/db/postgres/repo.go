@@ -58,6 +58,58 @@ func (r *Repo) Update(ctx context.Context, e *domain.Event) error {
 	return err
 }
 
+// GetByIDs returns multiple events by their IDs (only published events).
+// Used for batch lookups to avoid N+1 queries.
+func (r *Repo) GetByIDs(ctx context.Context, ids []string) ([]*domain.Event, error) {
+	if len(ids) == 0 {
+		return []*domain.Event{}, nil
+	}
+	if len(ids) > 50 {
+		ids = ids[:50] // Limit to prevent abuse
+	}
+
+	// Build placeholders: $1, $2, $3, ...
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := `
+SELECT id, owner_id, title, description, city, category,
+       start_time, end_time, capacity, active_participants, status,
+       published_at, canceled_at, created_at, updated_at
+FROM events
+WHERE id IN (` + strings.Join(placeholders, ", ") + `) AND status = 'published'`
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*domain.Event
+	for rows.Next() {
+		var e domain.Event
+		var status string
+		if err := rows.Scan(
+			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
+			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
+			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		e.Status = domain.EventStatus(status)
+		out = append(out, &e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 func (r *Repo) ListByOwner(ctx context.Context, ownerID string, status string, page, pageSize int) ([]*domain.Event, int, error) {
 	if page <= 0 {
 		page = 1

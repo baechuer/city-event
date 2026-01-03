@@ -83,6 +83,9 @@ func (m *mockRepo) DecrementParticipantCount(ctx context.Context, eventID uuid.U
 func (m *mockRepo) GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error) {
 	return []string{}, nil
 }
+func (m *mockRepo) GetByIDs(ctx context.Context, ids []string) ([]*domain.Event, error) {
+	return []*domain.Event{}, nil
+}
 
 // Satisfy Transaction requirements
 func (m *mockRepo) WithTx(ctx context.Context, fn func(r event.TxEventRepo) error) error {

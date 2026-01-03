@@ -51,6 +51,9 @@ func (s *stubRepo) DecrementParticipantCount(ctx context.Context, eventID uuid.U
 func (s *stubRepo) GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error) {
 	return []string{}, nil
 }
+func (s *stubRepo) GetByIDs(ctx context.Context, ids []string) ([]*domain.Event, error) {
+	return []*domain.Event{}, nil
+}
 
 // FIX: Added WithTx to satisfy the EventRepo interface
 func (s *stubRepo) WithTx(ctx context.Context, fn func(r event.TxEventRepo) error) error {

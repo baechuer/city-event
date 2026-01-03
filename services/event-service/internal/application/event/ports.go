@@ -11,6 +11,7 @@ import (
 type EventRepo interface {
 	Create(ctx context.Context, e *domain.Event) error
 	GetByID(ctx context.Context, id string) (*domain.Event, error)
+	GetByIDs(ctx context.Context, ids []string) ([]*domain.Event, error)
 	Update(ctx context.Context, e *domain.Event) error
 
 	ListByOwner(ctx context.Context, ownerID string, status string, page, pageSize int) ([]*domain.Event, int, error)

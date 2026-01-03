@@ -44,6 +44,7 @@ func New(
 
 	r.Route("/event/v1", func(r chi.Router) {
 		r.Get("/events", h.ListPublic)
+		r.Post("/events/batch", h.GetBatch) // Batch lookup for N+1 fix
 		r.Get("/events/{event_id}", h.GetPublic)
 		r.Get("/meta/cities", h.GetCitySuggestions) // City autocomplete
 

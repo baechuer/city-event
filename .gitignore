@@ -26,6 +26,8 @@ Thumbs.db
 **/.env
 .env.*
 **/.env.*
+!.env.example
+!**/.env.example
 
 # =========================
 # Go build/test outputs

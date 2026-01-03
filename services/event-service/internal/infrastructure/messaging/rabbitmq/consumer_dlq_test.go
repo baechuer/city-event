@@ -91,6 +91,9 @@ func (m *mockFailingRepo) DecrementParticipantCount(ctx context.Context, eventID
 func (m *mockFailingRepo) GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error) {
 	return []string{}, nil
 }
+func (m *mockFailingRepo) GetByIDs(ctx context.Context, ids []string) ([]*domain.Event, error) {
+	return []*domain.Event{}, nil
+}
 
 func TestConsumer_DLQ_Retry(t *testing.T) {
 	if os.Getenv("TEST_INTEGRATION") == "" {

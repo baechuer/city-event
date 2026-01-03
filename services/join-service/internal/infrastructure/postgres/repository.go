@@ -44,8 +44,8 @@ func (r *Repository) JoinEvent(ctx context.Context, traceID, idempotencyKey stri
 	if idempotencyKey != "" {
 		var insertedKey string
 		err := tx.QueryRow(ctx, `
-			INSERT INTO idempotency_keys (key, user_id, event_id, action, created_at)
-			VALUES ($1, $2, $3, 'join', NOW())
+			INSERT INTO idempotency_keys (key, user_id, event_id, action, created_at, expires_at)
+			VALUES ($1, $2, $3, 'join', NOW(), NOW() + INTERVAL '24 hours')
 			ON CONFLICT (key) DO NOTHING
 			RETURNING key
 		`, idempotencyKey, userID, eventID).Scan(&insertedKey)
@@ -202,8 +202,8 @@ func (r *Repository) CancelJoin(ctx context.Context, traceID, idempotencyKey str
 	if idempotencyKey != "" {
 		var insertedKey string
 		err := tx.QueryRow(ctx, `
-			INSERT INTO idempotency_keys (key, user_id, event_id, action, created_at)
-			VALUES ($1, $2, $3, 'cancel', NOW())
+			INSERT INTO idempotency_keys (key, user_id, event_id, action, created_at, expires_at)
+			VALUES ($1, $2, $3, 'cancel', NOW(), NOW() + INTERVAL '24 hours')
 			ON CONFLICT (key) DO NOTHING
 			RETURNING key
 		`, idempotencyKey, userID, eventID).Scan(&insertedKey)

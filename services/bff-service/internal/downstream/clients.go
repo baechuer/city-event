@@ -50,6 +50,7 @@ func decodeError(resp *http.Response) error {
 type EventClient struct {
 	BaseURL    string
 	HTTPClient *http.Client
+	wrapper    *Client
 }
 
 func NewEventClient(baseURL string) *EventClient {
@@ -58,6 +59,7 @@ func NewEventClient(baseURL string) *EventClient {
 		HTTPClient: &http.Client{
 			Timeout: 2000 * time.Millisecond,
 		},
+		wrapper: NewClient(DefaultClientConfig()),
 	}
 }
 
