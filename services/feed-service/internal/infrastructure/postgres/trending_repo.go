@@ -110,3 +110,48 @@ type TrendingEvent struct {
 	StartTime  time.Time `json:"start_time"`
 	TrendScore float64   `json:"trend_score"`
 }
+
+// GetLatest returns newest events ordered by creation time (created_at DESC)
+func (r *TrendingRepo) GetLatest(ctx context.Context, city string, limit int, afterStartTime time.Time, afterID string) ([]TrendingEvent, error) {
+	query := `
+		SELECT 
+			e.event_id, e.title, e.city, e.tags, e.start_time,
+			0.0 AS trend_score
+		FROM event_index e
+		WHERE e.status = 'published' AND e.start_time > NOW()
+	`
+	args := []interface{}{}
+	argNum := 1
+
+	if city != "" {
+		query += fmt.Sprintf(" AND e.city = $%d", argNum)
+		args = append(args, city)
+		argNum++
+	}
+
+	// Keyset pagination: created_at DESC, event_id DESC
+	if afterID != "" {
+		query += fmt.Sprintf(` AND (e.start_time < $%d OR (e.start_time = $%d AND e.event_id < $%d))`, argNum, argNum+1, argNum+2)
+		args = append(args, afterStartTime, afterStartTime, afterID)
+		argNum += 3
+	}
+
+	query += fmt.Sprintf(" ORDER BY e.start_time DESC, e.event_id DESC LIMIT $%d", argNum)
+	args = append(args, limit)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var events []TrendingEvent
+	for rows.Next() {
+		var e TrendingEvent
+		if err := rows.Scan(&e.EventID, &e.Title, &e.City, &e.Tags, &e.StartTime, &e.TrendScore); err != nil {
+			return nil, err
+		}
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}

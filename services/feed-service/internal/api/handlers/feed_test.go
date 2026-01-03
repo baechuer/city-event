@@ -24,6 +24,13 @@ func (m *mockTrendingRepo) GetTrending(ctx context.Context, city string, limit i
 	return m.events, nil
 }
 
+func (m *mockTrendingRepo) GetLatest(ctx context.Context, city string, limit int, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.events, nil
+}
+
 // Mock profile repo
 type mockProfileRepo struct {
 	prefs map[string]float64

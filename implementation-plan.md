@@ -183,8 +183,8 @@
    - Optimize `EventsFeed` with `placeholderData: keepPreviousData` and smooth transitions.
 
 ### UX/Correctness Requirements
-- [ ] skeleton/loading/empty/error 状态齐全
-- [ ] 搜索防抖（Debounce）与平滑加载（PlaceholderData）
+- [x] skeleton/loading/empty/error 状态齐全
+- [x] 搜索防抖（Debounce）与平滑加载（PlaceholderData）
 - [x] 429 限流提示明确（不无限转圈）
 - [x] join/cancel 防抖 + 可恢复错误提示
 - [x] cursor 回退/刷新行为合理
@@ -197,7 +197,7 @@
 - [x] `/events/:id`：首屏展示 eventView；join/cancel 按钮状态正确（disabled/spinner）
 - [x] `/me/joins`：至少能分页展示；若有 N+1 明确标注 TODO 与后续优化路径
 - [x] 所有页面禁止直接调用微服务域名：只打 `/api/*`
-- [ ] 所有页面只使用 Phase 2 primitives（禁止散落 CSS 与重复组件）
+- [x] 所有页面只使用 Phase 2 primitives（禁止散落 CSS 与重复组件）
 
 ---
 
@@ -226,10 +226,10 @@ Implement user profile management and password security.
 - Navigation to profile is intuitive.
 
 ### DoD Checklist
-- [ ] `/profile` 页面完成，展示正确的用户信息。
-- [ ] 修改密码功能逻辑通畅，且遵循 `auth-service` 的长度要求。
-- [ ] 修改密码成功后有明确的 UI 反馈。
-- [ ] `NavBar` 中的头像或名称可点击进入 `/profile`。
+- [x] `/profile` 页面完成，展示正确的用户信息。
+- [x] 修改密码功能逻辑通畅，且遵循 `auth-service` 的长度要求。
+- [x] 修改密码成功后有明确的 UI 反馈。
+- [x] `NavBar` 中的头像或名称可点击进入 `/profile`。
 
 ---
 

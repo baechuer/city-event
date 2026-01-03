@@ -84,8 +84,8 @@ func TestRouter_Routing(t *testing.T) {
 		RLEnabled: false,
 	}
 
-	// New(h, auth, z, rdb, cfg)
-	r := New(h, authMw, z, nil, cfg)
+	// New(h, auth, z, db, rdb, cfg)
+	r := New(h, authMw, z, nil, nil, cfg)
 
 	t.Run("public_route_returns_200", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/event/v1/events", nil)

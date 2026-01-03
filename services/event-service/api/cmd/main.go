@@ -163,7 +163,7 @@ func NewApp(cfg *config.Config, db *sql.DB) *App {
 	z := handlers.NewHealthHandler()
 
 	// router uses rawRedisInstance for middleware (if any)
-	httpHandler := router.New(h, auth, z, rawRedisInstance, cfg)
+	httpHandler := router.New(h, auth, z, db, rawRedisInstance, cfg)
 
 	srv := &http.Server{
 		Addr:         cfg.HTTPAddr,

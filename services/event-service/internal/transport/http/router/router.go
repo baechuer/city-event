@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -21,6 +22,7 @@ func New(
 	h *handlers.EventsHandler,
 	auth *authmw.AuthMiddleware,
 	z *handlers.HealthHandler,
+	db *sql.DB,
 	rdb *redis.Client,
 	cfg *config.Config,
 ) http.Handler {
@@ -47,7 +49,7 @@ func New(
 
 	// Operational endpoints
 	r.Get("/healthz", z.Healthz)
-	r.Get("/readyz", readyzHandler(rdb, cfg))
+	r.Get("/readyz", readyzHandler(db, rdb, cfg))
 	r.Handle("/metrics", promhttp.Handler())
 
 	// Also expose at /event/v1/health for BFF readiness checks
@@ -75,13 +77,26 @@ func New(
 }
 
 // readyzHandler checks DB and Redis connectivity
-func readyzHandler(rdb *redis.Client, cfg *config.Config) http.HandlerFunc {
+func readyzHandler(db *sql.DB, rdb *redis.Client, cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 
 		checks := make(map[string]string)
 		allHealthy := true
+
+		// Check Database (CRITICAL for readiness)
+		if db != nil {
+			if err := db.PingContext(ctx); err != nil {
+				checks["database"] = "unhealthy: " + err.Error()
+				allHealthy = false
+			} else {
+				checks["database"] = "healthy"
+			}
+		} else {
+			checks["database"] = "not_configured"
+			allHealthy = false // DB is required for readiness
+		}
 
 		// Check Redis if configured
 		if rdb != nil {
@@ -95,8 +110,6 @@ func readyzHandler(rdb *redis.Client, cfg *config.Config) http.HandlerFunc {
 			checks["redis"] = "not_configured"
 		}
 
-		// Note: DB check would require injecting db pool here
-		// For now, we just check Redis
 		checks["status"] = "ready"
 		if !allHealthy {
 			checks["status"] = "not_ready"
