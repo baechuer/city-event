@@ -16,13 +16,13 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-dev}
       - HTTP_ADDR=:8080
-      - DB_ADDR=postgres://${POSTGRES_USER:?POSTGRES_USER required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@cityevents-postgres:5432/auth_db?sslmode=disable
+      - DB_ADDR=postgres://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@cityevents-postgres:5432/auth_db?sslmode=disable
       - MIGRATIONS_TABLE=schema_migrations_auth
       - REDIS_ADDR=cityevents-redis:6379
       - REDIS_DB=0
       - RABBIT_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@cityevents-rabbitmq:5672/
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET required - generate with: openssl rand -base64 32}
-      - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?INTERNAL_SECRET_KEY required}
+      - JWT_SECRET=${JWT_SECRET:?required}
+      - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?required}
       - VERIFY_EMAIL_BASE_URL=${VERIFY_EMAIL_BASE_URL:-http://localhost:8080/auth/v1/verify-email/confirm?token=}
       - PASSWORD_RESET_BASE_URL=${PASSWORD_RESET_BASE_URL:-http://localhost:8080/auth/v1/password/reset/validate?token=}
 
@@ -43,10 +43,10 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-dev}
       - HTTP_ADDR=:8080
-      - DATABASE_URL=postgres://${POSTGRES_USER:?POSTGRES_USER required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@cityevents-postgres:5432/event_db?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@cityevents-postgres:5432/event_db?sslmode=disable
       - MIGRATIONS_TABLE=schema_migrations_event
       - RABBIT_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@cityevents-rabbitmq:5672/
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET required}
+      - JWT_SECRET=${JWT_SECRET:?required}
       - REDIS_ENABLED=true
       - REDIS_URL=redis://cityevents-redis:6379/1
 
@@ -65,9 +65,9 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-dev}
       - PORT=8080
-      - DATABASE_URL=postgres://${POSTGRES_USER:?POSTGRES_USER required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@cityevents-postgres:5432/join_db?sslmode=disable
+      - DATABASE_URL=postgres://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@cityevents-postgres:5432/join_db?sslmode=disable
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@cityevents-rabbitmq:5672/
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET required}
+      - JWT_SECRET=${JWT_SECRET:?required}
       - REDIS_ADDR=cityevents-redis:6379
       - REDIS_DB=2
 
@@ -88,7 +88,7 @@ services:
       - RABBIT_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@cityevents-rabbitmq:5672/
       - REDIS_ADDR=cityevents-redis:6379
       - REDIS_ENABLED=true
-      - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?INTERNAL_SECRET_KEY required}
+      - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?required}
       - SMTP_HOST=${SMTP_HOST:-mailpit}
       - SMTP_PORT=${SMTP_PORT:-1025}
     depends_on:
@@ -110,8 +110,8 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8080
       - EVENT_SERVICE_URL=http://event-service:8080
       - JOIN_SERVICE_URL=http://join-service:8080
-      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET required}
-      - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?INTERNAL_SECRET_KEY required}
+      - JWT_SECRET=${JWT_SECRET:?required}
+      - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?required}
 
     depends_on:
       - auth-service
