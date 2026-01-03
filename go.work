@@ -6,4 +6,5 @@ use (
 	./services/email-service
 	./services/event-service
 	./services/join-service
+	./tests/e2e
 )
