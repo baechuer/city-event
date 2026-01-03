@@ -58,11 +58,12 @@ export const bffClient = {
     async listFeed(params: {
         cursor?: string;
         limit?: number;
+        type?: string;  // 'trending' | 'personalized' | 'latest'
         category?: string;
         city?: string;
         q?: string;
     }, signal?: AbortSignal): Promise<PaginatedEvents> {
-        const res = await apiClient.get('/feed', { params, signal });
+        const res = await apiClient.get('/feed/recommended', { params, signal });
         return parseResponse(PaginatedResponseSchema(EventCardSchema), res.data);
     },
 

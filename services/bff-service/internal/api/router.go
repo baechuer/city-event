@@ -102,8 +102,15 @@ func NewRouter(cfg *config.Config) http.Handler {
 		}
 		r.Mount("/auth", authProxy)
 
+		// Feed Service Proxy (for recommendation feed)
+		feedProxy, err := proxy.New(cfg.FeedServiceURL, "/api/feed/recommended", "/api/feed")
+		if err != nil {
+			log.Fatalf("Invalid Feed URL: %v", err)
+		}
+		r.Mount("/feed/recommended", feedProxy)
+
 		// Public Routes (No Auth Required, but context is populated if token is present)
-		r.Get("/feed", eventHandler.ListFeed)
+		r.Get("/feed", eventHandler.ListFeed) // Legacy fallback
 		r.Get("/events/{id}/view", eventHandler.GetEventView)
 		r.Get("/meta/cities", eventHandler.GetCitySuggestions)
 

@@ -5,6 +5,7 @@ use (
 	./services/bff-service
 	./services/email-service
 	./services/event-service
+	./services/feed-service
 	./services/join-service
 	./tests/e2e
 )

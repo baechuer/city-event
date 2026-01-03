@@ -87,6 +87,7 @@ pnpm-debug.log*
 # Temporary Artifacts from Agent
 # =========================
 web_trash/
-
 .agent
 .shared
+
+feed_service_rational.md
