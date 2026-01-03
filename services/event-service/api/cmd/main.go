@@ -93,9 +93,21 @@ func NewApp(cfg *config.Config, db *sql.DB) *App {
 	var pub event.EventPublisher = event.NoopPublisher{}
 
 	if cfg.RabbitURL != "" {
-		p, err := rabbitpub.NewPublisher(cfg.RabbitURL, cfg.RabbitExchange)
+		var p *rabbitpub.Publisher
+		var err error
+
+		// Retry connecting to RabbitMQ
+		for i := 0; i < 15; i++ {
+			p, err = rabbitpub.NewPublisher(cfg.RabbitURL, cfg.RabbitExchange)
+			if err == nil {
+				break
+			}
+			zlog.Warn().Err(err).Msg("rabbit publisher init failed, retrying in 2s...")
+			time.Sleep(2 * time.Second)
+		}
+
 		if err != nil {
-			zlog.Fatal().Err(err).Msg("rabbit publisher init failed")
+			zlog.Fatal().Err(err).Msg("rabbit publisher init failed after retries")
 		}
 		rabbit = p
 		pub = p
@@ -128,9 +140,20 @@ func NewApp(cfg *config.Config, db *sql.DB) *App {
 
 	// ✅ Start consumer to listen for join events (after service is created)
 	if cfg.RabbitURL != "" {
-		consumer, err := rabbitpub.NewConsumer(cfg.RabbitURL, cfg.RabbitExchange, svc)
+		var consumer *rabbitpub.Consumer
+		var err error
+
+		for i := 0; i < 15; i++ {
+			consumer, err = rabbitpub.NewConsumer(cfg.RabbitURL, cfg.RabbitExchange, svc)
+			if err == nil {
+				break
+			}
+			zlog.Warn().Err(err).Msg("rabbit consumer init failed, retrying in 2s...")
+			time.Sleep(2 * time.Second)
+		}
+
 		if err != nil {
-			zlog.Fatal().Err(err).Msg("rabbit consumer init failed")
+			zlog.Fatal().Err(err).Msg("rabbit consumer init failed after retries")
 		}
 		consumer.Start(context.Background())
 	}
