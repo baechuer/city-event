@@ -37,10 +37,26 @@ func NewPublisher(url string) (*Publisher, error) {
 		url:      url,
 		exchange: DefaultExchange,
 	}
-	if err := p.connect(); err != nil {
-		return nil, err
+
+	// Retry connection with exponential backoff (for startup when RabbitMQ may not be ready)
+	var lastErr error
+	maxRetries := 5
+	backoff := 1 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		if err := p.connect(); err != nil {
+			lastErr = err
+			if i < maxRetries-1 {
+				time.Sleep(backoff)
+				backoff *= 2 // exponential backoff
+				continue
+			}
+		} else {
+			return p, nil
+		}
 	}
-	return p, nil
+
+	return nil, fmt.Errorf("failed to connect to rabbitmq after %d retries: %w", maxRetries, lastErr)
 }
 
 func (p *Publisher) Close() error {
