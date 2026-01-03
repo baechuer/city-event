@@ -27,8 +27,8 @@ services:
       - PASSWORD_RESET_BASE_URL=${PASSWORD_RESET_BASE_URL:-http://localhost:8080/auth/v1/password/reset/validate?token=}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - OAUTH_CALLBACK_URL=http://localhost:8080/auth/v1/oauth/google/callback
-      - FRONTEND_ORIGIN=http://localhost:3000
+      - OAUTH_CALLBACK_URL=http://localhost:8080/api/auth/oauth/google/callback
+      - FRONTEND_ORIGIN=http://localhost:5173
       - ALLOWED_REDIRECTS=/,/events,/profile
 
     depends_on:
@@ -112,6 +112,7 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-dev}
       - HTTP_PORT=8080
+      - CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
       - AUTH_SERVICE_URL=http://auth-service:8080
       - EVENT_SERVICE_URL=http://event-service:8080
       - JOIN_SERVICE_URL=http://join-service:8080

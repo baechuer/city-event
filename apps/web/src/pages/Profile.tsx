@@ -135,84 +135,105 @@ export function Profile() {
                             </div>
                         </div>
 
-                        <form onSubmit={handleChangePassword} className="space-y-6">
-                            <div className="space-y-2">
-                                <Label htmlFor="old_password">Current Password</Label>
-                                <div className="relative">
-                                    <Input
-                                        id="old_password"
-                                        type={showPasswords.old ? "text" : "password"}
-                                        placeholder="Enter current password"
-                                        className="bg-white/50 dark:bg-slate-900/50 pr-10 border-white/30"
-                                        value={passwordData.old_password}
-                                        onChange={(e) => setPasswordData(prev => ({ ...prev, old_password: e.target.value }))}
-                                        required
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleVisibility('old')}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-900 dark:hover:text-white transition-colors p-1"
+                        {user?.has_password !== false ? (
+                            <form onSubmit={handleChangePassword} className="space-y-6">
+                                <div className="space-y-2">
+                                    <Label htmlFor="old_password">Current Password</Label>
+                                    <div className="relative">
+                                        <Input
+                                            id="old_password"
+                                            type={showPasswords.old ? "text" : "password"}
+                                            placeholder="Enter current password"
+                                            className="bg-white/50 dark:bg-slate-900/50 pr-10 border-white/30"
+                                            value={passwordData.old_password}
+                                            onChange={(e) => setPasswordData(prev => ({ ...prev, old_password: e.target.value }))}
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleVisibility('old')}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-900 dark:hover:text-white transition-colors p-1"
+                                        >
+                                            {showPasswords.old ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="new_password">New Password</Label>
+                                        <div className="relative">
+                                            <Input
+                                                id="new_password"
+                                                type={showPasswords.new ? "text" : "password"}
+                                                placeholder="Min 12 characters"
+                                                className="bg-white/50 dark:bg-slate-900/50 pr-10 border-white/30"
+                                                value={passwordData.new_password}
+                                                onChange={(e) => setPasswordData(prev => ({ ...prev, new_password: e.target.value }))}
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleVisibility('new')}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-900 dark:hover:text-white transition-colors p-1"
+                                            >
+                                                {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="confirm_password">Confirm New Password</Label>
+                                        <div className="relative">
+                                            <Input
+                                                id="confirm_password"
+                                                type={showPasswords.confirm ? "text" : "password"}
+                                                placeholder="Repeat new password"
+                                                className="bg-white/50 dark:bg-slate-900/50 pr-10 border-white/30"
+                                                value={passwordData.confirm_password}
+                                                onChange={(e) => setPasswordData(prev => ({ ...prev, confirm_password: e.target.value }))}
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleVisibility('confirm')}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-900 dark:hover:text-white transition-colors p-1"
+                                            >
+                                                {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex justify-end">
+                                    <Button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="rounded-full px-8 bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 active:scale-95 transition-transform"
                                     >
-                                        {showPasswords.old ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                    </button>
+                                        {loading ? "Updating..." : "Change Password"}
+                                    </Button>
                                 </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="new_password">New Password</Label>
-                                    <div className="relative">
-                                        <Input
-                                            id="new_password"
-                                            type={showPasswords.new ? "text" : "password"}
-                                            placeholder="Min 12 characters"
-                                            className="bg-white/50 dark:bg-slate-900/50 pr-10 border-white/30"
-                                            value={passwordData.new_password}
-                                            onChange={(e) => setPasswordData(prev => ({ ...prev, new_password: e.target.value }))}
-                                            required
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleVisibility('new')}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-900 dark:hover:text-white transition-colors p-1"
-                                        >
-                                            {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </button>
-                                    </div>
+                            </form>
+                        ) : (
+                            <div className="bg-slate-50 dark:bg-slate-900/40 rounded-2xl p-6 border border-slate-100 dark:border-white/5 flex flex-col items-center text-center space-y-4">
+                                <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                    <Shield className="w-6 h-6" />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="confirm_password">Confirm New Password</Label>
-                                    <div className="relative">
-                                        <Input
-                                            id="confirm_password"
-                                            type={showPasswords.confirm ? "text" : "password"}
-                                            placeholder="Repeat new password"
-                                            className="bg-white/50 dark:bg-slate-900/50 pr-10 border-white/30"
-                                            value={passwordData.confirm_password}
-                                            onChange={(e) => setPasswordData(prev => ({ ...prev, confirm_password: e.target.value }))}
-                                            required
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleVisibility('confirm')}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-slate-900 dark:hover:text-white transition-colors p-1"
-                                        >
-                                            {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                        </button>
-                                    </div>
+                                <div className="space-y-1">
+                                    <h4 className="font-bold text-slate-900 dark:text-white">Account managed by Google</h4>
+                                    <p className="text-sm text-muted-foreground max-w-sm">
+                                        You are logged in via Google OAuth. Your password and security settings are managed through your Google Account.
+                                    </p>
                                 </div>
-                            </div>
-
-                            <div className="pt-4 flex justify-end">
                                 <Button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="rounded-full px-8 bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 active:scale-95 transition-transform"
+                                    variant="outline"
+                                    className="rounded-full px-6"
+                                    onClick={() => window.open('https://myaccount.google.com/security', '_blank')}
                                 >
-                                    {loading ? "Updating..." : "Change Password"}
+                                    Manage Google Account
                                 </Button>
                             </div>
-                        </form>
+                        )}
                     </div>
                 </div>
             </div>

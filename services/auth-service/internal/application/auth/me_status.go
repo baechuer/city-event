@@ -9,6 +9,7 @@ type UserStatus struct {
 	Role          string
 	Locked        bool
 	EmailVerified bool
+	HasPassword   bool
 }
 
 func (s *Service) GetMyStatus(ctx context.Context, userID string) (UserStatus, error) {
@@ -22,6 +23,7 @@ func (s *Service) GetMyStatus(ctx context.Context, userID string) (UserStatus, e
 		Role:          u.Role,
 		Locked:        u.Locked,
 		EmailVerified: u.EmailVerified,
+		HasPassword:   u.PasswordHash != "",
 	}, nil
 }
 
@@ -37,5 +39,6 @@ func (s *Service) GetUserStatus(ctx context.Context, targetUserID string) (UserS
 		Role:          u.Role,
 		Locked:        u.Locked,
 		EmailVerified: u.EmailVerified,
+		HasPassword:   u.PasswordHash != "",
 	}, nil
 }

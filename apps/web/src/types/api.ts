@@ -90,5 +90,6 @@ export interface User {
     name?: string;
     role?: string;
     email_verified?: boolean;
+    has_password?: boolean;
 }
 

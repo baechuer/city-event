@@ -22,8 +22,8 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		// Prevent cross-origin resource embedding
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-site")
 
-		// Prevent window.opener access from cross-origin windows
-		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		// Prevent window.opener access from cross-origin windows, but allow for popups (needed for OAuth)
+		w.Header().Set("Cross-Origin-Opener-Policy", "unsafe-none")
 
 		// Disable all browser features for API endpoints
 		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(), usb=(), bluetooth=()")

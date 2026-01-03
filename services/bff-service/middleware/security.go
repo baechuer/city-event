@@ -4,8 +4,8 @@ import "net/http"
 
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// CSP for API: restrictive policy suitable for JSON-only endpoints
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+		// CSP for API: relaxed policy to allow OAuth callbacks and dev tools
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:* ws://localhost:*; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 
 		// Prevent MIME type sniffing
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -22,8 +22,8 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		// Prevent cross-origin resource embedding
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-site")
 
-		// Prevent window.opener access from cross-origin windows
-		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		// Prevent window.opener access from cross-origin windows, but allow for popups (needed for OAuth)
+		w.Header().Set("Cross-Origin-Opener-Policy", "unsafe-none")
 
 		// Disable all browser features for API endpoints
 		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(), usb=(), bluetooth=()")

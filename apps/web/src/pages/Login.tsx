@@ -42,8 +42,14 @@ export function Login() {
     // Listen for OAuth callback messages from popup
     useEffect(() => {
         const handleMessage = (event: MessageEvent<OAuthMessage>) => {
-            // Verify origin matches our app
-            if (event.origin !== window.location.origin) return;
+            console.log('Received OAuth message:', event.origin, event.data);
+
+            // Allow messages from our own origin or the backend origin
+            const allowedOrigins = [window.location.origin, 'http://localhost:8080'];
+            if (!allowedOrigins.includes(event.origin)) {
+                console.warn('Blocked message from unauthorized origin:', event.origin);
+                return;
+            }
 
             const data = event.data;
             if (!data || typeof data !== 'object') return;
@@ -68,6 +74,7 @@ export function Login() {
             try {
                 const data = JSON.parse(oauthResult) as OAuthMessage;
                 if (data.type === 'oauth_success' && data.access_token && data.user) {
+                    console.log('Found OAuth result in sessionStorage');
                     sessionStorage.removeItem('oauth_result');
                     setOAuthUser(data.access_token, data.user);
                 }

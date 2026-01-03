@@ -155,6 +155,10 @@ func (h *OAuthHandler) renderPostMessagePage(w http.ResponseWriter, result *auth
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 
+	// Override global restrictive CSP for this page only
+	// We need 'unsafe-inline' for the critical postMessage script and styling
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
+
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		http.Error(w, "Failed to render page", http.StatusInternalServerError)
@@ -176,6 +180,8 @@ func (h *OAuthHandler) renderErrorPage(w http.ResponseWriter, message string) {
 	tmpl := template.Must(template.New("error").Parse(errorTemplate))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// Override global restrictive CSP for error page
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
 	w.WriteHeader(http.StatusBadRequest)
 
 	var buf bytes.Buffer

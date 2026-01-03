@@ -31,9 +31,10 @@ type Event struct {
 }
 
 type User struct {
-	ID    uuid.UUID `json:"id"`
-	Email string    `json:"email"`
-	Role  string    `json:"role"`
+	ID          uuid.UUID `json:"id"`
+	Email       string    `json:"email"`
+	Role        string    `json:"role"`
+	HasPassword bool      `json:"has_password"`
 }
 
 type ParticipationStatus string

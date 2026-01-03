@@ -33,6 +33,7 @@ func (h *AuthHandler) InternalGetUser(w http.ResponseWriter, r *http.Request) {
 		Role:          u.Role,
 		EmailVerified: u.EmailVerified,
 		Locked:        u.Locked,
+		HasPassword:   u.PasswordHash != "",
 	}
 
 	response.OK(w, data)

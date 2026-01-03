@@ -62,6 +62,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 			Role:          res.User.Role,
 			EmailVerified: res.User.EmailVerified,
 			Locked:        res.User.Locked,
+			HasPassword:   res.User.PasswordHash != "",
 		},
 		Tokens: dto.TokensView{
 			AccessToken: res.Tokens.AccessToken,
@@ -105,6 +106,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			Role:          res.User.Role,
 			EmailVerified: res.User.EmailVerified,
 			Locked:        res.User.Locked,
+			HasPassword:   res.User.PasswordHash != "",
 		},
 		Tokens: dto.TokensView{
 			AccessToken: res.Tokens.AccessToken,
@@ -143,6 +145,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 			Role:          user.Role,
 			EmailVerified: user.EmailVerified,
 			Locked:        user.Locked,
+			HasPassword:   user.PasswordHash != "",
 		},
 	}
 
@@ -179,6 +182,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 			Role:          u.Role,
 			EmailVerified: u.EmailVerified,
 			Locked:        u.Locked,
+			HasPassword:   u.PasswordHash != "",
 		},
 	}
 
@@ -309,6 +313,7 @@ func (h *AuthHandler) MeStatus(w http.ResponseWriter, r *http.Request) {
 		Role:          st.Role,
 		Locked:        st.Locked,
 		EmailVerified: st.EmailVerified,
+		HasPassword:   st.HasPassword,
 	})
 }
 func (h *AuthHandler) AdminUserStatus(w http.ResponseWriter, r *http.Request) {
@@ -329,6 +334,7 @@ func (h *AuthHandler) AdminUserStatus(w http.ResponseWriter, r *http.Request) {
 		Role:          st.Role,
 		Locked:        st.Locked,
 		EmailVerified: st.EmailVerified,
+		HasPassword:   st.HasPassword,
 	})
 }
 
