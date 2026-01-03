@@ -13,6 +13,7 @@ import (
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/infrastructure/db/postgres"
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/infrastructure/memory"
 	rabbitmq_pub "github.com/baechuer/real-time-ressys/services/auth-service/internal/infrastructure/messaging/rabbitmq"
+	"github.com/baechuer/real-time-ressys/services/auth-service/internal/infrastructure/oauth"
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/infrastructure/redis"
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/infrastructure/security"
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/logger"
@@ -32,6 +33,11 @@ func NewServer() (*http.Server, func(), error) {
 	return newServer(defaultDeps())
 }
 
+// NewServerWithDeps allows injecting dependencies for testing
+func NewServerWithDeps(deps Deps) (*http.Server, func(), error) {
+	return newServer(deps)
+}
+
 /*
 ========================
  Dependency injection
@@ -41,25 +47,27 @@ func NewServer() (*http.Server, func(), error) {
 type Deps struct {
 	LoadConfig func() (*config.Config, error)
 
-	NewDB func(addr string, debug bool) (dbCloser, error)
+	NewDB func(addr string, debug bool) (DBCloser, error)
 
-	NewRedis func(addr, password string, db int) redisClient
+	NewRedis func(addr, password string, db int) RedisClient
 
-	NewPublisher func(rabbitURL string) (publisher, error)
+	NewPublisher func(rabbitURL string) (Publisher, error)
 
 	NewRouter func(router.Deps) (http.Handler, error)
+
+	NewOAuthProvider func() auth.OAuthProvider
 }
 
-type dbCloser interface {
+type DBCloser interface {
 	Close() error
 }
 
-type redisClient interface {
+type RedisClient interface {
 	Ping(ctx context.Context) error
 	Close() error
 }
 
-type publisher interface{}
+type Publisher interface{}
 
 /*
 ========================
@@ -94,7 +102,7 @@ func newServer(deps Deps) (*http.Server, func(), error) {
 	userRepo := postgres.NewUserRepo(sqlDB)
 
 	// 3) redis (best-effort)
-	var redisCli redisClient
+	var redisCli RedisClient
 	if deps.NewRedis != nil {
 		c := deps.NewRedis(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -123,13 +131,31 @@ func newServer(deps Deps) (*http.Server, func(), error) {
 	// 4) session + OTT stores
 	var sessionStore auth.SessionStore
 	var ottStore auth.OneTimeTokenStore
+	var oauthStateStore auth.OAuthStateStore
 
 	if redisCli != nil {
 		sessionStore = redis.NewRedisSessionStore(redisCli.(*redis.Client))
 		ottStore = redis.NewOneTimeTokenStore(redisCli.(*redis.Client))
+		oauthStateStore = redis.NewOAuthStateStore(redisCli.(*redis.Client), cfg.OAuthStateTTL)
 	} else {
 		sessionStore = memory.NewSessionStore()
 		ottStore = memory.NewOneTimeTokenStore()
+		oauthStateStore = memory.NewOAuthStateStore()
+	}
+
+	// OAuth Repo
+	oauthRepo := postgres.NewOAuthIdentityRepo(sqlDB)
+
+	// OAuth Client
+	var googleClient auth.OAuthProvider
+	if deps.NewOAuthProvider != nil {
+		googleClient = deps.NewOAuthProvider()
+	} else {
+		googleClient = oauth.NewGoogleClient(
+			cfg.GoogleClientID,
+			cfg.GoogleClientSecret,
+			cfg.OAuthCallbackURL,
+		)
 	}
 
 	// 5) publisher
@@ -191,6 +217,16 @@ func newServer(deps Deps) (*http.Server, func(), error) {
 	authH := http_handlers.NewAuthHandler(authSvc, cfg.RefreshTokenTTL, secureCookies)
 	healthH := http_handlers.NewHealthHandler()
 
+	oauthH := http_handlers.NewOAuthHandler(http_handlers.OAuthHandlerConfig{
+		Service:          authSvc,
+		GoogleClient:     googleClient,
+		StateStore:       oauthStateStore,
+		OAuthIdentities:  oauthRepo,
+		FrontendOrigin:   cfg.FrontendOrigin,
+		AllowedRedirects: cfg.AllowedRedirects,
+		IsSecure:         secureCookies,
+	})
+
 	authMW := middleware.Auth(signer, userRepoCached, response.WriteError)
 	modMW := middleware.RequireAtLeast(string(domain.RoleModerator), response.WriteError)
 	adminMW := middleware.RequireAtLeast("admin", response.WriteError)
@@ -220,6 +256,7 @@ func newServer(deps Deps) (*http.Server, func(), error) {
 	mux, err := deps.NewRouter(router.Deps{
 		RequestIDMW:    middleware.RequestID,
 		Auth:           authH,
+		OAuth:          oauthH,
 		Health:         healthH,
 		AuthMW:         authMW,
 		ModMW:          modMW,
@@ -267,13 +304,13 @@ func newServer(deps Deps) (*http.Server, func(), error) {
 func defaultDeps() Deps {
 	return Deps{
 		LoadConfig: config.Load,
-		NewDB: func(addr string, debug bool) (dbCloser, error) {
+		NewDB: func(addr string, debug bool) (DBCloser, error) {
 			return config.NewDB(addr, debug)
 		},
-		NewRedis: func(addr, password string, db int) redisClient {
+		NewRedis: func(addr, password string, db int) RedisClient {
 			return redis.New(addr, password, db)
 		},
-		NewPublisher: func(url string) (publisher, error) {
+		NewPublisher: func(url string) (Publisher, error) {
 			return rabbitmq_pub.NewPublisher(url)
 		},
 		NewRouter: func(d router.Deps) (http.Handler, error) {

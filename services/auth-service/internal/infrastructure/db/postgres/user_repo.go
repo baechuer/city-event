@@ -107,9 +107,7 @@ func (r *UserRepo) Create(ctx context.Context, u domain.User) (domain.User, erro
 	if u.Email == "" {
 		return domain.User{}, domain.ErrMissingField("email")
 	}
-	if u.PasswordHash == "" {
-		return domain.User{}, domain.ErrMissingField("password_hash")
-	}
+	// PasswordHash can be empty for OAuth users
 	if u.Role == "" {
 		u.Role = string(domain.RoleUser)
 	}

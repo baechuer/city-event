@@ -25,6 +25,11 @@ services:
       - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?required}
       - VERIFY_EMAIL_BASE_URL=${VERIFY_EMAIL_BASE_URL:-http://localhost:8080/auth/v1/verify-email/confirm?token=}
       - PASSWORD_RESET_BASE_URL=${PASSWORD_RESET_BASE_URL:-http://localhost:8080/auth/v1/password/reset/validate?token=}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - OAUTH_CALLBACK_URL=http://localhost:8080/auth/v1/oauth/google/callback
+      - FRONTEND_ORIGIN=http://localhost:3000
+      - ALLOWED_REDIRECTS=/,/events,/profile
 
     depends_on:
       postgres:

@@ -42,6 +42,14 @@ type Config struct {
 	VerifyEmailTokenTTL   time.Duration
 	PasswordResetTokenTTL time.Duration
 
+	// OAuth Providers
+	GoogleClientID     string
+	GoogleClientSecret string
+	OAuthStateTTL      time.Duration // default 10m
+	OAuthCallbackURL   string        // e.g., http://localhost:8080/auth/v1/oauth/google/callback
+	FrontendOrigin     string        // for postMessage origin validation
+	AllowedRedirects   []string      // whitelist for redirect_to
+
 	// Debug toggles
 	DBDebug bool
 }
@@ -151,6 +159,17 @@ func Load() (*Config, error) {
 	// Debug flags
 	cfg.DBDebug = parseBool(getEnv("DB_DEBUG", "false"))
 
+	// OAuth configuration (optional - only required if using OAuth)
+	cfg.GoogleClientID = getEnv("GOOGLE_CLIENT_ID", "")
+	cfg.GoogleClientSecret = getEnv("GOOGLE_CLIENT_SECRET", "")
+	cfg.OAuthStateTTL, err = getDuration("OAUTH_STATE_TTL", 10*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	cfg.OAuthCallbackURL = getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/auth/v1/oauth/google/callback")
+	cfg.FrontendOrigin = getEnv("FRONTEND_ORIGIN", "http://localhost:3000")
+	cfg.AllowedRedirects = parseStringList(getEnv("ALLOWED_REDIRECTS", "/,/events,/profile,/settings"))
+
 	return cfg, nil
 }
 
@@ -219,4 +238,19 @@ func validatePostgresDSN(dsn string) error {
 		return fmt.Errorf("missing database name in path, expected /<db>")
 	}
 	return nil
+}
+
+func parseStringList(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }

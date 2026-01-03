@@ -13,6 +13,7 @@ interface AuthContextType {
     login: (credentials: any) => Promise<void>;
     register: (data: any) => Promise<void>;
     logout: () => Promise<void>;
+    setOAuthUser: (accessToken: string, user: User) => void; // For OAuth callback
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -99,6 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    // OAuth callback: set user state from OAuth popup result
+    const setOAuthUser = useCallback((accessToken: string, oauthUser: User) => {
+        tokenStore.setToken(accessToken);
+        setUser(oauthUser);
+        navigate('/events');
+    }, [navigate]);
+
     const register = async (data: any) => {
         await apiClient.post('/auth/register', data);
         // Auto-login after register is common, or redirect to login.
@@ -136,7 +144,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             loading, // Expose loading state
             login,
             register,
-            logout
+            logout,
+            setOAuthUser
         }}>
             {children}
         </AuthContext.Provider>

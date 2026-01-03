@@ -20,7 +20,7 @@ func EnsureAuthSchema(ctx context.Context, db *sql.DB) error {
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
 
   role TEXT NOT NULL DEFAULT 'user',
   token_version BIGINT NOT NULL DEFAULT 0,
@@ -48,13 +48,32 @@ CREATE TABLE IF NOT EXISTS users (
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();`,
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;`,
+		// relax password_hash not null if it exists as not null (optional, pg doesn't support ALTER COLUMN drop not null in ADD COLUMN)
+		`ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;`,
 	}
 
 	for _, s := range stmts {
 		if _, e := db.ExecContext(ctx, s); e != nil {
+			// ignore error if column 'password_hash' doesn't exist? No, generic exec.
+			// ALTER COLUMN DROP NOT NULL is safe even if already nullable.
+			// But if column doesn't exist it fails. Wait, ADD COLUMN creates it.
+			// So order matters.
 			return e
 		}
 	}
 
-	return nil
+	// 3) Create oauth_identities
+	_, err = db.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS oauth_identities (
+    id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    provider_user_id TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(provider, provider_user_id)
+);
+`)
+	return err
 }

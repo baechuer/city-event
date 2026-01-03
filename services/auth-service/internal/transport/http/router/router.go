@@ -49,9 +49,16 @@ type AuthHandler interface {
 	InternalGetUser(w http.ResponseWriter, r *http.Request)
 }
 
+// OAuthHandler handles OAuth endpoints
+type OAuthHandler interface {
+	OAuthStart(w http.ResponseWriter, r *http.Request)
+	OAuthCallback(w http.ResponseWriter, r *http.Request)
+}
+
 type Deps struct {
 	Health HealthHandler
 	Auth   AuthHandler
+	OAuth  OAuthHandler // OAuth handlers (optional, can be nil)
 
 	// ---- Base tracing middleware ----
 	RequestIDMW func(http.Handler) http.Handler // Added: Request ID tracing
@@ -130,6 +137,12 @@ func New(deps Deps) (http.Handler, error) {
 			r.With(deps.RLLogin).Post("/login", deps.Auth.Login)
 		} else {
 			r.Post("/login", deps.Auth.Login)
+		}
+
+		// --- OAuth routes (optional) ---
+		if deps.OAuth != nil {
+			r.Get("/oauth/{provider}/start", deps.OAuth.OAuthStart)
+			r.Get("/oauth/{provider}/callback", deps.OAuth.OAuthCallback)
 		}
 
 		// Cookie-based endpoints require CSRF protection

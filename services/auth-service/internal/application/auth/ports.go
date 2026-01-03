@@ -121,3 +121,33 @@ type PasswordResetEvent struct {
 	Email  string `json:"email"`
 	URL    string `json:"url"`
 }
+
+/*
+OAuthIdentityRepo
+-----------------
+Persistence port for OAuth identities.
+Links external OAuth providers to internal users.
+*/
+type OAuthIdentityRepo interface {
+	FindByProviderAndSub(ctx context.Context, provider, providerUserID string) (*domain.OAuthIdentity, error)
+	FindByUserID(ctx context.Context, userID string) ([]domain.OAuthIdentity, error)
+	Create(ctx context.Context, identity *domain.OAuthIdentity) error
+	Delete(ctx context.Context, id string) error
+}
+
+/*
+OAuthStateStore
+---------------
+Stores OAuth state tokens for CSRF protection.
+State is one-time use (consume after callback).
+*/
+type OAuthStateStore interface {
+	Create(ctx context.Context, state OAuthStateData) (stateToken string, err error)
+	Consume(ctx context.Context, stateToken string) (OAuthStateData, error)
+}
+
+type OAuthStateData struct {
+	CodeVerifier string // PKCE code verifier
+	RedirectTo   string // Where to redirect after login
+	Provider     string // OAuth provider name
+}
