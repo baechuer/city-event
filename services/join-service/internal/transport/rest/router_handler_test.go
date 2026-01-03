@@ -307,6 +307,7 @@ func TestRouter_Join_Success_200(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/join", bytes.NewBufferString(body))
 	req.Header.Set("Authorization", "Bearer ok")
+	req.Header.Set("X-Idempotency-Key", uuid.New().String())
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
@@ -337,6 +338,7 @@ func TestRouter_Join_EventFull_409(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/join", bytes.NewBufferString(body))
 	req.Header.Set("Authorization", "Bearer ok")
+	req.Header.Set("X-Idempotency-Key", uuid.New().String())
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
