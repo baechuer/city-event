@@ -166,6 +166,18 @@ jobs:
           go-version: "1.22.x"
 
       - name: Start Full Stack
+        env:
+          # Infra
+          POSTGRES_USER: "postgres"
+          POSTGRES_PASSWORD: "password"
+          POSTGRES_DB: "postgres"
+          RABBITMQ_USER: "guest"
+          RABBITMQ_PASS: "guest"
+          RABBITMQ_VHOST: "/"
+          # Services
+          APP_ENV: "test"
+          JWT_SECRET: "test-secret"
+          INTERNAL_SECRET_KEY: "test-secret-key"
         run: |
           docker compose up -d --build --wait
 
