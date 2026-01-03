@@ -89,7 +89,8 @@ func TestE2E_Lifecycle(t *testing.T) {
 		"password": "strongpassword123",
 	})
 	require.Equal(t, http.StatusOK, status)
-	tokens := body["tokens"].(map[string]any)
+	data := body["data"].(map[string]any)
+	tokens := data["tokens"].(map[string]any)
 	organizer.token = tokens["access_token"].(string)
 
 	// 3. Create Event
