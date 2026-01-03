@@ -70,9 +70,6 @@ func (r *fakeUserRepo) Create(ctx context.Context, u domain.User) (domain.User, 
 	if u.Email == "" {
 		return domain.User{}, domain.ErrMissingField("email")
 	}
-	if u.PasswordHash == "" {
-		return domain.User{}, domain.ErrMissingField("password_hash")
-	}
 	if _, ok := r.byEmail[u.Email]; ok {
 		return domain.User{}, domain.ErrEmailAlreadyExists()
 	}
@@ -368,6 +365,11 @@ func TestAuthHandler_Register_SetsRefreshCookie_AndReturns201(t *testing.T) {
 	u, tk := decodeAuthEnvelope(t, res)
 	if u == nil || tk == nil {
 		t.Fatalf("expected non-nil user and tokens")
+	}
+
+	um := u.(map[string]any)
+	if hasPw, ok := um["has_password"].(bool); !ok || !hasPw {
+		t.Fatalf("expected has_password: true in register response, got: %v", um["has_password"])
 	}
 }
 
@@ -800,5 +802,74 @@ func TestAuthHandler_SessionsRevoke_OK(t *testing.T) {
 
 	if rr.Result().StatusCode != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rr.Result().StatusCode)
+	}
+}
+
+func TestAuthHandler_MeStatus_HasPassword_Logic(t *testing.T) {
+	h := newTestAuthHandler(t, false)
+
+	// Case 1: Regular user
+	reqReg := httptest.NewRequest(http.MethodPost, "/auth/v1/register", mustJSONBody(t, map[string]any{
+		"email":    "user_pw@example.com",
+		"password": "123456789012",
+	}))
+	reqReg.Header.Set("Content-Type", "application/json")
+	rrReg := httptest.NewRecorder()
+	h.Register(rrReg, reqReg)
+	if rrReg.Result().StatusCode != http.StatusCreated {
+		t.Fatalf("Register failed: %d", rrReg.Result().StatusCode)
+	}
+
+	userID := mustExtractUserIDFromRegisterBody(t, rrReg.Body)
+	req := httptest.NewRequest(http.MethodGet, "/auth/v1/me/status", nil)
+	req = req.WithContext(middleware.WithUser(req.Context(), userID, "user"))
+	rr := httptest.NewRecorder()
+	h.MeStatus(rr, req)
+
+	if rr.Result().StatusCode != http.StatusOK {
+		t.Fatalf("MeStatus failed: %d", rr.Result().StatusCode)
+	}
+
+	var data struct {
+		Data struct {
+			HasPassword bool `json:"has_password"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &data); err != nil {
+		t.Fatalf("JSON decode failed: %v", err)
+	}
+	if !data.Data.HasPassword {
+		t.Errorf("expected has_password: true for password user, body: %s", rr.Body.String())
+	}
+
+	// Case 2: OAuth user (no password)
+	oauthUserID := "u-oauth-123"
+	repo := newFakeUserRepo()
+	repo.byID[oauthUserID] = domain.User{
+		ID:           oauthUserID,
+		Email:        "oauth@example.com",
+		Role:         "user",
+		PasswordHash: "", // Empty for OAuth
+	}
+	repo.byEmail["oauth@example.com"] = oauthUserID
+
+	svc := auth.NewService(repo, fakeHasher{}, security.NewStubSigner(), memory.NewSessionStore(), memory.NewOneTimeTokenStore(), memory.NewNoopPublisher(), auth.Config{})
+	h2 := NewAuthHandler(svc, 7*24*time.Hour, false)
+
+	rr2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodGet, "/auth/v1/me/status", nil)
+	req2 = req2.WithContext(middleware.WithUser(req2.Context(), oauthUserID, "user"))
+	h2.MeStatus(rr2, req2)
+
+	var data2 struct {
+		Data struct {
+			HasPassword bool `json:"has_password"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rr2.Body.Bytes(), &data2); err != nil {
+		t.Fatalf("JSON decode failed: %v", err)
+	}
+	if data2.Data.HasPassword {
+		t.Errorf("expected has_password: false for OAuth user, body: %s", rr2.Body.String())
 	}
 }

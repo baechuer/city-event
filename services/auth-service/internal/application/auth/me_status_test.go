@@ -27,14 +27,25 @@ func TestGetMyStatus_ReturnsProjectedFields(t *testing.T) {
 	t.Parallel()
 
 	svc, users, _, _, _, _, _, _ := newSvcForTest(t)
-	users.byID["u1"] = domain.User{ID: "u1", Email: "e@x.com", Role: "user", Locked: true, EmailVerified: false}
+	// Regular user with password
+	users.byID["u1"] = domain.User{ID: "u1", Email: "e@x.com", Role: "user", Locked: true, EmailVerified: false, PasswordHash: "somehash"}
 
 	st, err := svc.GetMyStatus(context.Background(), "u1")
 	if err != nil {
 		t.Fatalf("expected nil, got %v", err)
 	}
-	if st.UserID != "u1" || st.Role != "user" || !st.Locked || st.EmailVerified {
+	if st.UserID != "u1" || st.Role != "user" || !st.Locked || st.EmailVerified || !st.HasPassword {
 		t.Fatalf("unexpected status: %+v", st)
+	}
+
+	// OAuth user without password
+	users.byID["u2"] = domain.User{ID: "u2", Email: "oauth@x.com", Role: "user", Locked: false, EmailVerified: true, PasswordHash: ""}
+	st2, err := svc.GetMyStatus(context.Background(), "u2")
+	if err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+	if st2.UserID != "u2" || st2.HasPassword {
+		t.Fatalf("expected has_password false for OAuth user, got: %+v", st2)
 	}
 }
 
