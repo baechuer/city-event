@@ -1,0 +1,9 @@
+go 1.25.5
+
+use (
+	./services/auth-service
+	./services/bff-service
+	./services/email-service
+	./services/event-service
+	./services/join-service
+)

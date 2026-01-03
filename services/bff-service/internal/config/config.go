@@ -18,6 +18,7 @@ type Config struct {
 	RLLimit            int
 	RLWindow           time.Duration
 	CORSAllowedOrigins []string
+	RedisAddr          string // For distributed rate limiting
 }
 
 func Load() *Config {
@@ -32,6 +33,7 @@ func Load() *Config {
 		RLLimit:            getEnvInt("RATE_LIMIT_REQUESTS", 100),
 		RLWindow:           getEnvDuration("RATE_LIMIT_WINDOW", "1m"),
 		CORSAllowedOrigins: strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "*"), ","),
+		RedisAddr:          getEnv("REDIS_ADDR", ""), // Empty means use in-memory fallback
 	}
 }
 

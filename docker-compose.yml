@@ -112,11 +112,17 @@ services:
       - JOIN_SERVICE_URL=http://join-service:8080
       - JWT_SECRET=${JWT_SECRET:?required}
       - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?required}
+      - REDIS_ADDR=cityevents-redis:6379 # For distributed rate limiting
 
     depends_on:
-      - auth-service
-      - event-service
-      - join-service
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      event-service:
+        condition: service_started
+      join-service:
+        condition: service_started
 
   # -------------------------------------------------------------------------
   # FRONTEND

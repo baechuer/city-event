@@ -116,6 +116,10 @@ func (m *MockCache) GetEventCapacity(ctx context.Context, eventID uuid.UUID) (in
 func (m *MockCache) SetEventCapacity(ctx context.Context, eventID uuid.UUID, capacity int) error {
 	return m.Called(ctx, eventID, capacity).Error(0)
 }
+func (m *MockCache) Ping(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
 
 func TestJoinService_Join_Success(t *testing.T) {
 	repo := new(MockRepo)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/transport/http/middleware"
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type HealthHandler interface {
@@ -108,9 +109,14 @@ func New(deps Deps) (http.Handler, error) {
 	// --- Global middleware ---
 	// Must be first to ensure all subsequent logic (including logging) gets the ID
 	r.Use(deps.RequestIDMW)
+	r.Use(middleware.Metrics) // Prometheus metrics
 	r.Use(middleware.SecurityHeaders)
 
+	// Operational endpoints
 	r.Get("/healthz", deps.Health.Healthz)
+	r.Get("/readyz", deps.Health.Healthz)         // For BFF readiness checks
+	r.Get("/auth/v1/health", deps.Health.Healthz) // Legacy path for BFF
+	r.Handle("/metrics", promhttp.Handler())
 
 	r.Route("/auth/v1", func(r chi.Router) {
 		// --- Core auth ---

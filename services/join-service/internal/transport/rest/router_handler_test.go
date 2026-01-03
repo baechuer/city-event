@@ -53,6 +53,10 @@ func (c *fakeCache) AllowRequest(ctx context.Context, ip string, limit int, wind
 	return c.allow, nil
 }
 
+func (c *fakeCache) Ping(ctx context.Context) error {
+	return nil
+}
+
 type fakeRepo struct {
 	joinFn           func(ctx context.Context, traceID string, eventID, userID uuid.UUID) (domain.JoinStatus, error)
 	cancelFn         func(ctx context.Context, traceID string, eventID, userID uuid.UUID) error

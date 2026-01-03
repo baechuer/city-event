@@ -99,6 +99,7 @@ type JoinRepository interface {
 }
 
 type CacheRepository interface {
+	Ping(ctx context.Context) error // For readiness checks
 	GetEventCapacity(ctx context.Context, eventID uuid.UUID) (int, error)
 	SetEventCapacity(ctx context.Context, eventID uuid.UUID, capacity int) error
 

@@ -1,12 +1,16 @@
 package rest
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/baechuer/real-time-ressys/services/join-service/internal/domain"
 	"github.com/baechuer/real-time-ressys/services/join-service/internal/security"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type RouterDeps struct {
@@ -31,6 +35,7 @@ func NewRouter(d RouterDeps) http.Handler {
 
 	// Request ID + structured access log
 	r.Use(RequestID)
+	r.Use(MetricsMiddleware) // Prometheus metrics
 	r.Use(HTTPLogger)
 
 	// Panic recovery
@@ -39,6 +44,14 @@ func NewRouter(d RouterDeps) http.Handler {
 	// Cross-cutting
 	r.Use(RateLimitMiddleware(d.Cache))
 	r.Use(SecurityHeaders)
+
+	// Operational endpoints (outside /api for K8s probes)
+	r.Get("/healthz", healthzHandler)
+	r.Get("/readyz", readyzHandler(d.Cache))
+	r.Handle("/metrics", promhttp.Handler())
+
+	// Also expose at /join/v1/health for BFF readiness checks
+	r.Get("/join/v1/health", healthzHandler)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(AuthMiddleware(d.Verifier, AuthOptions{ExpectedIssuer: d.JWTIssuer}))
@@ -62,4 +75,42 @@ func NewRouter(d RouterDeps) http.Handler {
 	})
 
 	return r
+}
+
+func healthzHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
+func readyzHandler(cache domain.CacheRepository) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+
+		checks := make(map[string]string)
+		allHealthy := true
+
+		// Check Redis via cache
+		if cache != nil {
+			if err := cache.Ping(ctx); err != nil {
+				checks["redis"] = "unhealthy: " + err.Error()
+				allHealthy = false
+			} else {
+				checks["redis"] = "healthy"
+			}
+		} else {
+			checks["redis"] = "not_configured"
+		}
+
+		checks["status"] = "ready"
+		if !allHealthy {
+			checks["status"] = "not_ready"
+			w.WriteHeader(http.StatusServiceUnavailable)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(checks)
+	}
 }

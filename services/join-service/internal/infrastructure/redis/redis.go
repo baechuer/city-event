@@ -50,3 +50,8 @@ func (c *Cache) AllowRequest(ctx context.Context, ip string, limit int, window t
 	}
 	return count <= int64(limit), nil
 }
+
+// Ping checks Redis connectivity for readiness probes
+func (c *Cache) Ping(ctx context.Context) error {
+	return c.Client.Ping(ctx).Err()
+}
