@@ -19,6 +19,11 @@ type Config struct {
 	RLWindow           time.Duration
 	CORSAllowedOrigins []string
 	RedisAddr          string // For distributed rate limiting
+
+	// Tracing (OpenTelemetry)
+	TracingEnabled bool
+	OTLPEndpoint   string // e.g., "jaeger:4318" or "tempo:4318"
+	ServiceVersion string
 }
 
 func Load() *Config {
@@ -33,7 +38,12 @@ func Load() *Config {
 		RLLimit:            getEnvInt("RATE_LIMIT_REQUESTS", 100),
 		RLWindow:           getEnvDuration("RATE_LIMIT_WINDOW", "1m"),
 		CORSAllowedOrigins: strings.Split(getEnv("CORS_ALLOWED_ORIGINS", "*"), ","),
-		RedisAddr:          getEnv("REDIS_ADDR", ""), // Empty means use in-memory fallback
+		RedisAddr:          getEnv("REDIS_ADDR", ""),
+
+		// Tracing
+		TracingEnabled: getEnvBool("TRACING_ENABLED", false),
+		OTLPEndpoint:   getEnv("OTLP_ENDPOINT", ""),
+		ServiceVersion: getEnv("SERVICE_VERSION", "1.0.0"),
 	}
 }
 

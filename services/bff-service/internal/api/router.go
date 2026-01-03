@@ -25,7 +25,13 @@ func NewRouter(cfg *config.Config) http.Handler {
 	// 1. Request ID (must be first for tracing)
 	r.Use(middleware.RequestID)
 
-	// 2. Metrics (Prometheus RED metrics)
+	// 2. Tracing (OpenTelemetry) - if enabled
+	if cfg.TracingEnabled {
+		r.Use(middleware.Tracing("bff-service"))
+		log.Println("Tracing: OpenTelemetry enabled")
+	}
+
+	// 3. Metrics (Prometheus RED metrics)
 	r.Use(middleware.Metrics)
 
 	// 3. CORS
