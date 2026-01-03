@@ -98,6 +98,43 @@ func (c *EventClient) GetEvent(ctx context.Context, eventID uuid.UUID) (*domain.
 	return &wrapper.Data, nil
 }
 
+func (c *EventClient) GetOwnEvent(ctx context.Context, eventID uuid.UUID, bearerToken string) (*domain.Event, error) {
+	url := fmt.Sprintf("%s/event/v1/organizer/events/%s", c.BaseURL, eventID)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if bearerToken != "" {
+		req.Header.Set("Authorization", bearerToken)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, ErrNotFound
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, ErrUnauthorized
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, decodeError(resp)
+	}
+
+	var wrapper dataEnvelope[domain.Event]
+	if err := json.NewDecoder(resp.Body).Decode(&wrapper); err != nil {
+		return nil, err
+	}
+
+	return &wrapper.Data, nil
+}
+
 func (c *EventClient) CreateEvent(ctx context.Context, bearerToken string, body interface{}) (*domain.Event, error) {
 	url := fmt.Sprintf("%s/event/v1/events", c.BaseURL)
 
@@ -162,6 +199,133 @@ func (c *EventClient) PublishEvent(ctx context.Context, bearerToken, eventID str
 	}
 
 	return &wrapper.Data, nil
+}
+
+func (c *EventClient) UnpublishEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error) {
+	url := fmt.Sprintf("%s/event/v1/events/%s/unpublish", c.BaseURL, eventID)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if bearerToken != "" {
+		req.Header.Set("Authorization", bearerToken)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, decodeError(resp)
+	}
+
+	var wrapper dataEnvelope[domain.Event]
+	if err := json.NewDecoder(resp.Body).Decode(&wrapper); err != nil {
+		return nil, err
+	}
+
+	return &wrapper.Data, nil
+}
+
+func (c *EventClient) UpdateEvent(ctx context.Context, bearerToken, eventID string, body interface{}) (*domain.Event, error) {
+	url := fmt.Sprintf("%s/event/v1/events/%s", c.BaseURL, eventID)
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "PATCH", url, bytes.NewReader(jsonBody))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if bearerToken != "" {
+		req.Header.Set("Authorization", bearerToken)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, decodeError(resp)
+	}
+
+	var wrapper dataEnvelope[domain.Event]
+	if err := json.NewDecoder(resp.Body).Decode(&wrapper); err != nil {
+		return nil, err
+	}
+
+	return &wrapper.Data, nil
+}
+
+func (c *EventClient) CancelEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error) {
+	url := fmt.Sprintf("%s/event/v1/events/%s/cancel", c.BaseURL, eventID)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if bearerToken != "" {
+		req.Header.Set("Authorization", bearerToken)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, decodeError(resp)
+	}
+
+	var wrapper dataEnvelope[domain.Event]
+	if err := json.NewDecoder(resp.Body).Decode(&wrapper); err != nil {
+		return nil, err
+	}
+
+	return &wrapper.Data, nil
+}
+
+// GetCitySuggestions returns city suggestions for autocomplete.
+func (c *EventClient) GetCitySuggestions(ctx context.Context, query string) ([]string, error) {
+	u := fmt.Sprintf("%s/event/v1/meta/cities?q=%s", c.BaseURL, url.QueryEscape(query))
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, ErrTimeout
+		}
+		return nil, ErrUnavailable
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, decodeError(resp)
+	}
+
+	// Use existing dataEnvelope pattern (consistent with other methods)
+	var envelope dataEnvelope[[]string]
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+
+	return envelope.Data, nil
 }
 
 type JoinClient struct {

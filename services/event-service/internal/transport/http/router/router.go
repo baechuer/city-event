@@ -45,14 +45,17 @@ func New(
 	r.Route("/event/v1", func(r chi.Router) {
 		r.Get("/events", h.ListPublic)
 		r.Get("/events/{event_id}", h.GetPublic)
+		r.Get("/meta/cities", h.GetCitySuggestions) // City autocomplete
 
 		r.Group(func(r chi.Router) {
 			r.Use(auth.Require)
 			r.Post("/events", h.Create)
 			r.Patch("/events/{event_id}", h.Update)
 			r.Post("/events/{event_id}/publish", h.Publish)
+			r.Post("/events/{event_id}/unpublish", h.Unpublish)
 			r.Post("/events/{event_id}/cancel", h.Cancel)
 			r.Get("/organizer/events", h.ListMine)
+			r.Get("/organizer/events/{event_id}", h.GetMine)
 		})
 	})
 

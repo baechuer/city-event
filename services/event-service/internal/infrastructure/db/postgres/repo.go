@@ -18,7 +18,7 @@ func New(db *sql.DB) *Repo { return &Repo{db: db} }
 
 func (r *Repo) Create(ctx context.Context, e *domain.Event) error {
 	_, err := r.db.ExecContext(ctx, insertEventSQL,
-		e.ID, e.OwnerID, e.Title, e.Description, e.City, e.Category,
+		e.ID, e.OwnerID, e.Title, e.Description, e.City, domain.NormalizeCity(e.City), e.Category,
 		e.StartTime, e.EndTime, e.Capacity, string(e.Status),
 		e.PublishedAt, e.CanceledAt, e.CreatedAt, e.UpdatedAt,
 	)
@@ -51,14 +51,14 @@ func (r *Repo) GetByID(ctx context.Context, id string) (*domain.Event, error) {
 func (r *Repo) Update(ctx context.Context, e *domain.Event) error {
 	_, err := r.db.ExecContext(ctx, updateEventSQL,
 		e.ID,
-		e.Title, e.Description, e.City, e.Category,
+		e.Title, e.Description, e.City, domain.NormalizeCity(e.City), e.Category,
 		e.StartTime, e.EndTime, e.Capacity, string(e.Status),
 		e.PublishedAt, e.CanceledAt, e.UpdatedAt,
 	)
 	return err
 }
 
-func (r *Repo) ListByOwner(ctx context.Context, ownerID string, page, pageSize int) ([]*domain.Event, int, error) {
+func (r *Repo) ListByOwner(ctx context.Context, ownerID string, status string, page, pageSize int) ([]*domain.Event, int, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -71,21 +71,36 @@ func (r *Repo) ListByOwner(ctx context.Context, ownerID string, page, pageSize i
 
 	offset := (page - 1) * pageSize
 
-	countRow := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM events WHERE owner_id=$1`, ownerID)
+	where := []string{"owner_id=$1"}
+	args := []any{ownerID}
+	argN := 2
+
+	if status != "" {
+		where = append(where, fmt.Sprintf("status=$%d", argN))
+		args = append(args, status)
+		argN++
+	}
+
+	whereSQL := "WHERE " + strings.Join(where, " AND ")
+
+	countSQL := "SELECT COUNT(*) FROM events " + whereSQL
 	var total int
-	if err := countRow.Scan(&total); err != nil {
+	if err := r.db.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	rows, err := r.db.QueryContext(ctx, `
+	listSQL := `
 SELECT id, owner_id, title, description, city, category,
        start_time, end_time, capacity, active_participants, status,
        published_at, canceled_at, created_at, updated_at
 FROM events
-WHERE owner_id=$1
+` + whereSQL + `
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
-`, ownerID, pageSize, offset)
+LIMIT $` + fmt.Sprintf("%d", argN) + ` OFFSET $` + fmt.Sprintf("%d", argN+1)
+
+	listArgs := append(args, pageSize, offset)
+
+	rows, err := r.db.QueryContext(ctx, listSQL, listArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -94,15 +109,15 @@ LIMIT $2 OFFSET $3
 	var out []*domain.Event
 	for rows.Next() {
 		var e domain.Event
-		var status string
+		var s string
 		if err := rows.Scan(
 			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
-			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
+			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &s,
 			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
 			return nil, 0, err
 		}
-		e.Status = domain.EventStatus(status)
+		e.Status = domain.EventStatus(s)
 		out = append(out, &e)
 	}
 	if err := rows.Err(); err != nil {
@@ -206,4 +221,26 @@ LIMIT $` + fmt.Sprintf("%d", argN) + ` OFFSET $` + fmt.Sprintf("%d", argN+1)
 	}
 
 	return out, total, nil
+}
+
+// GetCitySuggestions returns city suggestions matching the query, sorted by popularity.
+func (r *Repo) GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error) {
+	normalizedQuery := domain.NormalizeCity(query)
+
+	rows, err := r.db.QueryContext(ctx, getCitySuggestionsSQL, normalizedQuery, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var cities []string
+	for rows.Next() {
+		var city string
+		if err := rows.Scan(&city); err != nil {
+			return nil, err
+		}
+		cities = append(cities, city)
+	}
+
+	return cities, rows.Err()
 }

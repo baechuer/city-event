@@ -31,6 +31,7 @@ export const EventCardSchema = z.object({
     title: z.string().catch("Untitled Event"),
     cover_image: z.string().nullish(),
     start_time: z.string().catch(() => new Date().toISOString()),
+    end_time: z.string().nullish().catch(null),
     city: z.string().catch("Unknown City"),
     category: z.string().catch("General"),
 }).passthrough();
@@ -45,6 +46,9 @@ export const ParticipationSchema = z.object({
 export const ActionPolicySchema = z.object({
     can_join: z.boolean().catch(false),
     can_cancel: z.boolean().catch(false),
+    can_cancel_event: z.boolean().catch(false),
+    can_unpublish: z.boolean().catch(false),
+    can_edit: z.boolean().catch(false),
     reason: z.string().nullish().transform(v => v ?? ""),
 }).passthrough();
 
@@ -73,7 +77,14 @@ export const EventSchema = z.object({
 export const EventViewSchema = z.object({
     event: EventSchema,
     participation: ParticipationSchema.nullable().catch(null),
-    actions: ActionPolicySchema.catch({ can_join: false, can_cancel: false, reason: "internal_error" }),
+    actions: ActionPolicySchema.catch({
+        can_join: false,
+        can_cancel: false,
+        can_cancel_event: false,
+        can_unpublish: false,
+        can_edit: false,
+        reason: "internal_error"
+    }),
     degraded: DegradedInfoSchema.optional(),
 }).passthrough();
 

@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Link } from "react-router-dom";
 import { ApiError } from "@/lib/apiClient";
-import { ApiErrorCode } from "@/types/api";
 
 const loginSchema = z.object({
     email: z.string().email("Invalid email address"),
@@ -30,10 +29,17 @@ export function Login() {
         try {
             await login(data);
         } catch (err: any) {
-            if (err instanceof ApiError && err.code === ApiErrorCode.UNAUTHENTICATED) {
-                setError("Invalid email or password.");
+            // Check for invalid credentials error code directly
+            if (err?.code === 'invalid_credentials' || err?.code === 'unauthenticated') {
+                setError("Invalid email or password. Please check your credentials and try again.");
+            } else if (err instanceof ApiError) {
+                // Show the specific error message from the API
+                setError(err.message || "Login failed. Please try again.");
+            } else if (err?.message) {
+                // Fallback to error message if available
+                setError(err.message);
             } else {
-                setError(err.message || "Something went wrong.");
+                setError("Unable to connect to the server. Please try again later.");
             }
         }
     };

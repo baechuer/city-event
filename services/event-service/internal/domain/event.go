@@ -104,6 +104,22 @@ func (e *Event) Cancel(now time.Time) error {
 	return nil
 }
 
+func (e *Event) Unpublish(now time.Time) error {
+	if e.Status != StatusPublished {
+		return ErrInvalidState("only published event can be unpublished")
+	}
+	if e.IsEnded(now) {
+		return ErrInvalidState("cannot unpublish an ended event")
+	}
+	e.Status = StatusDraft
+	// Optional: keep PublishedAt as "first published at" or clear it.
+	// For "draft" semantics, maybe clearing it implies it's not currently published.
+	// Let's clear it to allow re-publishing logic (which sets PublishedAt) to work consistently.
+	e.PublishedAt = nil
+	e.UpdatedAt = now.UTC()
+	return nil
+}
+
 // MVP: allow update in draft/published (but not canceled/ended)
 func (e *Event) ApplyUpdate(title, description, city, category *string, start, end *time.Time, capacity *int, now time.Time) error {
 	if e.Status == StatusCanceled {

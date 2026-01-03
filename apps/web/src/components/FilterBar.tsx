@@ -1,23 +1,23 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, MapPin, Grid, X } from "lucide-react";
+import { Search, Grid, X } from "lucide-react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
+import { Combobox } from "./ui/combobox";
+import { getCitySuggestions } from "@/lib/apiClient";
+import { MapPin } from "lucide-react";
 
 const CATEGORIES = [
     "All",
     "Social",
     "Tech",
     "Career",
-    "Wellness",
-    "Outdoors",
-    "Arts",
-    "Music",
-    "Food & Drink",
+    "Health",
+    "Creative",
     "Sports",
+    "Food",
+    "Other",
 ];
-
-const SUGGESTED_CITIES = ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide"];
 
 export function FilterBar() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -113,21 +113,15 @@ export function FilterBar() {
                     />
                 </div>
 
-                {/* City Input + Suggestions */}
-                <div className="relative w-full md:w-[240px]">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        list="city-suggestions"
-                        placeholder="Location (city or suburb)"
-                        className="pl-10 bg-white/50 dark:bg-slate-900/50 border-white/20 focus:ring-emerald-500"
+                {/* City Input with Combobox */}
+                <div className="w-full md:w-[240px]">
+                    <Combobox
                         value={localCity}
-                        onChange={(e) => setLocalCity(e.target.value)}
+                        onChange={setLocalCity}
+                        fetchSuggestions={getCitySuggestions}
+                        placeholder="Location (city or suburb)"
+                        icon={<MapPin className="w-4 h-4" />}
                     />
-                    <datalist id="city-suggestions">
-                        {SUGGESTED_CITIES.map(c => (
-                            <option key={c} value={c} />
-                        ))}
-                    </datalist>
                 </div>
 
                 {/* Clear Button */}

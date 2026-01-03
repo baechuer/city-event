@@ -60,7 +60,7 @@ func (m *mockFailingRepo) GetByID(ctx context.Context, id string) (*domain.Event
 	return nil, nil
 }
 func (m *mockFailingRepo) Update(ctx context.Context, e *domain.Event) error { return nil }
-func (m *mockFailingRepo) ListByOwner(ctx context.Context, o string, p, ps int) ([]*domain.Event, int, error) {
+func (m *mockFailingRepo) ListByOwner(ctx context.Context, o string, status string, p, ps int) ([]*domain.Event, int, error) {
 	return nil, 0, nil
 }
 func (m *mockFailingRepo) ListPublicTimeKeyset(ctx context.Context, f event.ListFilter, hasCursor bool, afterStart time.Time, afterID string) ([]*domain.Event, error) {
@@ -87,6 +87,9 @@ func (m *mockFailingRepo) IncrementParticipantCount(ctx context.Context, eventID
 }
 func (m *mockFailingRepo) DecrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
 	return errors.New("simulated transient error")
+}
+func (m *mockFailingRepo) GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error) {
+	return []string{}, nil
 }
 
 func TestConsumer_DLQ_Retry(t *testing.T) {

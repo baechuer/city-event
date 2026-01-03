@@ -88,7 +88,18 @@ export function EventDetail() {
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest leading-none mb-1">Date & Time</span>
-                                        <span className="text-base font-semibold">{new Date(event.start_time).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })}</span>
+                                        <span className="text-base font-semibold">
+                                            {new Date(event.start_time).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })}
+                                            {event.end_time && (
+                                                <>
+                                                    {" - "}
+                                                    {new Date(event.start_time).toDateString() === new Date(event.end_time).toDateString()
+                                                        ? new Date(event.end_time).toLocaleTimeString(undefined, { timeStyle: 'short' })
+                                                        : new Date(event.end_time).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' })
+                                                    }
+                                                </>
+                                            )}
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4 glass-card px-5 py-4 rounded-2xl">
@@ -126,6 +137,9 @@ export function EventDetail() {
                                     status={participation?.status || 'none'}
                                     canJoin={actions.can_join && !degraded?.participation} // 5.1 Write Blocking
                                     canCancel={actions.can_cancel && !degraded?.participation}
+                                    canCancelEvent={actions.can_cancel_event}
+                                    canUnpublish={actions.can_unpublish}
+                                    canEdit={actions.can_edit}
                                     reason={actions.reason}
                                 />
                                 {degraded?.participation && (

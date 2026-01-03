@@ -51,7 +51,7 @@ func canCreate(actorRole string) bool {
 	if actorRole == "" {
 		return false
 	}
-	return actorRole == "organizer" || isModerator(actorRole) || isAdmin(actorRole)
+	return actorRole == "user" || actorRole == "organizer" || isModerator(actorRole) || isAdmin(actorRole)
 }
 
 var _ = domain.AppError{}

@@ -23,7 +23,7 @@ INSERT INTO event_outbox (
 
 const selectEventForUpdateSQL = `
 SELECT id, owner_id, title, description, city, category,
-       start_time, end_time, capacity, status,
+       start_time, end_time, capacity, active_participants, status,
        published_at, canceled_at, created_at, updated_at
 FROM events WHERE id = $1
 FOR UPDATE
@@ -36,7 +36,7 @@ func (r *txRepo) GetByIDForUpdate(ctx context.Context, id string) (*domain.Event
 	var status string
 	err := row.Scan(
 		&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
-		&e.StartTime, &e.EndTime, &e.Capacity, &status,
+		&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
 		&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err != nil {
@@ -48,7 +48,7 @@ func (r *txRepo) GetByIDForUpdate(ctx context.Context, id string) (*domain.Event
 
 func (r *txRepo) Update(ctx context.Context, e *domain.Event) error {
 	_, err := r.tx.ExecContext(ctx, updateEventSQL,
-		e.ID, e.Title, e.Description, e.City, e.Category,
+		e.ID, e.Title, e.Description, e.City, domain.NormalizeCity(e.City), e.Category,
 		e.StartTime, e.EndTime, e.Capacity, string(e.Status),
 		e.PublishedAt, e.CanceledAt, e.UpdatedAt,
 	)

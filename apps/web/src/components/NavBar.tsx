@@ -29,6 +29,9 @@ export function NavBar() {
                                     <NavLink to="/me/joins" active={location.pathname === '/me/joins'}>
                                         My Activities
                                     </NavLink>
+                                    <NavLink to="/me/events" active={location.pathname === '/me/events'}>
+                                        My Events
+                                    </NavLink>
                                     <NavLink to="/events/new" active={location.pathname === '/events/new'}>
                                         Publish
                                     </NavLink>

@@ -83,7 +83,7 @@ func (m *memRepo) ListPublicRelevanceKeyset(ctx context.Context, f ListFilter, h
 	return []*domain.Event{}, []float64{}, nil
 }
 
-func (m *memRepo) ListByOwner(ctx context.Context, ownerID string, page, pageSize int) ([]*domain.Event, int, error) {
+func (m *memRepo) ListByOwner(ctx context.Context, ownerID string, status string, page, pageSize int) ([]*domain.Event, int, error) {
 	return []*domain.Event{}, 0, nil
 }
 
@@ -94,6 +94,10 @@ func (m *memRepo) IncrementParticipantCount(ctx context.Context, eventID uuid.UU
 
 func (m *memRepo) DecrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
 	return nil
+}
+
+func (m *memRepo) GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error) {
+	return []string{}, nil
 }
 
 func mustTime(t *testing.T, s string) time.Time {
@@ -330,5 +334,44 @@ func TestService_Cancel_StateValidation(t *testing.T) {
 		_, err := svc.Cancel(context.Background(), eventID, "owner", "user")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already canceled")
+	})
+}
+
+func TestService_Unpublish(t *testing.T) {
+	now := mustTime(t, "2025-12-25T10:00:00Z")
+	repo := newMemRepo()
+	cache := newMockCache()
+	svc := New(repo, fakeClock{t: now}, cache, 0, 0)
+
+	eventID := "evt_unpub"
+	ownerID := "owner_1"
+	repo.byID[eventID] = &domain.Event{
+		ID:      eventID,
+		OwnerID: ownerID,
+		Status:  domain.StatusPublished,
+	}
+	cache.store[cacheKeyEventDetails(eventID)] = "cached_data"
+
+	// 1. Not Owner
+	t.Run("non_owner_cannot_unpublish", func(t *testing.T) {
+		repo.byID["evt_other"] = &domain.Event{ID: "evt_other", OwnerID: "other", Status: domain.StatusPublished}
+		_, err := svc.Unpublish(context.Background(), "evt_other", "intruder", "user")
+		assert.Error(t, err)
+	})
+
+	// 2. Success
+	t.Run("owner_can_unpublish", func(t *testing.T) {
+		ev, err := svc.Unpublish(context.Background(), eventID, ownerID, "user")
+		assert.NoError(t, err)
+		assert.Equal(t, domain.StatusDraft, ev.Status)
+		_, exists := cache.store[cacheKeyEventDetails(eventID)]
+		assert.False(t, exists, "Cache should be invalidated")
+	})
+
+	// 3. Already Draft
+	t.Run("cannot_unpublish_draft", func(t *testing.T) {
+		_, err := svc.Unpublish(context.Background(), eventID, ownerID, "user")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "must be published")
 	})
 }

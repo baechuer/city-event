@@ -27,6 +27,7 @@ type Event struct {
 	CreatedBy          uuid.UUID `json:"created_by"` // Deprecated?
 	OwnerID            uuid.UUID `json:"owner_id"`
 	OrganizerName      string    `json:"organizer_name,omitempty"`
+	Status             string    `json:"status"` // "draft", "published", "canceled"
 }
 
 type User struct {
@@ -37,11 +38,18 @@ type User struct {
 
 type ParticipationStatus string
 
+const (
+	EventStatusDraft     = "draft"
+	EventStatusPublished = "published"
+	EventStatusCanceled  = "canceled"
+)
+
 type EventCard struct {
 	ID                 uuid.UUID `json:"id"`
 	Title              string    `json:"title"`
 	CoverImage         string    `json:"cover_image,omitempty"`
 	StartTime          time.Time `json:"start_time"`
+	EndTime            time.Time `json:"end_time"`
 	City               string    `json:"city"`
 	Category           string    `json:"category"`
 	ActiveParticipants int       `json:"active_participants"`
@@ -78,9 +86,12 @@ type Participation struct {
 }
 
 type ActionPolicy struct {
-	CanJoin   bool   `json:"can_join"`
-	CanCancel bool   `json:"can_cancel"`
-	Reason    string `json:"reason,omitempty"`
+	CanJoin        bool   `json:"can_join"`
+	CanCancel      bool   `json:"can_cancel"`
+	CanCancelEvent bool   `json:"can_cancel_event"`
+	CanUnpublish   bool   `json:"can_unpublish"`
+	CanEdit        bool   `json:"can_edit"`
+	Reason         string `json:"reason,omitempty"`
 }
 
 type APIError struct {

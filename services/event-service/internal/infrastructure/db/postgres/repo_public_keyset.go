@@ -139,6 +139,11 @@ func buildPublicBaseWhere(f event.ListFilter) ([]string, []any, int, int) {
 		argN++
 	}
 
+	// Conditional: Hide expired events
+	if f.ExcludeExpired {
+		where = append(where, "end_time > NOW()")
+	}
+
 	city := strings.TrimSpace(f.City)
 	category := strings.TrimSpace(f.Category)
 

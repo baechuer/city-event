@@ -39,6 +39,7 @@ export interface AuthData {
 
 // Enums for stable error codes
 export const ApiErrorCode = {
+    INVALID_CREDENTIALS: 'invalid_credentials', // 401 login failure
     UNAUTHENTICATED: 'unauthenticated', // 401
     FORBIDDEN: 'forbidden',             // 403
     VALIDATION_FAILED: 'validation_failed', // 400

@@ -13,7 +13,7 @@ type EventRepo interface {
 	GetByID(ctx context.Context, id string) (*domain.Event, error)
 	Update(ctx context.Context, e *domain.Event) error
 
-	ListByOwner(ctx context.Context, ownerID string, page, pageSize int) ([]*domain.Event, int, error)
+	ListByOwner(ctx context.Context, ownerID string, status string, page, pageSize int) ([]*domain.Event, int, error)
 
 	// Keyset - time
 	ListPublicTimeKeyset(
@@ -37,6 +37,9 @@ type EventRepo interface {
 	// Participant count management
 	IncrementParticipantCount(ctx context.Context, eventID uuid.UUID) error
 	DecrementParticipantCount(ctx context.Context, eventID uuid.UUID) error
+
+	// City autocomplete suggestions
+	GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error)
 
 	// WithTx runs fn in a DB transaction.
 	// The TxEventRepo must be used for all reads/writes inside the callback.

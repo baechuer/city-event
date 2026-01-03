@@ -73,15 +73,22 @@ func (h *EventsHandler) ListPublic(w http.ResponseWriter, r *http.Request) {
 		toPtr = &tt
 	}
 
+	// exclude_expired
+	excludeExpired := false
+	if v := q.Get("exclude_expired"); v != "" {
+		excludeExpired, _ = strconv.ParseBool(v)
+	}
+
 	filter := event.ListFilter{
-		City:     q.Get("city"),
-		Query:    q.Get("q"),
-		Category: q.Get("category"),
-		From:     fromPtr,
-		To:       toPtr,
-		PageSize: pageSize,
-		Sort:     sort,
-		Cursor:   cursor,
+		City:           q.Get("city"),
+		Query:          q.Get("q"),
+		Category:       q.Get("category"),
+		From:           fromPtr,
+		To:             toPtr,
+		PageSize:       pageSize,
+		Sort:           sort,
+		Cursor:         cursor,
+		ExcludeExpired: excludeExpired,
 	}
 
 	res, err := h.svc.ListPublic(r.Context(), filter)
@@ -239,6 +246,7 @@ func (h *EventsHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 
 func (h *EventsHandler) ListMine(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	status := strings.TrimSpace(q.Get("status"))
 	page, _ := strconv.Atoi(q.Get("page"))
 	pageSize, _ := strconv.Atoi(q.Get("page_size"))
 	if page <= 0 {
@@ -251,7 +259,7 @@ func (h *EventsHandler) ListMine(w http.ResponseWriter, r *http.Request) {
 		pageSize = 100
 	}
 
-	items, total, err := h.svc.ListMyEvents(r.Context(), middleware.UserID(r), middleware.Role(r), page, pageSize)
+	items, total, err := h.svc.ListMyEvents(r.Context(), middleware.UserID(r), middleware.Role(r), status, page, pageSize)
 	if err != nil {
 		response.Err(w, r, err)
 		return
@@ -271,10 +279,84 @@ func (h *EventsHandler) ListMine(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *EventsHandler) GetMine(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "event_id")
+	if !validate.IsUUID(id) {
+		response.Err(w, r, domain.ErrValidationMeta("invalid path param", map[string]string{
+			"event_id": "must be uuid",
+		}))
+		return
+	}
+
+	ev, err := h.svc.GetForOwner(r.Context(), id, middleware.UserID(r), middleware.Role(r))
+	if err != nil {
+		response.Err(w, r, err)
+		return
+	}
+
+	now := h.clock.Now().UTC()
+	response.Data(w, http.StatusOK, dto.ToEventResp(ev, now))
+}
+
+// -------------------------
+// Meta / Autocomplete
+// -------------------------
+
+// GetCitySuggestions returns city suggestions for autocomplete.
+func (h *EventsHandler) GetCitySuggestions(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+
+	// Validation: minimum length
+	if len([]rune(query)) < 2 {
+		response.Data(w, http.StatusOK, []string{})
+		return
+	}
+
+	// Validation: maximum length (prevent abuse)
+	if len(query) > 64 {
+		query = query[:64]
+	}
+
+	cities, err := h.svc.GetCitySuggestions(r.Context(), query, 10)
+	if err != nil {
+		response.Err(w, r, err)
+		return
+	}
+
+	// Return empty array if no results (not null)
+	if cities == nil {
+		cities = []string{}
+	}
+
+	response.Data(w, http.StatusOK, cities)
+}
+
 func parseRFC3339OrNano(s string) (time.Time, error) {
 	// accept both RFC3339 and RFC3339Nano
 	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
 		return t, nil
 	}
 	return time.Parse(time.RFC3339, s)
+}
+
+func (h *EventsHandler) Unpublish(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "event_id")
+	if !validate.IsUUID(id) {
+		response.Err(w, r, domain.ErrValidationMeta("invalid path param", map[string]string{
+			"event_id": "must be uuid",
+		}))
+		return
+	}
+
+	actorID := middleware.UserID(r)
+	actorRole := middleware.Role(r)
+
+	ev, err := h.svc.Unpublish(r.Context(), id, actorID, actorRole)
+	if err != nil {
+		response.Err(w, r, err)
+		return
+	}
+
+	now := h.clock.Now().UTC()
+	response.Data(w, http.StatusOK, dto.ToEventResp(ev, now))
 }

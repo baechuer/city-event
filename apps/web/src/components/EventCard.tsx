@@ -39,9 +39,19 @@ export function EventCard({ event }: EventCardProps) {
                 <div className="mt-4 space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 shrink-0 text-emerald-600" />
-                        <span>{new Date(event.start_time).toLocaleDateString(undefined, {
-                            weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                        })}</span>
+                        <span>
+                            {new Date(event.start_time).toLocaleDateString(undefined, {
+                                weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                            })}
+                            {event.end_time && (
+                                <>
+                                    <span className="mx-1 text-muted-foreground/50">-</span>
+                                    {new Date(event.end_time).toLocaleTimeString(undefined, {
+                                        hour: '2-digit', minute: '2-digit'
+                                    })}
+                                </>
+                            )}
+                        </span>
                     </div>
 
                     <div className="flex items-center gap-2">

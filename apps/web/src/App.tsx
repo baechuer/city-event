@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { queryClient } from './lib/queryClient';
@@ -6,6 +6,7 @@ import { AuthProvider } from './lib/auth';
 
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { LandingPage } from './pages/LandingPage';
 import { EventsFeed } from './pages/EventsFeed';
 import { EventDetail } from './pages/EventDetail';
 import { MyJoins } from './pages/MyJoins';
@@ -13,6 +14,7 @@ import { Profile } from './pages/Profile';
 
 import { CreateEvent } from './pages/CreateEvent';
 
+import { MyEvents } from './pages/MyEvents';
 import { Layout } from './components/Layout';
 
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -21,6 +23,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route element={<Layout />}>
+        <Route path="/" element={<LandingPage />} />
         <Route path="/events" element={<EventsFeed />} />
         <Route path="/events/:id" element={<EventDetail />} />
 
@@ -42,6 +45,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/me/events"
+          element={
+            <ProtectedRoute>
+              <MyEvents />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/profile"
           element={
             <ProtectedRoute>
@@ -52,7 +63,6 @@ function AppRoutes() {
 
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/" element={<Navigate to="/events" replace />} />
       </Route>
     </Routes>
   );

@@ -61,7 +61,7 @@ func (m *mockRepo) GetByID(ctx context.Context, id string) (*domain.Event, error
 	}, nil
 }
 func (m *mockRepo) Update(ctx context.Context, e *domain.Event) error { return nil }
-func (m *mockRepo) ListByOwner(ctx context.Context, ownerID string, page, pageSize int) ([]*domain.Event, int, error) {
+func (m *mockRepo) ListByOwner(ctx context.Context, ownerID string, status string, page, pageSize int) ([]*domain.Event, int, error) {
 	return nil, 0, nil
 }
 
@@ -79,6 +79,9 @@ func (m *mockRepo) IncrementParticipantCount(ctx context.Context, eventID uuid.U
 }
 func (m *mockRepo) DecrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
 	return nil
+}
+func (m *mockRepo) GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error) {
+	return []string{}, nil
 }
 
 // Satisfy Transaction requirements

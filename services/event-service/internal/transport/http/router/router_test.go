@@ -30,7 +30,7 @@ func (s *stubRepo) GetByID(ctx context.Context, id string) (*domain.Event, error
 	return &domain.Event{Status: domain.StatusPublished}, nil
 }
 func (s *stubRepo) Update(ctx context.Context, e *domain.Event) error { return nil }
-func (s *stubRepo) ListByOwner(ctx context.Context, o string, p, ps int) ([]*domain.Event, int, error) {
+func (s *stubRepo) ListByOwner(ctx context.Context, o, status string, p, ps int) ([]*domain.Event, int, error) {
 	return []*domain.Event{}, 0, nil
 }
 
@@ -47,6 +47,9 @@ func (s *stubRepo) IncrementParticipantCount(ctx context.Context, eventID uuid.U
 }
 func (s *stubRepo) DecrementParticipantCount(ctx context.Context, eventID uuid.UUID) error {
 	return nil
+}
+func (s *stubRepo) GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error) {
+	return []string{}, nil
 }
 
 // FIX: Added WithTx to satisfy the EventRepo interface

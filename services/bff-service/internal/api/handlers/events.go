@@ -20,10 +20,15 @@ import (
 
 type EventClient interface {
 	GetEvent(ctx context.Context, eventID uuid.UUID) (*domain.Event, error)
+	GetOwnEvent(ctx context.Context, eventID uuid.UUID, bearerToken string) (*domain.Event, error)
 	ListEvents(ctx context.Context, query url.Values) (*domain.PaginatedResponse[domain.EventCard], error)
 	CreateEvent(ctx context.Context, bearerToken string, body interface{}) (*domain.Event, error)
 	PublishEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error)
+	UpdateEvent(ctx context.Context, bearerToken, eventID string, body interface{}) (*domain.Event, error)
+	CancelEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error)
 	ListMine(ctx context.Context, bearerToken string, query url.Values) (*domain.PaginatedResponse[domain.EventCard], error)
+	GetCitySuggestions(ctx context.Context, query string) ([]string, error)
+	UnpublishEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error)
 }
 
 type JoinClient interface {
@@ -77,8 +82,23 @@ func (h *EventHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EventHandler) ListFeed(w http.ResponseWriter, r *http.Request) {
-	// For V0, feed uses the same logic as events list but might use different query params in frontend
-	h.ListEvents(w, r)
+	// For V0, feed uses the same logic as events list but defaults to Upcoming Only
+	q := r.URL.Query()
+	if !q.Has("exclude_expired") {
+		q.Set("exclude_expired", "true")
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 1500*time.Millisecond)
+	defer cancel()
+
+	res, err := h.eventClient.ListEvents(ctx, q)
+	if err != nil {
+		handleDownstreamError(w, r, err, "failed to fetch events")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(res)
 }
 
 func (h *EventHandler) ListMyJoins(w http.ResponseWriter, r *http.Request) {
@@ -218,6 +238,34 @@ func (h *EventHandler) PublishEvent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ev)
 }
 
+func (h *EventHandler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		sendError(w, r, "validation_failed", "event id is required", http.StatusBadRequest)
+		return
+	}
+
+	var body interface{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sendError(w, r, "validation_failed", "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	bearerToken := middleware.GetBearerToken(r.Context())
+	ev, err := h.eventClient.UpdateEvent(r.Context(), bearerToken, id, body)
+	if err != nil {
+		handleDownstreamError(w, r, err, "failed to update event")
+		return
+	}
+	if ev != nil {
+		ev.CreatedBy = ev.OwnerID
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(ev)
+}
+
 func (h *EventHandler) ListCreatedEvents(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
@@ -282,6 +330,11 @@ func (h *EventHandler) GetEventView(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 1200*time.Millisecond)
 		defer cancel()
 		event, eventErr = h.eventClient.GetEvent(ctx, eventID)
+
+		// If public fetch fails (could be a draft), try fetching as owner if logged in
+		if (eventErr == downstream.ErrNotFound || eventErr == nil && event == nil) && bearerToken != "" {
+			event, eventErr = h.eventClient.GetOwnEvent(ctx, eventID, bearerToken)
+		}
 	}
 
 	if eventErr != nil {
@@ -342,7 +395,7 @@ func (h *EventHandler) GetEventView(w http.ResponseWriter, r *http.Request) {
 		event.OrganizerName = "Unknown Host"
 	}
 
-	policy := domain.CalculateActionPolicy(event, part, userID, time.Now(), isDegraded)
+	policy := domain.CalculateActionPolicy(event, part, userID, time.Now().UTC(), isDegraded)
 
 	resp := EventViewResponse{
 		Event:         event,
@@ -438,4 +491,73 @@ func (h *EventHandler) respondWithJoinState(w http.ResponseWriter, eventID uuid.
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
+}
+
+// GetCitySuggestions returns city suggestions for autocomplete.
+func (h *EventHandler) GetCitySuggestions(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+
+	// Validation: minimum length
+	if len([]rune(query)) < 2 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"data": []string{}})
+		return
+	}
+
+	// Validation: maximum length (prevent abuse)
+	if len(query) > 64 {
+		query = query[:64]
+	}
+
+	cities, err := h.eventClient.GetCitySuggestions(r.Context(), query)
+	if err != nil {
+		handleDownstreamError(w, r, err, "failed to fetch city suggestions")
+		return
+	}
+
+	// Return with data envelope (consistent with other endpoints)
+	if cities == nil {
+		cities = []string{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"data": cities})
+}
+
+func (h *EventHandler) CancelEvent(w http.ResponseWriter, r *http.Request) {
+	eventIDStr := chi.URLParam(r, "id")
+	eventID, err := uuid.Parse(eventIDStr)
+	if err != nil {
+		sendError(w, r, "validation_failed", "invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	bearerToken := middleware.GetBearerToken(r.Context())
+	ev, err := h.eventClient.CancelEvent(r.Context(), bearerToken, eventID.String())
+	if err != nil {
+		handleDownstreamError(w, r, err, "failed to cancel event")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ev)
+}
+
+func (h *EventHandler) UnpublishEvent(w http.ResponseWriter, r *http.Request) {
+	eventIDStr := chi.URLParam(r, "id")
+	eventID, err := uuid.Parse(eventIDStr)
+	if err != nil {
+		sendError(w, r, "validation_failed", "invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	bearerToken := middleware.GetBearerToken(r.Context())
+	ev, err := h.eventClient.UnpublishEvent(r.Context(), bearerToken, eventID.String())
+	if err != nil {
+		handleDownstreamError(w, r, err, "failed to unpublish event")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ev)
 }

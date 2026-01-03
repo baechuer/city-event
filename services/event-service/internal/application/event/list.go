@@ -21,6 +21,8 @@ type ListFilter struct {
 
 	Sort   string // time | relevance
 	Cursor string // time: "time|uuid"; relevance: "rank|time|uuid"
+
+	ExcludeExpired bool // If true, filters out events where end_time <= NOW()
 }
 
 func (f *ListFilter) Normalize() error {
@@ -137,7 +139,7 @@ func (s *Service) ListPublic(ctx context.Context, f ListFilter) (PublicListResul
 	return res, nil
 }
 
-func (s *Service) ListMyEvents(ctx context.Context, actorID, actorRole string, page, pageSize int) ([]*domain.Event, int, error) {
+func (s *Service) ListMyEvents(ctx context.Context, actorID, actorRole string, status string, page, pageSize int) ([]*domain.Event, int, error) {
 	if strings.TrimSpace(actorID) == "" {
 		return nil, 0, domain.ErrForbidden("not allowed")
 	}
@@ -150,7 +152,7 @@ func (s *Service) ListMyEvents(ctx context.Context, actorID, actorRole string, p
 	if pageSize > 100 {
 		pageSize = 100
 	}
-	return s.repo.ListByOwner(ctx, actorID, page, pageSize)
+	return s.repo.ListByOwner(ctx, actorID, status, page, pageSize)
 }
 
 // -------- cursor helpers --------
@@ -214,4 +216,53 @@ func parseRFC3339OrNano(s string) (time.Time, error) {
 		return t, nil
 	}
 	return time.Parse(time.RFC3339, s)
+}
+
+// GetCitySuggestions returns city suggestions matching the query, sorted by popularity.
+func (s *Service) GetCitySuggestions(ctx context.Context, query string, limit int) ([]string, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	// 1. Get from DB (real data-driven)
+	cities, err := s.repo.GetCitySuggestions(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Fallback to static list if results are sparse
+	if len(cities) < 3 {
+		staticCities := []string{
+			"Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide",
+			"New York", "London", "Tokyo", "Paris", "Berlin",
+			"Beijing", "Shanghai", "Chengdu", "Shenzhen", "Hangzhou",
+			"Singapore", "Hong Kong", "Dubai", "Los Angeles", "San Francisco",
+		}
+
+		normalizedQuery := strings.ToLower(strings.TrimSpace(query))
+		for _, sc := range staticCities {
+			if len(cities) >= limit {
+				break
+			}
+			// Simple prefix match for static items
+			if strings.HasPrefix(strings.ToLower(sc), normalizedQuery) {
+				// Avoid duplicates
+				exists := false
+				for _, c := range cities {
+					if strings.EqualFold(c, sc) {
+						exists = true
+						break
+					}
+				}
+				if !exists {
+					cities = append(cities, sc)
+				}
+			}
+		}
+	}
+
+	return cities, nil
 }

@@ -152,3 +152,37 @@ jobs:
         working-directory: services/${{ matrix.svc }}
         run: |
           docker compose -f ${{ matrix.compose_file }} down -v
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Start Full Stack
+        run: |
+          docker compose up -d --build --wait
+
+      - name: Run E2E Tests
+        working-directory: tests/e2e
+        run: |
+          # Ensure mod exists if not committed (robustness)
+          if [ ! -f go.mod ]; then
+            go mod init e2e
+            go get github.com/stretchr/testify/assert github.com/stretchr/testify/require
+          fi
+          go test -v .
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Down
+        if: always()
+        run: docker compose down -v

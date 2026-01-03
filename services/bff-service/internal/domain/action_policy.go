@@ -33,36 +33,51 @@ func CalculateActionPolicy(event *Event, part *Participation, userID uuid.UUID, 
 		status = part.Status
 	}
 
-	// Can Cancel?
-	canCancel := (status == StatusActive || status == StatusWaitlisted) && event.StartTime.After(now)
+	// 4. Owner / Admin Logic
+	// 4. Owner / Admin Logic
+	isOwner := event.OwnerID == userID
+	canEdit := isOwner
+	canCancelEvent := isOwner && event.StartTime.After(now)
+	canUnpublish := isOwner && event.Status == EventStatusPublished && event.StartTime.After(now)
+
+	// Can Cancel Participation?
+	canCancel := !isOwner && (status == StatusActive || status == StatusWaitlisted) && event.StartTime.After(now)
 
 	// Can Join?
 	canJoin := false
 	reason := ""
 
-	switch status {
-	case StatusActive, StatusWaitlisted:
+	if isOwner {
 		canJoin = false
-		reason = "already_joined"
-	case StatusRejected:
-		canJoin = false
-		reason = "banned_or_rejected"
-	default:
-		// Not joined, canceled, or expired -> Can attempt join
-		if event.EndTime.Before(now) {
+		reason = "is_organizer"
+	} else {
+		switch status {
+		case StatusActive, StatusWaitlisted:
 			canJoin = false
-			reason = "event_ended"
-		} else if event.Capacity < 0 {
+			reason = "already_joined"
+		case StatusRejected:
 			canJoin = false
-			reason = "event_closed"
-		} else {
-			canJoin = true
+			reason = "banned_or_rejected"
+		default:
+			// Not joined, canceled, or expired -> Can attempt join
+			if event.EndTime.Before(now) {
+				canJoin = false
+				reason = "event_ended"
+			} else if event.Capacity < 0 {
+				canJoin = false
+				reason = "event_closed"
+			} else {
+				canJoin = true
+			}
 		}
 	}
 
 	return ActionPolicy{
-		CanJoin:   canJoin,
-		CanCancel: canCancel,
-		Reason:    reason,
+		CanJoin:        canJoin,
+		CanCancel:      canCancel,
+		CanCancelEvent: canCancelEvent,
+		CanUnpublish:   canUnpublish,
+		CanEdit:        canEdit,
+		Reason:         reason,
 	}
 }

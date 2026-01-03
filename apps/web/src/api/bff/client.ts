@@ -101,10 +101,29 @@ export const bffClient = {
     /**
      * Cancel join mutation
      */
+    /**
+     * Cancel join mutation
+     */
     async cancelJoin(id: string, idempotencyKey: string): Promise<JoinState> {
         const res = await apiClient.post(`/events/${id}/cancel`, {}, {
             headers: { 'Idempotency-Key': idempotencyKey }
         });
         return parseResponse(JoinStateSchema, res.data);
+    },
+
+    /**
+     * Cancel the entire event (Organizer only)
+     */
+    async cancelEvent(id: string): Promise<any> {
+        const res = await apiClient.post(`/events/${id}/cancel-event`);
+        return res.data;
+    },
+
+    /**
+     * Unpublish event (Organizer only)
+     */
+    async unpublishEvent(id: string): Promise<any> {
+        const res = await apiClient.post(`/events/${id}/unpublish`);
+        return res.data;
     },
 };

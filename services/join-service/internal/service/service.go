@@ -39,6 +39,12 @@ func (s *JoinService) requireOrganizerOrAdmin(ctx context.Context, eventID uuid.
 }
 
 func (s *JoinService) Join(ctx context.Context, traceID, idempotencyKey string, eventID, userID uuid.UUID) (string, error) {
+	// Organizer cannot join own event
+	owner, err := s.repo.GetEventOwnerID(ctx, eventID)
+	if err == nil && owner == userID {
+		return "", domain.ErrForbidden
+	}
+
 	// cache fast-fail stays
 	if s.cache != nil {
 		capacity, err := s.cache.GetEventCapacity(ctx, eventID)

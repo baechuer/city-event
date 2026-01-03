@@ -45,6 +45,23 @@ func TestRepo_ListPublicTimeKeyset(t *testing.T) {
 		assert.Len(t, items, 1)
 	})
 
+	t.Run("exclude_expired", func(t *testing.T) {
+		f := event.ListFilter{PageSize: 10, ExcludeExpired: true}
+		rows := sqlmock.NewRows([]string{
+			"id", "owner_id", "title", "description", "city", "category",
+			"start_time", "end_time", "capacity", "active_participants", "status",
+			"published_at", "canceled_at", "created_at", "updated_at",
+		}).AddRow(newEventRow("e1")...)
+
+		mock.ExpectQuery(`WHERE status = 'published' AND end_time > NOW\(\) ORDER BY start_time ASC, id ASC LIMIT \$1`).
+			WithArgs(10).
+			WillReturnRows(rows)
+
+		items, err := repo.ListPublicTimeKeyset(context.Background(), f, false, time.Time{}, "")
+		assert.NoError(t, err)
+		assert.Len(t, items, 1)
+	})
+
 	t.Run("second_page_with_cursor", func(t *testing.T) {
 		lastTime := time.Now().UTC()
 		lastID := "e1"

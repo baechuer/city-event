@@ -126,6 +126,8 @@ func TestJoinService_Join_Success(t *testing.T) {
 	uID := uuid.New()
 	traceID := "trace"
 
+	// Owner check
+	repo.On("GetEventOwnerID", ctx, eID).Return(uuid.New(), nil)
 	// Cache miss or error (ignored)
 	cache.On("GetEventCapacity", ctx, eID).Return(0, domain.ErrCacheMiss)
 	// Repo join
@@ -173,6 +175,7 @@ func TestJoinService_Join_EventFull(t *testing.T) {
 	eID := uuid.New()
 	uID := uuid.New()
 
+	repo.On("GetEventOwnerID", ctx, eID).Return(uuid.New(), nil)
 	cache.On("GetEventCapacity", ctx, eID).Return(0, domain.ErrCacheMiss)
 	repo.On("JoinEvent", ctx, "trace", "", eID, uID).Return(domain.JoinStatus(""), domain.ErrEventFull)
 
@@ -188,11 +191,27 @@ func TestJoinService_Join_AlreadyJoined(t *testing.T) {
 	eID := uuid.New()
 	uID := uuid.New()
 
+	repo.On("GetEventOwnerID", ctx, eID).Return(uuid.New(), nil)
 	cache.On("GetEventCapacity", ctx, eID).Return(0, domain.ErrCacheMiss)
 	repo.On("JoinEvent", ctx, "trace", "", eID, uID).Return(domain.StatusActive, domain.ErrAlreadyJoined)
 
 	_, err := svc.Join(ctx, "trace", "", eID, uID)
 	assert.ErrorIs(t, err, domain.ErrAlreadyJoined)
+}
+
+func TestJoinService_Join_ForbiddenForOwner(t *testing.T) {
+	repo := new(MockRepo)
+	cache := new(MockCache)
+	svc := service.NewJoinService(repo, cache)
+	ctx := context.Background()
+	eID := uuid.New()
+	uID := uuid.New() // same as owner
+
+	repo.On("GetEventOwnerID", ctx, eID).Return(uID, nil)
+
+	_, err := svc.Join(ctx, "trace", "", eID, uID)
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+	repo.AssertNotCalled(t, "JoinEvent", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestJoinService_GuardedReads_And_Moderation(t *testing.T) {
