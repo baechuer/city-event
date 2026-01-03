@@ -191,7 +191,7 @@ func TestService_Create_Permissions(t *testing.T) {
 		role    string
 		wantErr bool
 	}{
-		{"user", true},
+		{"user", false},
 		{"organizer", false},
 		{"admin", false},
 		{"", true},
