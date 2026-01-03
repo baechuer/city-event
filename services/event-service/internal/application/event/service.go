@@ -57,7 +57,8 @@ func canCreate(actorRole string) bool {
 var _ = domain.AppError{}
 
 func canManage(actorID, actorRole, ownerID string) bool {
-	if actorRole == "admin" {
+	// Admin and Moderator can manage any event
+	if actorRole == "admin" || actorRole == "moderator" {
 		return true
 	}
 	return strings.TrimSpace(actorID) != "" && actorID == ownerID

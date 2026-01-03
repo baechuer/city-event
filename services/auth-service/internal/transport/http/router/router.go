@@ -61,6 +61,9 @@ type Deps struct {
 	AdminMW        func(http.Handler) http.Handler
 	InternalAuthMW func(http.Handler) http.Handler
 
+	// ---- CSRF protection for cookie-based endpoints ----
+	CSRFProtection func(http.Handler) http.Handler // For /refresh, /logout
+
 	// ---- Rate limit middlewares (optional; can be nil) ----
 	RLRegister func(http.Handler) http.Handler
 	RLLogin    func(http.Handler) http.Handler
@@ -123,14 +126,24 @@ func New(deps Deps) (http.Handler, error) {
 			r.Post("/login", deps.Auth.Login)
 		}
 
+		// Cookie-based endpoints require CSRF protection
+		csrfChain := make([]func(http.Handler) http.Handler, 0, 2)
+		if deps.CSRFProtection != nil {
+			csrfChain = append(csrfChain, deps.CSRFProtection)
+		}
+
 		if deps.RLRefresh != nil {
-			r.With(deps.RLRefresh).Post("/refresh", deps.Auth.Refresh)
+			r.With(append(csrfChain, deps.RLRefresh)...).Post("/refresh", deps.Auth.Refresh)
+		} else if len(csrfChain) > 0 {
+			r.With(csrfChain...).Post("/refresh", deps.Auth.Refresh)
 		} else {
 			r.Post("/refresh", deps.Auth.Refresh)
 		}
 
 		if deps.RLLogout != nil {
-			r.With(deps.RLLogout).Post("/logout", deps.Auth.Logout)
+			r.With(append(csrfChain, deps.RLLogout)...).Post("/logout", deps.Auth.Logout)
+		} else if len(csrfChain) > 0 {
+			r.With(csrfChain...).Post("/logout", deps.Auth.Logout)
 		} else {
 			r.Post("/logout", deps.Auth.Logout)
 		}

@@ -52,9 +52,14 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idempotencyKey := r.Header.Get("Idempotency-Key")
+	// X-Idempotency-Key is REQUIRED for write operations
+	idempotencyKey := r.Header.Get("X-Idempotency-Key")
 	if idempotencyKey == "" {
-		idempotencyKey = r.Header.Get("X-Idempotency-Key") // fallback support
+		idempotencyKey = r.Header.Get("Idempotency-Key") // legacy fallback
+	}
+	if idempotencyKey == "" {
+		fail(w, r, http.StatusBadRequest, "idempotency_key.required", "X-Idempotency-Key header is required for this operation", nil)
+		return
 	}
 
 	status, err := h.svc.Join(r.Context(), traceID, idempotencyKey, eventID, auth.UserID)
@@ -88,9 +93,14 @@ func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idempotencyKey := r.Header.Get("Idempotency-Key")
+	// X-Idempotency-Key is REQUIRED for write operations
+	idempotencyKey := r.Header.Get("X-Idempotency-Key")
 	if idempotencyKey == "" {
-		idempotencyKey = r.Header.Get("X-Idempotency-Key")
+		idempotencyKey = r.Header.Get("Idempotency-Key") // legacy fallback
+	}
+	if idempotencyKey == "" {
+		fail(w, r, http.StatusBadRequest, "idempotency_key.required", "X-Idempotency-Key header is required for this operation", nil)
+		return
 	}
 
 	if err := h.svc.Cancel(r.Context(), traceID, idempotencyKey, eventID, auth.UserID); err != nil {

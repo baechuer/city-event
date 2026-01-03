@@ -8,23 +8,28 @@ import (
 	"github.com/baechuer/real-time-ressys/services/auth-service/internal/domain"
 )
 
+// tokenEntry holds the user ID and expiration time for a refresh token
+type tokenEntry struct {
+	userID    string
+	expiresAt time.Time
+}
+
 type SessionStore struct {
 	mu sync.RWMutex
-	// refreshToken -> userID
-	tokenToUser map[string]string
+	// refreshToken -> tokenEntry (userID + expiresAt)
+	tokenToEntry map[string]tokenEntry
 	// userID -> set(refreshToken)
 	userTokens map[string]map[string]struct{}
 }
 
 func NewSessionStore() *SessionStore {
 	return &SessionStore{
-		tokenToUser: make(map[string]string),
-		userTokens:  make(map[string]map[string]struct{}),
+		tokenToEntry: make(map[string]tokenEntry),
+		userTokens:   make(map[string]map[string]struct{}),
 	}
 }
 
 func (s *SessionStore) CreateRefreshToken(ctx context.Context, userID string, ttl time.Duration) (string, error) {
-	_ = ttl // in-memory MVP: ignore ttl
 	tok, err := newOpaqueToken(32)
 	if err != nil {
 		return "", domain.ErrRandomFailed(err)
@@ -33,7 +38,11 @@ func (s *SessionStore) CreateRefreshToken(ctx context.Context, userID string, tt
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.tokenToUser[tok] = userID
+	// Store with expiration time
+	s.tokenToEntry[tok] = tokenEntry{
+		userID:    userID,
+		expiresAt: time.Now().Add(ttl),
+	}
 	if s.userTokens[userID] == nil {
 		s.userTokens[userID] = make(map[string]struct{})
 	}
@@ -44,13 +53,21 @@ func (s *SessionStore) CreateRefreshToken(ctx context.Context, userID string, tt
 
 func (s *SessionStore) GetUserIDByRefreshToken(ctx context.Context, token string) (string, error) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
+	entry, ok := s.tokenToEntry[token]
+	s.mu.RUnlock()
 
-	uid, ok := s.tokenToUser[token]
 	if !ok {
 		return "", domain.ErrRefreshTokenInvalid()
 	}
-	return uid, nil
+
+	// Validate expiration
+	if time.Now().After(entry.expiresAt) {
+		// Token expired - revoke it and return error
+		_ = s.RevokeRefreshToken(ctx, token)
+		return "", domain.ErrRefreshTokenInvalid()
+	}
+
+	return entry.userID, nil
 }
 
 func (s *SessionStore) RotateRefreshToken(ctx context.Context, oldToken string, ttl time.Duration) (string, error) {
@@ -70,15 +87,15 @@ func (s *SessionStore) RevokeRefreshToken(ctx context.Context, token string) err
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	uid, ok := s.tokenToUser[token]
+	entry, ok := s.tokenToEntry[token]
 	if !ok {
 		return nil // idempotent
 	}
-	delete(s.tokenToUser, token)
-	if set := s.userTokens[uid]; set != nil {
+	delete(s.tokenToEntry, token)
+	if set := s.userTokens[entry.userID]; set != nil {
 		delete(set, token)
 		if len(set) == 0 {
-			delete(s.userTokens, uid)
+			delete(s.userTokens, entry.userID)
 		}
 	}
 	return nil
@@ -90,7 +107,7 @@ func (s *SessionStore) RevokeAll(ctx context.Context, userID string) error {
 
 	set := s.userTokens[userID]
 	for tok := range set {
-		delete(s.tokenToUser, tok)
+		delete(s.tokenToEntry, tok)
 	}
 	delete(s.userTokens, userID)
 	return nil
