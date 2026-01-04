@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -387,8 +386,8 @@ func (c *Consumer) handleDelivery(ctx context.Context, d amqp.Delivery) error {
 
 		c.lg.Info().Interface("evt", evt).Msg("unmarshaled verify email event")
 
-		// ✅ Rewrite email link to 8090 (don't change MQ payload)
-		link := c.rewriteURL(rk, evt.URL)
+		// Use the URL provided by auth-service (source of truth)
+		link := evt.URL
 
 		if err := c.handler.VerifyEmail(ctx, evt.UserID, evt.Email, link); err != nil {
 			return c.onHandlerError(ctx, d, err)
@@ -401,7 +400,7 @@ func (c *Consumer) handleDelivery(ctx context.Context, d amqp.Delivery) error {
 			return c.toFinalDLQ(ctx, d, "bad_json", err)
 		}
 
-		link := c.rewriteURL(rk, evt.URL)
+		link := evt.URL
 
 		if err := c.handler.PasswordReset(ctx, evt.UserID, evt.Email, link); err != nil {
 			return c.onHandlerError(ctx, d, err)
@@ -449,43 +448,7 @@ func (c *Consumer) handleDelivery(ctx context.Context, d amqp.Delivery) error {
 	}
 }
 
-// rewriteURL converts auth-service link -> email-service web page link.
-func (c *Consumer) rewriteURL(routingKey, original string) string {
-	base := strings.TrimRight(c.publicBase, "/")
-	if base == "" {
-		// fallback
-		base = "http://localhost:8090"
-	}
-
-	token := extractToken(original)
-	if token == "" {
-		return original
-	}
-
-	var path string
-	switch routingKey {
-	case "auth.email.verify.requested":
-		path = "/verify"
-	case "auth.password.reset.requested":
-		path = "/reset"
-	default:
-		return original
-	}
-
-	return fmt.Sprintf("%s%s?token=%s", base, path, url.QueryEscape(token))
-}
-
-func extractToken(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(u.Query().Get("token"))
-}
+// rewriteURL removed
 
 func (c *Consumer) onHandlerError(ctx context.Context, d amqp.Delivery, err error) error {
 	if isNonRetriable(err) {

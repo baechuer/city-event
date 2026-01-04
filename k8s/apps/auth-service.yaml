@@ -1,0 +1,116 @@
+---
+# Auth Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: city-events
+  labels:
+    app: auth-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: real-time-recsys-auth-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+              name: http
+          env:
+            - name: HTTP_ADDR
+              value: ":8081"
+            - name: DB_HOST
+              value: "postgres.city-events.svc.cluster.local"
+            - name: DB_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: AUTH_DB_URL
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: REDIS_ADDR
+            - name: RABBIT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: RABBITMQ_URL
+            - name: RABBIT_EXCHANGE
+              value: "cityevents"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: JWT_SECRET
+            - name: JWT_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: JWT_ISSUER
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: GOOGLE_CLIENT_ID
+                  optional: true
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: GOOGLE_CLIENT_SECRET
+                  optional: true
+            - name: APP_ENV
+              value: "production"
+            - name: VERIFY_EMAIL_BASE_URL
+              value: "http://cityevents.local/verify-email?token="
+            - name: PASSWORD_RESET_BASE_URL
+              value: "http://cityevents.local/reset-password?token="
+            - name: FRONTEND_URL
+              value: "http://cityevents.local"
+            - name: INTERNAL_SECRET_KEY
+              value: "secure-internal-secret"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+# Auth Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: city-events
+  labels:
+    app: auth-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8081
+      targetPort: 8081
+      name: http
+  selector:
+    app: auth-service

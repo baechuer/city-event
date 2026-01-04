@@ -59,13 +59,38 @@ func (c *Consumer) Start(ctx context.Context) error {
 		return err
 	}
 
+	// Declare Dead Letter Exchange and Queue for failed messages
+	dlxName := c.exchange + ".dlx"
+	dlqName := "join-service.event-snapshots.dlq"
+
+	if err := ch.ExchangeDeclare(dlxName, "fanout", true, false, false, false, nil); err != nil {
+		_ = ch.Close()
+		_ = conn.Close()
+		return err
+	}
+
+	if _, err := ch.QueueDeclare(dlqName, true, false, false, false, nil); err != nil {
+		_ = ch.Close()
+		_ = conn.Close()
+		return err
+	}
+
+	if err := ch.QueueBind(dlqName, "", dlxName, false, nil); err != nil {
+		_ = ch.Close()
+		_ = conn.Close()
+		return err
+	}
+
+	// Main queue with DLX configuration
 	q, err := ch.QueueDeclare(
 		"join-service.event-snapshots",
 		true,  // durable
 		false, // autoDelete
 		false, // exclusive
 		false, // noWait
-		nil,
+		amqp.Table{
+			"x-dead-letter-exchange": dlxName,
+		},
 	)
 	if err != nil {
 		_ = ch.Close()
@@ -110,7 +135,8 @@ func (c *Consumer) Start(ctx context.Context) error {
 				}
 
 				if err := c.handleDelivery(ctx, d); err != nil {
-					_ = d.Nack(false, true) // transient => requeue
+					// Nack with requeue=false sends to DLQ (via x-dead-letter-exchange)
+					_ = d.Nack(false, false)
 					continue
 				}
 				_ = d.Ack(false)

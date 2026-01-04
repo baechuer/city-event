@@ -13,7 +13,7 @@ import (
 // It rejects unknown fields and multiple JSON values.
 func DecodeJSON(r *http.Request, dst any) error {
 	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
+	// dec.DisallowUnknownFields()
 
 	if err := dec.Decode(dst); err != nil {
 		return domain.ErrInvalidJSON(err)

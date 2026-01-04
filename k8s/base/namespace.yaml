@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: city-events
+  labels:
+    app.kubernetes.io/name: city-events
+    app.kubernetes.io/part-of: cityevents-platform

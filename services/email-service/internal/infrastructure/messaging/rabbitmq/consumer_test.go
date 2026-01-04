@@ -145,7 +145,7 @@ func TestHandleDelivery_VerifyEmail_RewritesLinkTo8090(t *testing.T) {
 	c := newTestConsumer(h, p)
 	c.publicBase = "http://localhost:8090"
 
-	t.Run("VerifyEmail_RewritesLinkTo8090", func(t *testing.T) {
+	t.Run("VerifyEmail_UsesOriginalLink", func(t *testing.T) {
 		evt := VerifyEmailEvent{
 			UserID: "u1",
 			Email:  "a@b.com",
@@ -164,8 +164,9 @@ func TestHandleDelivery_VerifyEmail_RewritesLinkTo8090(t *testing.T) {
 		if h.verifyCalled != 1 {
 			t.Fatalf("expected verify called once, got %d", h.verifyCalled)
 		}
-		if h.lastVerify.url != "http://localhost:8090/verify?token=XYZ" {
-			t.Fatalf("expected rewritten url, got %q", h.lastVerify.url)
+		// Expect exact same URL (no rewriting)
+		if h.lastVerify.url != "http://localhost:8080/auth/v1/verify-email/confirm?token=XYZ" {
+			t.Fatalf("expected original url, got %q", h.lastVerify.url)
 		}
 	})
 

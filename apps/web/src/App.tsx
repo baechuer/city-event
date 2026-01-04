@@ -11,6 +11,7 @@ import { EventsFeed } from './pages/EventsFeed';
 import { EventDetail } from './pages/EventDetail';
 import { MyJoins } from './pages/MyJoins';
 import { Profile } from './pages/Profile';
+import { VerifyEmail } from './pages/VerifyEmail';
 
 import { CreateEvent } from './pages/CreateEvent';
 
@@ -63,6 +64,7 @@ function AppRoutes() {
 
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
       </Route>
     </Routes>
   );

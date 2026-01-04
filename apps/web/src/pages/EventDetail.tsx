@@ -4,7 +4,7 @@ import { bffClient } from "@/api/bff/client";
 import { LoadingState } from "@/components/LoadingState";
 import { ErrorState } from "@/components/ErrorState";
 import { ActionButtons } from "@/components/ActionButtons";
-import { Calendar, MapPin, Users, User, ArrowLeft, AlertCircle } from "lucide-react";
+import { Calendar, MapPin, Users, User, ArrowLeft, AlertCircle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function EventDetail() {
@@ -43,6 +43,24 @@ export function EventDetail() {
                     <span className="text-sm font-medium">
                         Participation services are currently slow. You can still view event details, but joining may be delayed.
                     </span>
+                </div>
+            )}
+
+            {/* Unpublished/Draft Banner */}
+            {event.status === 'draft' && (
+                <div className="bg-blue-600 dark:bg-blue-700 text-white py-3 px-4 flex items-center justify-center gap-3 animate-in fade-in slide-in-from-top duration-500">
+                    <FileText className="h-5 w-5" />
+                    <span className="text-sm font-medium">
+                        This is an unpublished draft. It is not visible to the public.
+                    </span>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        className="ml-2 h-7 text-xs font-bold uppercase tracking-widest bg-white text-blue-700 hover:bg-blue-50"
+                        onClick={() => navigate(`/events/new?id=${event.id}`)}
+                    >
+                        Edit Draft
+                    </Button>
                 </div>
             )}
 

@@ -39,6 +39,11 @@ jobs:
           go mod download
           go test ./... -race
 
+    env:
+      JWT_SECRET: "test-secret"
+      JWT_ISSUER: "self-project"
+      INTERNAL_SECRET_KEY: "test-secret-key"
+
 
   integration-tests:
     runs-on: ubuntu-latest

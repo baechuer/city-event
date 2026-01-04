@@ -99,6 +99,14 @@ export function MyEvents() {
                                 </div>
                             </div>
 
+                            {status === 'draft' && (
+                                <div className="mb-2">
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-bold uppercase tracking-widest border border-blue-200 dark:border-blue-800/30">
+                                        <FileText className="w-3 h-3" /> Draft
+                                    </span>
+                                </div>
+                            )}
+
                             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-emerald-600 transition-colors line-clamp-1">
                                 {event.title}
                             </h3>

@@ -18,16 +18,18 @@ type Config struct {
 
 	// Auth / Security
 	JWTSecret       string
+	JWTIssuer       string // Added: customizable issuer
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 	InternalSecret  string
 
 	// Infrastructure
-	DBAddr        string
-	RedisAddr     string
-	RedisPassword string
-	RedisDB       int
-	RabbitURL     string
+	DBAddr         string
+	RedisAddr      string
+	RedisPassword  string
+	RedisDB        int
+	RabbitURL      string
+	RabbitExchange string
 
 	// Cache tuning
 	TokenVersionCacheTTL time.Duration
@@ -66,6 +68,8 @@ func Load() (*Config, error) {
 	if cfg.JWTSecret == "" {
 		return nil, fmt.Errorf("missing required env var: JWT_SECRET")
 	}
+
+	cfg.JWTIssuer = getEnv("JWT_ISSUER", "auth-service")
 
 	cfg.InternalSecret = getEnv("INTERNAL_SECRET_KEY", "dev-secret-key")
 	if cfg.Env == "prod" && cfg.InternalSecret == "dev-secret-key" {
@@ -141,6 +145,7 @@ func Load() (*Config, error) {
 	if cfg.RabbitURL == "" {
 		return nil, fmt.Errorf("missing required env var: RABBIT_URL")
 	}
+	cfg.RabbitExchange = getEnv("RABBIT_EXCHANGE", "cityevents")
 
 	// Timeouts (optional)
 	cfg.HTTPReadTimeout, err = getDuration("HTTP_READ_TIMEOUT", 10*time.Second)

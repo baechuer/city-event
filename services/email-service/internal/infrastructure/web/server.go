@@ -78,6 +78,16 @@ func NewServer(cfg Config, lg zerolog.Logger) *Server {
 		s.lg.Info().Msg("rate limiting disabled (redis)")
 	}
 
+	// health checks
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+
 	// pages
 	mux.HandleFunc("/verify", s.handleVerifyPage)
 	mux.HandleFunc("/reset", s.handleResetPage)

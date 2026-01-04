@@ -1,0 +1,83 @@
+---
+# Ingress for CityEvents Platform
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cityevents-ingress
+  namespace: city-events
+  labels:
+    app: cityevents
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    # Enable CORS for development
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: cityevents.local
+      http:
+        paths:
+          # API routes -> BFF Service
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: bff-service
+                port:
+                  number: 8080
+          # Frontend routes -> Web Service
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+    # Mailpit UI
+    - host: mail.cityevents.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mailpit
+                port:
+                  number: 8025
+---
+# Optional: TLS configuration (for HTTPS)
+# Uncomment and configure for production
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: cityevents-ingress-tls
+#   namespace: city-events
+#   annotations:
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+# spec:
+#   ingressClassName: nginx
+#   tls:
+#     - hosts:
+#         - cityevents.example.com
+#       secretName: cityevents-tls
+#   rules:
+#     - host: cityevents.example.com
+#       http:
+#         paths:
+#           - path: /api
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: bff-service
+#                 port:
+#                   number: 8080
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: web
+#                 port:
+#                   number: 80

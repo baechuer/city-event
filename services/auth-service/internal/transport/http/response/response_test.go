@@ -49,16 +49,16 @@ func TestDecodeJSON_OK_SingleObject(t *testing.T) {
 	}
 }
 
-func TestDecodeJSON_RejectsUnknownFields(t *testing.T) {
+func TestDecodeJSON_AllowsUnknownFields(t *testing.T) {
 	req := newReqWithBody(t, `{"a":"x","b":1,"c":"oops"}`)
 
 	var dst decodeDst
-	err := DecodeJSON(req, &dst)
-	if err == nil {
-		t.Fatalf("expected error")
+	if err := DecodeJSON(req, &dst); err != nil {
+		t.Fatalf("expected nil error (allowed), got %v", err)
 	}
-	if !domain.Is(err, "invalid_json") {
-		t.Fatalf("expected invalid_json, got %v", err)
+
+	if dst.A != "x" || dst.B != 1 {
+		t.Fatalf("unexpected dst: %+v", dst)
 	}
 }
 

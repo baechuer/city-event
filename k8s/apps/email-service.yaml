@@ -1,0 +1,89 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-service
+  namespace: city-events
+  labels:
+    app: email-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: email-service
+  template:
+    metadata:
+      labels:
+        app: email-service
+    spec:
+      containers:
+        - name: email-service
+          image: real-time-recsys-email-service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: EMAIL_WEB_ADDR
+              value: ":8090"
+            - name: RABBIT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: RABBITMQ_URL
+            - name: RABBIT_EXCHANGE
+              value: "cityevents"
+            - name: RABBIT_QUEUE
+              value: "email-service.q"
+            - name: EMAIL_SENDER
+              value: "smtp"
+            - name: SMTP_HOST
+              value: "mailpit.city-events.svc.cluster.local"
+            - name: SMTP_PORT
+              value: "1025"
+            - name: SMTP_INSECURE
+              value: "true"
+            - name: SMTP_FROM
+              value: "noreply@cityevents.local"
+            - name: REDIS_ENABLED
+              value: "true"
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: REDIS_ADDR
+          ports:
+            - containerPort: 8090
+              name: http
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: email-service
+  namespace: city-events
+spec:
+  type: ClusterIP
+  selector:
+    app: email-service
+  ports:
+    - port: 8090
+      targetPort: 8090
+      name: http

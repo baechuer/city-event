@@ -168,6 +168,11 @@ func newServer(deps Deps) (*http.Server, func(), error) {
 			runCleanup(cleanupFns)
 			return nil, nil, err
 		}
+	} else {
+		// Configure exchange if supported
+		if p, ok := pub.(interface{ SetExchange(string) }); ok {
+			p.SetExchange(cfg.RabbitExchange)
+		}
 	}
 
 	if c, ok := pub.(interface{ Close() error }); ok {
@@ -175,8 +180,9 @@ func newServer(deps Deps) (*http.Server, func(), error) {
 	}
 
 	// 6) security
+	logger.Logger.Info().Str("issuer", cfg.JWTIssuer).Msg("initializing jwt signer")
 	hasher := security.NewBcryptHasher(12)
-	signer := security.NewJWTSigner(cfg.JWTSecret, "auth-service")
+	signer := security.NewJWTSigner(cfg.JWTSecret, cfg.JWTIssuer)
 
 	// seed (dev only)
 	if cfg.Env == "dev" {

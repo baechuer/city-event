@@ -1,0 +1,92 @@
+---
+# Join Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: join-service
+  namespace: city-events
+  labels:
+    app: join-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: join-service
+  template:
+    metadata:
+      labels:
+        app: join-service
+    spec:
+      containers:
+        - name: join-service
+          image: real-time-recsys-join-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+              name: http
+          env:
+            - name: PORT
+              value: "8083"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: JOIN_DB_URL
+            - name: REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: REDIS_ADDR
+            - name: RABBIT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: RABBITMQ_URL
+            - name: RABBIT_EXCHANGE
+              value: "cityevents"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: JWT_SECRET
+            - name: JWT_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: JWT_ISSUER
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+# Join Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: join-service
+  namespace: city-events
+  labels:
+    app: join-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8083
+      targetPort: 8083
+      name: http
+  selector:
+    app: join-service

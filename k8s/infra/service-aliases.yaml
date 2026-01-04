@@ -1,0 +1,36 @@
+---
+# Alias for postgres service (for docker-compose compatibility)
+apiVersion: v1
+kind: Service
+metadata:
+  name: cityevents-postgres
+  namespace: city-events
+  labels:
+    app: postgres
+spec:
+  type: ExternalName
+  externalName: postgres.city-events.svc.cluster.local
+---
+# Alias for RabbitMQ 
+apiVersion: v1
+kind: Service
+metadata:
+  name: cityevents-rabbitmq
+  namespace: city-events
+  labels:
+    app: rabbitmq
+spec:
+  type: ExternalName
+  externalName: rabbitmq.city-events.svc.cluster.local
+---
+# Alias for Redis
+apiVersion: v1
+kind: Service
+metadata:
+  name: cityevents-redis
+  namespace: city-events
+  labels:
+    app: redis
+spec:
+  type: ExternalName
+  externalName: redis.city-events.svc.cluster.local

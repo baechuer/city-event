@@ -1,0 +1,92 @@
+---
+# Event Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-service
+  namespace: city-events
+  labels:
+    app: event-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: event-service
+  template:
+    metadata:
+      labels:
+        app: event-service
+    spec:
+      containers:
+        - name: event-service
+          image: real-time-recsys-event-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8082
+              name: http
+          env:
+            - name: HTTP_ADDR
+              value: ":8082"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: EVENT_DB_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: REDIS_URL
+            - name: RABBIT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: RABBITMQ_URL
+            - name: RABBIT_EXCHANGE
+              value: "cityevents"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: JWT_SECRET
+            - name: JWT_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: JWT_ISSUER
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8082
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+# Event Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-service
+  namespace: city-events
+  labels:
+    app: event-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8082
+      targetPort: 8082
+      name: http
+  selector:
+    app: event-service

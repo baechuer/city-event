@@ -105,6 +105,9 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		// CSP for API: restrictive policy suitable for JSON-only endpoints
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 
+		// HSTS: Enforce HTTPS for 1 year, include subdomains
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+
 		// Prevent MIME type sniffing
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 

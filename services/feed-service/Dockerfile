@@ -8,6 +8,17 @@ RUN CGO_ENABLED=0 go build -o feed-service ./cmd/main.go
 FROM alpine:3.19
 WORKDIR /app
 COPY --from=builder /app/feed-service .
-COPY migrations ./migrations
+RUN apk add --no-cache curl postgresql-client
+# Install golang-migrate
+RUN curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz && \
+    mv migrate /usr/local/bin/migrate && \
+    chmod +x /usr/local/bin/migrate
+
+WORKDIR /app
+COPY --from=builder /app/feed-service .
+COPY --from=builder /app/migrations ./migrations
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
 EXPOSE 8084
-CMD ["./feed-service"]
+ENTRYPOINT ["./entrypoint.sh"]
