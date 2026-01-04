@@ -221,7 +221,7 @@ func newServer(deps Deps) (*http.Server, func(), error) {
 	secureCookies := cfg.Env != "dev"
 
 	authH := http_handlers.NewAuthHandler(authSvc, cfg.RefreshTokenTTL, secureCookies, cfg.CDNBaseURL)
-	healthH := http_handlers.NewHealthHandler()
+	healthH := http_handlers.NewHealthHandler(sqlDB)
 
 	oauthH := http_handlers.NewOAuthHandler(http_handlers.OAuthHandlerConfig{
 		Service:          authSvc,

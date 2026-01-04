@@ -133,6 +133,7 @@ RETURNING id, email, password_hash, role, email_verified, locked, token_version,
 		&ur.TokenVersion,
 		&ur.PasswordChangedAt,
 		&ur.CreatedAt,
+		&ur.AvatarImageID,
 	)
 	if err != nil {
 

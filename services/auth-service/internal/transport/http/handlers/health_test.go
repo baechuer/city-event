@@ -8,14 +8,14 @@ import (
 )
 
 func TestNewHealthHandler_ReturnsNonNil(t *testing.T) {
-	h := NewHealthHandler()
+	h := NewHealthHandler(nil)
 	if h == nil {
 		t.Fatalf("expected non-nil handler")
 	}
 }
 
 func TestHealthz_ReturnsOK_JSON(t *testing.T) {
-	h := NewHealthHandler()
+	h := NewHealthHandler(nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rr := httptest.NewRecorder()

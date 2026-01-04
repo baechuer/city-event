@@ -16,6 +16,12 @@ func (fakeHealth) Healthz(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("ok"))
 }
 
+func (fakeHealth) Readyz(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
+}
+
 type fakeAuth struct{}
 
 func (fakeAuth) write(w http.ResponseWriter, code int, msg string) {

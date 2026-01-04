@@ -11,6 +11,7 @@ import (
 
 type HealthHandler interface {
 	Healthz(w http.ResponseWriter, r *http.Request)
+	Readyz(w http.ResponseWriter, r *http.Request)
 }
 
 type AuthHandler interface {
@@ -124,7 +125,7 @@ func New(deps Deps) (http.Handler, error) {
 
 	// Operational endpoints
 	r.Get("/healthz", deps.Health.Healthz)
-	r.Get("/readyz", deps.Health.Healthz)         // For BFF readiness checks
+	r.Get("/readyz", deps.Health.Readyz)          // For BFF readiness checks
 	r.Get("/auth/v1/health", deps.Health.Healthz) // Legacy path for BFF
 	r.Handle("/metrics", promhttp.Handler())
 
