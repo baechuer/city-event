@@ -113,6 +113,7 @@ func NewRouter(cfg *config.Config) http.Handler {
 		r.Get("/feed", eventHandler.ListFeed) // Legacy fallback
 		r.Get("/events/{id}/view", eventHandler.GetEventView)
 		r.Get("/meta/cities", eventHandler.GetCitySuggestions)
+		r.Get("/media/{id}/status", handlers.NewMediaHandler(cfg.MediaServiceURL).GetStatus)
 
 		// Business Handlers (Authenticated)
 		r.Group(func(r chi.Router) {
@@ -126,6 +127,11 @@ func NewRouter(cfg *config.Config) http.Handler {
 			r.Post("/events/{id}/unpublish", eventHandler.UnpublishEvent)
 			r.Post("/events/{id}/join", eventHandler.JoinEvent)
 			r.Post("/events/{id}/cancel", eventHandler.CancelJoin)
+
+			// Media Upload Routes
+			mediaHandler := handlers.NewMediaHandler(cfg.MediaServiceURL)
+			r.Post("/media/request-upload", mediaHandler.RequestUpload)
+			r.Post("/media/complete", mediaHandler.CompleteUpload)
 		})
 	})
 

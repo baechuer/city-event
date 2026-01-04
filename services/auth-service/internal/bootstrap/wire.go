@@ -220,7 +220,7 @@ func newServer(deps Deps) (*http.Server, func(), error) {
 	// 8) handlers + middleware
 	secureCookies := cfg.Env != "dev"
 
-	authH := http_handlers.NewAuthHandler(authSvc, cfg.RefreshTokenTTL, secureCookies)
+	authH := http_handlers.NewAuthHandler(authSvc, cfg.RefreshTokenTTL, secureCookies, cfg.CDNBaseURL)
 	healthH := http_handlers.NewHealthHandler()
 
 	oauthH := http_handlers.NewOAuthHandler(http_handlers.OAuthHandlerConfig{

@@ -13,6 +13,7 @@ type Config struct {
 	EventServiceURL    string
 	JoinServiceURL     string
 	FeedServiceURL     string
+	MediaServiceURL    string
 	JWTSecret          string
 	InternalSecretKey  string
 	RLEnabled          bool
@@ -34,6 +35,7 @@ func Load() *Config {
 		EventServiceURL:    getEnv("EVENT_SERVICE_URL", "http://event-service:8080"),
 		JoinServiceURL:     getEnv("JOIN_SERVICE_URL", "http://join-service:8080"),
 		FeedServiceURL:     getEnv("FEED_SERVICE_URL", "http://feed-service:8084"),
+		MediaServiceURL:    getEnv("MEDIA_SERVICE_URL", "http://media-service:8085"),
 		JWTSecret:          getEnv("JWT_SECRET", "change-me-secret"),
 		InternalSecretKey:  getEnv("INTERNAL_SECRET_KEY", "sharedkey"),
 		RLEnabled:          getEnvBool("RATE_LIMIT_ENABLED", true),

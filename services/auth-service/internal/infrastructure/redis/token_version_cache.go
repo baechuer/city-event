@@ -113,3 +113,6 @@ func (c *CachedUserRepo) SetRole(ctx context.Context, userID string, role string
 func (c *CachedUserRepo) CountByRole(ctx context.Context, role string) (int, error) {
 	return c.inner.CountByRole(ctx, role)
 }
+func (c *CachedUserRepo) UpdateAvatarImageID(ctx context.Context, userID string, avatarImageID *string) (*string, error) {
+	return c.inner.UpdateAvatarImageID(ctx, userID, avatarImageID)
+}

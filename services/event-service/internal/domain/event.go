@@ -23,6 +23,8 @@ type Event struct {
 	PublishedAt *time.Time  `json:"published_at,omitempty"`
 	CanceledAt  *time.Time  `json:"canceled_at,omitempty"`
 
+	CoverImageIDs []string `json:"cover_image_ids,omitempty"` // max 2, references to media_uploads.id
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

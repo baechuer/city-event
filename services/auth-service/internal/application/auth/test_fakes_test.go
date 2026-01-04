@@ -208,6 +208,12 @@ func (f *fakeUserRepo) BumpTokenVersion(ctx context.Context, userID string) (int
 	return 2, nil
 }
 
+func (f *fakeUserRepo) UpdateAvatarImageID(ctx context.Context, userID string, avatarImageID *string) (*string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return nil, nil
+}
+
 type fakeHasher struct {
 	hashFn    func(pw string) (string, error)
 	compareFn func(hash, pw string) error
@@ -414,6 +420,7 @@ type fakePublisher struct {
 
 	verifyEvts []VerifyEmailEvent
 	resetEvts  []PasswordResetEvent
+	avatarEvts []AvatarUpdatedEvent
 }
 
 func (p *fakePublisher) PublishVerifyEmail(ctx context.Context, evt VerifyEmailEvent) error {
@@ -429,6 +436,11 @@ func (p *fakePublisher) PublishPasswordReset(ctx context.Context, evt PasswordRe
 		return p.resetErr
 	}
 	p.resetEvts = append(p.resetEvts, evt)
+	return nil
+}
+
+func (p *fakePublisher) PublishAvatarUpdated(ctx context.Context, evt AvatarUpdatedEvent) error {
+	p.avatarEvts = append(p.avatarEvts, evt)
 	return nil
 }
 

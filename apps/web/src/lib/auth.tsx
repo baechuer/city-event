@@ -14,6 +14,7 @@ interface AuthContextType {
     register: (data: any) => Promise<void>;
     logout: () => Promise<void>;
     setOAuthUser: (accessToken: string, user: User) => void; // For OAuth callback
+    updateUserAvatar: (avatarUrl: string) => void; // Update avatar locally
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -40,7 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const data = res.data?.data || (res.data as any);
                 if (data?.tokens?.access_token) {
                     tokenStore.setToken(data.tokens.access_token);
-                    setUser(data.user);
+                    // Restore avatar from localStorage if exists
+                    let userData = data.user;
+                    const savedAvatar = localStorage.getItem(`avatar_${userData.id}`);
+                    if (savedAvatar) {
+                        userData = { ...userData, avatar_url: savedAvatar };
+                    }
+                    setUser(userData);
                 }
             } catch (err) {
                 // If refresh fails (401/403), we are logged out
@@ -103,9 +110,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // OAuth callback: set user state from OAuth popup result
     const setOAuthUser = useCallback((accessToken: string, oauthUser: User) => {
         tokenStore.setToken(accessToken);
+        // Restore avatar from localStorage if exists
+        const savedAvatar = localStorage.getItem(`avatar_${oauthUser.id}`);
+        if (savedAvatar) {
+            oauthUser = { ...oauthUser, avatar_url: savedAvatar };
+        }
         setUser(oauthUser);
         navigate('/events');
     }, [navigate]);
+
+    // Update user avatar URL locally (after upload success)
+    const updateUserAvatar = useCallback((avatarUrl: string) => {
+        setUser(prev => {
+            if (prev) {
+                // Persist to localStorage for page refresh
+                localStorage.setItem(`avatar_${prev.id}`, avatarUrl);
+                return { ...prev, avatar_url: avatarUrl };
+            }
+            return null;
+        });
+    }, []);
 
     const register = async (data: any) => {
         await apiClient.post('/auth/register', data);
@@ -145,7 +169,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             login,
             register,
             logout,
-            setOAuthUser
+            setOAuthUser,
+            updateUserAvatar
         }}>
             {children}
         </AuthContext.Provider>

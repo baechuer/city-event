@@ -52,6 +52,9 @@ type Config struct {
 	FrontendOrigin     string        // for postMessage origin validation
 	AllowedRedirects   []string      // whitelist for redirect_to
 
+	// Media
+	CDNBaseURL string
+
 	// Debug toggles
 	DBDebug bool
 }
@@ -174,6 +177,7 @@ func Load() (*Config, error) {
 	cfg.OAuthCallbackURL = getEnv("OAUTH_CALLBACK_URL", "http://localhost:8080/auth/v1/oauth/google/callback")
 	cfg.FrontendOrigin = getEnv("FRONTEND_ORIGIN", "http://localhost:3000")
 	cfg.AllowedRedirects = parseStringList(getEnv("ALLOWED_REDIRECTS", "/,/events,/profile,/settings"))
+	cfg.CDNBaseURL = getEnv("CDN_BASE_URL", "http://localhost:9000/public")
 
 	return cfg, nil
 }

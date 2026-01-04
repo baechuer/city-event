@@ -20,3 +20,8 @@ func (p *NoopPublisher) PublishPasswordReset(ctx context.Context, evt auth.Passw
 	log.Printf("[noop-pub] password reset: user_id=%s email=%s url=%s", evt.UserID, evt.Email, evt.URL)
 	return nil
 }
+
+func (p *NoopPublisher) PublishAvatarUpdated(ctx context.Context, evt auth.AvatarUpdatedEvent) error {
+	log.Printf("[noop-pub] avatar updated: user_id=%s old_id=%s", evt.UserID, evt.OldAvatarID)
+	return nil
+}

@@ -7,5 +7,7 @@ use (
 	./services/event-service
 	./services/feed-service
 	./services/join-service
+	./services/media-service
+	./services/media-worker
 	./tests/e2e
 )

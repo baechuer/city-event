@@ -35,6 +35,7 @@ func (r *UserRepo) scanUserRow(row *sql.Row) (userRow, error) {
 		&ur.TokenVersion,
 		&ur.PasswordChangedAt,
 		&ur.CreatedAt,
+		&ur.AvatarImageID,
 	)
 	return ur, err
 }
@@ -50,6 +51,7 @@ func toDomainUser(ur userRow) domain.User {
 		Locked:        ur.Locked,
 		// TokenVersion:     ur.TokenVersion,
 		// PasswordChangedAt: ur.PasswordChangedAt,
+		AvatarImageID: ur.AvatarImageID,
 	}
 }
 
@@ -62,7 +64,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (domain.User, e
 	}
 
 	const q = `
-SELECT id, email, password_hash, role, email_verified, locked, token_version, password_changed_at, created_at
+SELECT id, email, password_hash, role, email_verified, locked, token_version, password_changed_at, created_at, avatar_image_id
 FROM users
 WHERE email = $1
 LIMIT 1;
@@ -84,7 +86,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id string) (domain.User, error) 
 	}
 
 	const q = `
-SELECT id, email, password_hash, role, email_verified, locked, token_version, password_changed_at, created_at
+SELECT id, email, password_hash, role, email_verified, locked, token_version, password_changed_at, created_at, avatar_image_id
 FROM users
 WHERE id = $1
 LIMIT 1;
@@ -115,7 +117,7 @@ func (r *UserRepo) Create(ctx context.Context, u domain.User) (domain.User, erro
 	const q = `
 INSERT INTO users (id, email, password_hash, role, email_verified, locked)
 VALUES ($1,$2,$3,$4,$5,$6)
-RETURNING id, email, password_hash, role, email_verified, locked, token_version, password_changed_at, created_at;
+RETURNING id, email, password_hash, role, email_verified, locked, token_version, password_changed_at, created_at, avatar_image_id;
 `
 
 	var ur userRow
@@ -312,6 +314,36 @@ RETURNING token_version
 	}
 	return newVer, nil
 }
+
+// UpdateAvatarImageID updates the user's avatar image ID.
+// Returns the previous avatar_image_id for cleanup purposes.
+func (r *UserRepo) UpdateAvatarImageID(ctx context.Context, userID string, avatarImageID *string) (*string, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, domain.ErrMissingField("user_id")
+	}
+
+	const q = `
+UPDATE users
+SET avatar_image_id = $2
+WHERE id = $1
+RETURNING (SELECT avatar_image_id FROM users WHERE id = $1);
+`
+	var prevAvatarID sql.NullString
+	err := r.db.QueryRowContext(ctx, q, userID, avatarImageID).Scan(&prevAvatarID)
+	if err != nil {
+		if isNoRows(err) {
+			return nil, domain.ErrUserNotFound()
+		}
+		return nil, domain.ErrDBUnavailable(err)
+	}
+
+	if prevAvatarID.Valid {
+		return &prevAvatarID.String, nil
+	}
+	return nil, nil
+}
+
 func isNoRows(err error) bool {
 	return errors.Is(err, sql.ErrNoRows)
 }

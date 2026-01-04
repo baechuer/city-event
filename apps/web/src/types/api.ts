@@ -91,5 +91,6 @@ export interface User {
     role?: string;
     email_verified?: boolean;
     has_password?: boolean;
+    avatar_url?: string;
 }
 

@@ -72,6 +72,9 @@ func (a fakeAuth) SessionsRevoke(w http.ResponseWriter, r *http.Request) {
 
 func (a fakeAuth) MeStatus(w http.ResponseWriter, r *http.Request)        { a.write(w, 200, "me_status") }
 func (a fakeAuth) InternalGetUser(w http.ResponseWriter, r *http.Request) {}
+func (a fakeAuth) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
+	a.write(w, 200, "update_avatar")
+}
 
 // Middleware helper
 func noopMW(next http.Handler) http.Handler { return next }

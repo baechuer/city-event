@@ -85,6 +85,7 @@ type UserView struct {
 	EmailVerified bool   `json:"email_verified"`
 	Locked        bool   `json:"locked"`
 	HasPassword   bool   `json:"has_password"`
+	AvatarURL     string `json:"avatar_url,omitempty"`
 }
 
 // TokensView is the standard access token payload.

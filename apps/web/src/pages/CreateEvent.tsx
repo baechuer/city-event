@@ -17,8 +17,11 @@ import {
     Clock,
     Send,
     Save,
-    ChevronLeft
+    ChevronLeft,
+    Image as ImageIcon
 } from "lucide-react";
+import { ImageUpload } from "@/components/ui/ImageUpload";
+import type { UploadStatusResponse } from "@/lib/mediaApi";
 
 // Categories aligned with FilterBar
 const CATEGORIES = ["Social", "Tech", "Career", "Health", "Creative", "Sports", "Food", "Other"];
@@ -29,6 +32,7 @@ export function CreateEvent() {
     const eventIdParam = searchParams.get("id");
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(false);
+    const [coverImages, setCoverImages] = useState<Array<{ url: string; uploadId: string }>>([]);
 
     const getFutureTime = (hours: number) => {
         const d = new Date();
@@ -47,6 +51,28 @@ export function CreateEvent() {
         end_time: getFutureTime(3),
         capacity: 0,
     });
+
+    const handleCoverUpload = (result: UploadStatusResponse) => {
+        if (result.status === 'READY' && result.derived_urls) {
+            const url = result.derived_urls['800'] || Object.values(result.derived_urls)[0];
+            setCoverImages(prev => {
+                if (prev.length >= 2) {
+                    toast.error("Maximum 2 cover images allowed");
+                    return prev;
+                }
+                return [...prev, { url, uploadId: result.id }];
+            });
+            toast.success("Cover image uploaded!");
+        }
+    };
+
+    const handleCoverError = (error: Error) => {
+        toast.error(error.message || "Failed to upload cover image");
+    };
+
+    const removeCoverImage = (index: number) => {
+        setCoverImages(prev => prev.filter((_, i) => i !== index));
+    };
 
     useEffect(() => {
         if (eventIdParam) {
@@ -203,6 +229,35 @@ export function CreateEvent() {
                                     onChange={handleChange}
                                     required
                                 />
+                            </div>
+
+                            {/* Cover Images */}
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                                    <ImageIcon className="w-3 h-3" /> Cover Images (Max 2)
+                                </Label>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {coverImages.map((img, index) => (
+                                        <div key={index} className="relative aspect-video rounded-xl overflow-hidden group">
+                                            <img src={img.url} alt={`Cover ${index + 1}`} className="w-full h-full object-cover" />
+                                            <button
+                                                type="button"
+                                                onClick={() => removeCoverImage(index)}
+                                                className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {coverImages.length < 2 && (
+                                        <ImageUpload
+                                            purpose="event_cover"
+                                            onUploadComplete={handleCoverUpload}
+                                            onError={handleCoverError}
+                                            className="aspect-video"
+                                        />
+                                    )}
+                                </div>
                             </div>
                         </div>
 

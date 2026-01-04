@@ -1,6 +1,7 @@
 package http_handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -19,14 +20,37 @@ type AuthHandler struct {
 	svc           *auth.Service
 	refreshTTL    time.Duration
 	secureCookies bool
+	cdnBaseURL    string
 }
 
-func NewAuthHandler(svc *auth.Service, refreshTTL time.Duration, secureCookies bool) *AuthHandler {
+func NewAuthHandler(svc *auth.Service, refreshTTL time.Duration, secureCookies bool, cdnBaseURL string) *AuthHandler {
 	return &AuthHandler{
 		svc:           svc,
 		refreshTTL:    refreshTTL,
 		secureCookies: secureCookies,
 	}
+}
+
+func (h *AuthHandler) toUserView(u domain.User) dto.UserView {
+	view := dto.UserView{
+		ID:            u.ID,
+		Email:         u.Email,
+		Role:          u.Role,
+		EmailVerified: u.EmailVerified,
+		Locked:        u.Locked,
+		HasPassword:   u.PasswordHash != "",
+	}
+	if u.AvatarImageID != nil && *u.AvatarImageID != "" {
+		// Construct full URL using CDNBaseURL
+		// Convention: CDNBaseURL + "/" + AvatarImageID + "/512.webp" ?
+		// Actually, media-service uses /public/bucket/UUID/SIZE.webp
+		// If CDNBaseURL is "http://localhost:9000/public", then we likely need to append object path.
+		// The object path constructed in media service is "avatars/{id}/{size}.webp"
+		// Wait, media-service uses "avatars/" prefix?
+		// Let's verify media-service storage logic.
+		view.AvatarURL = fmt.Sprintf("%s/avatars/%s/512.webp", strings.TrimRight(h.cdnBaseURL, "/"), *u.AvatarImageID)
+	}
+	return view
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
@@ -56,14 +80,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	security.SetRefreshToken(w, res.Tokens.RefreshToken, h.refreshTTL, h.secureCookies)
 
 	data := dto.AuthData{
-		User: dto.UserView{
-			ID:            res.User.ID,
-			Email:         res.User.Email,
-			Role:          res.User.Role,
-			EmailVerified: res.User.EmailVerified,
-			Locked:        res.User.Locked,
-			HasPassword:   res.User.PasswordHash != "",
-		},
+		User: h.toUserView(res.User),
 		Tokens: dto.TokensView{
 			AccessToken: res.Tokens.AccessToken,
 			TokenType:   res.Tokens.TokenType,
@@ -100,14 +117,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	security.SetRefreshToken(w, res.Tokens.RefreshToken, h.refreshTTL, h.secureCookies)
 
 	data := dto.AuthData{
-		User: dto.UserView{
-			ID:            res.User.ID,
-			Email:         res.User.Email,
-			Role:          res.User.Role,
-			EmailVerified: res.User.EmailVerified,
-			Locked:        res.User.Locked,
-			HasPassword:   res.User.PasswordHash != "",
-		},
+		User: h.toUserView(res.User),
 		Tokens: dto.TokensView{
 			AccessToken: res.Tokens.AccessToken,
 			TokenType:   res.Tokens.TokenType,
@@ -139,14 +149,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 			TokenType:   toks.TokenType,
 			ExpiresIn:   toks.ExpiresIn,
 		},
-		User: dto.UserView{
-			ID:            user.ID,
-			Email:         user.Email,
-			Role:          user.Role,
-			EmailVerified: user.EmailVerified,
-			Locked:        user.Locked,
-			HasPassword:   user.PasswordHash != "",
-		},
+		User: h.toUserView(user),
 	}
 
 	response.OK(w, data)
@@ -176,14 +179,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := dto.MeData{
-		User: dto.UserView{
-			ID:            u.ID,
-			Email:         u.Email,
-			Role:          u.Role,
-			EmailVerified: u.EmailVerified,
-			Locked:        u.Locked,
-			HasPassword:   u.PasswordHash != "",
-		},
+		User: h.toUserView(u),
 	}
 
 	response.OK(w, data)
@@ -487,6 +483,49 @@ func (h *AuthHandler) SessionsRevoke(w http.ResponseWriter, r *http.Request) {
 
 	security.ClearRefreshToken(w, h.secureCookies)
 	response.NoContent(w)
+}
+
+// ---- Profile ----
+
+// UpdateAvatar updates the current user's avatar URL
+func (h *AuthHandler) UpdateAvatar(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		response.WriteError(w, r, domain.ErrTokenInvalid())
+		return
+	}
+
+	var req struct {
+		AvatarURL string `json:"avatar_url"`
+	}
+	if err := response.DecodeJSON(r, &req); err != nil {
+		response.WriteError(w, r, err)
+		return
+	}
+
+	if req.AvatarURL == "" {
+		response.WriteError(w, r, domain.ErrMissingField("avatar_url"))
+		return
+	}
+
+	// Update in DB and get previous ID for cleanup
+	_, err := h.svc.UpdateAvatarURL(r.Context(), userID, req.AvatarURL)
+	if err != nil {
+		response.WriteError(w, r, err)
+		return
+	}
+
+	// Fetch updated user to get the confirmed AvatarImageID and construct proper URL
+	user, err := h.svc.GetUserByID(r.Context(), userID)
+	if err != nil {
+		response.WriteError(w, r, err)
+		return
+	}
+
+	view := h.toUserView(user)
+	response.OK(w, map[string]string{
+		"avatar_url": view.AvatarURL,
+	})
 }
 
 // ---- Everything else stays 501 for now ----

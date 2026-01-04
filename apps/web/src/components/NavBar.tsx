@@ -59,9 +59,17 @@ export function NavBar() {
                                     </span>
                                 </div>
 
-                                <div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-[10px] shadow-sm group-hover:shadow-emerald-500/20 transition-all">
-                                    {(user?.name?.[0] || user?.email?.[0] || 'U').toUpperCase()}
-                                </div>
+                                {user?.avatar_url ? (
+                                    <img
+                                        src={user.avatar_url}
+                                        alt="Avatar"
+                                        className="h-8 w-8 rounded-full object-cover shadow-sm group-hover:shadow-emerald-500/20 transition-all"
+                                    />
+                                ) : (
+                                    <div className="h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-[10px] shadow-sm group-hover:shadow-emerald-500/20 transition-all">
+                                        {(user?.name?.[0] || user?.email?.[0] || 'U').toUpperCase()}
+                                    </div>
+                                )}
                             </Link>
 
                             <div className="h-6 w-px bg-slate-200 dark:bg-white/10 mx-1 hidden sm:block" />

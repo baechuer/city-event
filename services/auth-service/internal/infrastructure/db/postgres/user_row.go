@@ -12,4 +12,5 @@ type userRow struct {
 	TokenVersion      int64
 	PasswordChangedAt *time.Time
 	CreatedAt         time.Time
+	AvatarImageID     *string
 }

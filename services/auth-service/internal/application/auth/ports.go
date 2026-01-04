@@ -27,6 +27,7 @@ type UserRepo interface {
 	CountByRole(ctx context.Context, role string) (int, error)
 	GetTokenVersion(ctx context.Context, userID string) (int64, error)
 	BumpTokenVersion(ctx context.Context, userID string) (int64, error)
+	UpdateAvatarImageID(ctx context.Context, userID string, avatarImageID *string) (*string, error)
 }
 
 /*
@@ -102,6 +103,7 @@ Auth-service does NOT send emails directly.
 type EventPublisher interface {
 	PublishVerifyEmail(ctx context.Context, evt VerifyEmailEvent) error
 	PublishPasswordReset(ctx context.Context, evt PasswordResetEvent) error
+	PublishAvatarUpdated(ctx context.Context, evt AvatarUpdatedEvent) error
 }
 
 /*
@@ -120,6 +122,11 @@ type PasswordResetEvent struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
 	URL    string `json:"url"`
+}
+
+type AvatarUpdatedEvent struct {
+	UserID      string `json:"user_id"`
+	OldAvatarID string `json:"old_avatar_id"`
 }
 
 /*

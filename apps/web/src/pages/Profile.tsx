@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Shield, Lock, Mail, Fingerprint, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
+import { Shield, Lock, Mail, Fingerprint, Eye, EyeOff, CheckCircle2, XCircle, Camera } from "lucide-react";
+import { ImageUpload } from "@/components/ui/ImageUpload";
+import type { UploadStatusResponse } from "@/lib/mediaApi";
 
 export function Profile() {
-    const { user } = useAuth();
+    const { user, updateUserAvatar } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatar_url || null);
     const [showPasswords, setShowPasswords] = useState({
         old: false,
         new: false,
@@ -23,6 +26,19 @@ export function Profile() {
 
     const toggleVisibility = (field: keyof typeof showPasswords) => {
         setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }));
+    };
+
+    const handleAvatarUpload = async (result: UploadStatusResponse) => {
+        if (result.status === 'READY' && result.derived_urls) {
+            const url = result.derived_urls['512'] || Object.values(result.derived_urls)[0];
+            setAvatarUrl(url);
+            updateUserAvatar(url); // Update global auth context so NavBar gets it
+            toast.success("Avatar updated successfully!");
+        }
+    };
+
+    const handleAvatarError = (error: Error) => {
+        toast.error(error.message || "Failed to upload avatar");
     };
 
     const handleChangePassword = async (e: React.FormEvent) => {
@@ -75,8 +91,24 @@ export function Profile() {
                         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-600/5 rounded-full -mr-16 -mt-16 transition-transform group-hover:scale-110" />
 
                         <div className="relative flex-1 flex flex-col">
-                            <div className="w-20 h-20 rounded-2xl bg-emerald-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg mb-6 shadow-emerald-500/20">
-                                {(user?.name?.[0] || user?.email?.[0] || 'U').toUpperCase()}
+                            {/* Avatar with Upload */}
+                            <div className="mb-6 relative">
+                                <ImageUpload
+                                    purpose="avatar"
+                                    onUploadComplete={handleAvatarUpload}
+                                    onError={handleAvatarError}
+                                    preview={avatarUrl || undefined}
+                                    className="mx-auto"
+                                >
+                                    {!avatarUrl && (
+                                        <div className="w-20 h-20 rounded-2xl bg-emerald-600 flex flex-col items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                                            <span className="text-3xl font-bold">
+                                                {(user?.name?.[0] || user?.email?.[0] || 'U').toUpperCase()}
+                                            </span>
+                                            <Camera className="w-3 h-3 opacity-60 mt-1" />
+                                        </div>
+                                    )}
+                                </ImageUpload>
                             </div>
 
                             <div className="space-y-6 flex-1">

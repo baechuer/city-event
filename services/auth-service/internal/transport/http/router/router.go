@@ -42,6 +42,9 @@ type AuthHandler interface {
 	AdminRevokeSessions(w http.ResponseWriter, r *http.Request)
 	SessionsRevoke(w http.ResponseWriter, r *http.Request)
 
+	// Profile
+	UpdateAvatar(w http.ResponseWriter, r *http.Request)
+
 	// Optional
 	MeStatus(w http.ResponseWriter, r *http.Request)
 
@@ -169,6 +172,7 @@ func New(deps Deps) (http.Handler, error) {
 
 		r.With(deps.AuthMW).Get("/me", deps.Auth.Me)
 		r.With(deps.AuthMW).Get("/me/status", deps.Auth.MeStatus)
+		r.With(deps.AuthMW).Patch("/me/avatar", deps.Auth.UpdateAvatar)
 
 		// Permission management
 		r.With(deps.AuthMW, deps.AdminMW).Get("/admin", deps.Auth.Admin)

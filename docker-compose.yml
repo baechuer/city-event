@@ -30,6 +30,7 @@ services:
       - OAUTH_CALLBACK_URL=http://localhost:8080/api/auth/oauth/google/callback
       - FRONTEND_ORIGIN=http://localhost:5173
       - ALLOWED_REDIRECTS=/,/events,/profile
+      - CDN_BASE_URL=${CDN_BASE_URL:-http://localhost:9000/public}
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/readyz" ]
       interval: 5s
@@ -150,6 +151,63 @@ services:
       redis:
         condition: service_healthy
 
+  media-service:
+    build:
+      context: ./services/media-service
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8085"
+    environment:
+      - APP_ENV=${APP_ENV:-dev}
+      - HTTP_ADDR=:8085
+      - DATABASE_URL=postgres://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@cityevents-postgres:5432/media_db?sslmode=disable
+      - S3_ENDPOINT=http://cityevents-minio:9000
+      - S3_EXTERNAL_ENDPOINT=http://localhost:9000
+      - S3_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minioadmin}
+      - S3_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - S3_USE_PATH_STYLE=true
+      - S3_RAW_BUCKET=raw
+      - S3_PUBLIC_BUCKET=public
+      - CDN_BASE_URL=http://localhost:9000/public
+      - RABBIT_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@cityevents-rabbitmq:5672/
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8085/readyz" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  media-worker:
+    build:
+      context: ./services/media-worker
+      dockerfile: Dockerfile
+    environment:
+      - APP_ENV=${APP_ENV:-dev}
+      - DATABASE_URL=postgres://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@cityevents-postgres:5432/media_db?sslmode=disable
+      - S3_ENDPOINT=http://cityevents-minio:9000
+      - S3_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minioadmin}
+      - S3_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - S3_USE_PATH_STYLE=true
+      - S3_RAW_BUCKET=raw
+      - S3_PUBLIC_BUCKET=public
+      - RABBIT_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@cityevents-rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      media-service:
+        condition: service_healthy
+
   # -------------------------------------------------------------------------
   # API GATEWAY / BFF
   # -------------------------------------------------------------------------
@@ -167,6 +225,7 @@ services:
       - EVENT_SERVICE_URL=http://event-service:8080
       - JOIN_SERVICE_URL=http://join-service:8080
       - FEED_SERVICE_URL=http://feed-service:8084
+      - MEDIA_SERVICE_URL=http://media-service:8085
       - JWT_SECRET=${JWT_SECRET:?required}
       - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?required}
       - REDIS_ADDR=cityevents-redis:6379 # For distributed rate limiting
@@ -187,6 +246,8 @@ services:
       join-service:
         condition: service_healthy
       feed-service:
+        condition: service_healthy
+      media-service:
         condition: service_healthy
 
   # -------------------------------------------------------------------------

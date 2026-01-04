@@ -3,6 +3,7 @@ package http_handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -201,6 +202,22 @@ func (r *fakeUserRepo) BumpTokenVersion(ctx context.Context, userID string) (int
 	return r.tokenV[userID], nil
 }
 
+func (r *fakeUserRepo) UpdateAvatarImageID(ctx context.Context, userID string, avatarImageID *string) (*string, error) {
+	u, ok := r.byID[userID]
+	if !ok {
+		return nil, domain.ErrUserNotFound()
+	}
+	prev := u.AvatarImageID
+	u.AvatarImageID = avatarImageID
+	if avatarImageID != nil {
+		fmt.Printf("DEBUG: fakeRepo UpdateAvatarImageID userID=%s val=%s\n", userID, *avatarImageID)
+	} else {
+		fmt.Printf("DEBUG: fakeRepo UpdateAvatarImageID userID=%s val=nil\n", userID)
+	}
+	r.byID[userID] = u
+	return prev, nil
+}
+
 type fakeHasher struct{}
 
 func (h fakeHasher) Hash(password string) (string, error) {
@@ -244,7 +261,7 @@ func newTestAuthHandler(t *testing.T, secureCookies bool) *AuthHandler {
 		},
 	)
 
-	return NewAuthHandler(svc, 7*24*time.Hour, secureCookies)
+	return NewAuthHandler(svc, 7*24*time.Hour, secureCookies, "http://cdn.example.com")
 }
 
 // -------------------------
@@ -854,7 +871,7 @@ func TestAuthHandler_MeStatus_HasPassword_Logic(t *testing.T) {
 	repo.byEmail["oauth@example.com"] = oauthUserID
 
 	svc := auth.NewService(repo, fakeHasher{}, security.NewStubSigner(), memory.NewSessionStore(), memory.NewOneTimeTokenStore(), memory.NewNoopPublisher(), auth.Config{})
-	h2 := NewAuthHandler(svc, 7*24*time.Hour, false)
+	h2 := NewAuthHandler(svc, 7*24*time.Hour, false, "http://cdn.example.com")
 
 	rr2 := httptest.NewRecorder()
 	req2 := httptest.NewRequest(http.MethodGet, "/auth/v1/me/status", nil)
@@ -870,6 +887,74 @@ func TestAuthHandler_MeStatus_HasPassword_Logic(t *testing.T) {
 		t.Fatalf("JSON decode failed: %v", err)
 	}
 	if data2.Data.HasPassword {
-		t.Errorf("expected has_password: false for OAuth user, body: %s", rr2.Body.String())
+		t.Errorf("expected has_password: false for OAuth user")
+	}
+}
+
+func TestAuthHandler_UpdateAvatar(t *testing.T) {
+	h := newTestAuthHandler(t, false)
+
+	// 1. Register user
+	reqReg := httptest.NewRequest(http.MethodPost, "/auth/v1/register", mustJSONBody(t, map[string]any{
+		"email":    "avatar_test@example.com",
+		"password": "123456789012",
+	}))
+	reqReg.Header.Set("Content-Type", "application/json")
+	rrReg := httptest.NewRecorder()
+	h.Register(rrReg, reqReg)
+	if rrReg.Result().StatusCode != http.StatusCreated {
+		t.Fatalf("Register failed")
+	}
+	userID := mustExtractUserIDFromRegisterBody(t, rrReg.Body)
+
+	// 2. Update Avatar with valid URL containing UUID
+	// UUID: 550e8400-e29b-41d4-a716-446655440000
+	validURL := "http://original-source.com/avatars/550e8400-e29b-41d4-a716-446655440000"
+	req := httptest.NewRequest(http.MethodPatch, "/auth/v1/me/avatar", mustJSONBody(t, map[string]any{
+		"avatar_url": validURL,
+	}))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(middleware.WithUser(req.Context(), userID, "user"))
+
+	rr := httptest.NewRecorder()
+	h.UpdateAvatar(rr, req)
+
+	res := rr.Result()
+	t.Logf("UpdateAvatar Response Code: %d", res.StatusCode)
+	t.Logf("UpdateAvatar Response Body: %s", rr.Body.String())
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d; body=%s", res.StatusCode, rr.Body.String())
+	}
+
+	// Use map to inspect response directly to avoid potential struct tag issues
+	var body map[string]map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	got := body["data"]["avatar_url"]
+	wantUUID := "550e8400-e29b-41d4-a716-446655440000"
+
+	if !strings.Contains(got, wantUUID) {
+		t.Errorf("wanted UUID %q in url, got %q", wantUUID, got)
+	}
+
+	// 3. Verify persistence via Me endpoint
+	reqMe := httptest.NewRequest(http.MethodGet, "/auth/v1/me", nil)
+	reqMe = reqMe.WithContext(middleware.WithUser(reqMe.Context(), userID, "user"))
+	rrMe := httptest.NewRecorder()
+	h.Me(rrMe, reqMe)
+
+	var meBody map[string]any
+	if err := json.Unmarshal(rrMe.Body.Bytes(), &meBody); err != nil {
+		t.Fatalf("me decode: %v", err)
+	}
+	// meBody["data"]["user"]["avatar_url"]
+	data, _ := meBody["data"].(map[string]any)
+	user, _ := data["user"].(map[string]any)
+	meUrl, _ := user["avatar_url"].(string)
+
+	if !strings.Contains(meUrl, wantUUID) {
+		t.Errorf("persistence check: wanted UUID %q in url, got %q", wantUUID, meUrl)
 	}
 }

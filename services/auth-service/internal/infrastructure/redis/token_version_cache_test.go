@@ -38,6 +38,9 @@ func (f *fakeUserRepo) SetRole(ctx context.Context, userID string, role string) 
 	return nil
 }
 func (f *fakeUserRepo) CountByRole(ctx context.Context, role string) (int, error) { return 0, nil }
+func (f *fakeUserRepo) UpdateAvatarImageID(ctx context.Context, userID string, avatarImageID *string) (*string, error) {
+	return nil, nil
+}
 
 func TestCachedUserRepo_Passthrough_WhenRedisNil(t *testing.T) {
 	t.Parallel()

@@ -11,4 +11,5 @@ type User struct {
 	Locked            bool
 	TokenVersion      int64
 	PasswordChangedAt *time.Time
+	AvatarImageID     *string // Reference to media_uploads.id
 }
