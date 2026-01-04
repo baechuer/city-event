@@ -90,6 +90,10 @@ func (p *Publisher) PublishPasswordReset(ctx context.Context, evt auth.PasswordR
 	return p.publishJSON(ctx, "auth.password.reset.requested", evt)
 }
 
+func (p *Publisher) PublishAvatarUpdated(ctx context.Context, evt auth.AvatarUpdatedEvent) error {
+	return p.publishJSON(ctx, "auth.avatar.updated", evt)
+}
+
 // ---- internal ----
 
 func (p *Publisher) connect() error {

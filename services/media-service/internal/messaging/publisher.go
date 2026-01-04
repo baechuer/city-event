@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
@@ -28,9 +29,20 @@ type ProcessImageMessage struct {
 
 // NewPublisher creates a new RabbitMQ publisher.
 func NewPublisher(cfg *config.Config, log zerolog.Logger) (*Publisher, error) {
-	conn, err := amqp.Dial(cfg.RabbitURL)
+	var conn *amqp.Connection
+	var err error
+
+	// Retry connection for up to 30 seconds
+	for i := 0; i < 6; i++ {
+		conn, err = amqp.Dial(cfg.RabbitURL)
+		if err == nil {
+			break
+		}
+		log.Warn().Err(err).Msgf("failed to connect to RabbitMQ, retrying in 5s... (%d/6)", i+1)
+		time.Sleep(5 * time.Second)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+		return nil, fmt.Errorf("failed to connect to RabbitMQ after retries: %w", err)
 	}
 
 	ch, err := conn.Channel()
