@@ -202,3 +202,31 @@ jobs:
       - name: Down
         if: always()
         run: docker compose down -v
+
+  k8s-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create k8s Kind Cluster
+        uses: helm/kind-action@v1.8.0
+
+      - name: Apply Manifests
+        run: |
+          set -e
+          echo "Applying Namespace..."
+          kubectl apply -f k8s/base/namespace.yaml
+
+          echo "Applying Secrets (Template)..."
+          # apply template logic to ensure secret exists for pods
+          kubectl apply -f k8s/base/secrets-template.yaml
+
+          echo "Applying Infrastructure..."
+          kubectl apply -f k8s/infra/
+
+          echo "Applying Apps..."
+          kubectl apply -f k8s/apps/
+
+          echo "Verifying resources created..."
+          kubectl get all -n city-events

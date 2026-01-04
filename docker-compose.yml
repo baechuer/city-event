@@ -30,6 +30,12 @@ services:
       - OAUTH_CALLBACK_URL=http://localhost:8080/api/auth/oauth/google/callback
       - FRONTEND_ORIGIN=http://localhost:5173
       - ALLOWED_REDIRECTS=/,/events,/profile
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
     depends_on:
       postgres:
@@ -54,6 +60,12 @@ services:
       - JWT_SECRET=${JWT_SECRET:?required}
       - REDIS_ENABLED=true
       - REDIS_URL=redis://cityevents-redis:6379/1
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
     depends_on:
       postgres:
@@ -75,6 +87,12 @@ services:
       - JWT_SECRET=${JWT_SECRET:?required}
       - REDIS_ADDR=cityevents-redis:6379
       - REDIS_DB=2
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/healthz" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
     depends_on:
       postgres:
@@ -96,6 +114,12 @@ services:
       - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?required}
       - SMTP_HOST=${SMTP_HOST:-mailpit}
       - SMTP_PORT=${SMTP_PORT:-1025}
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8090/readyz" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -114,6 +138,12 @@ services:
       - REDIS_DB=3
       - RABBIT_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@cityevents-rabbitmq:5672/
       - ANON_COOKIE_SECRET=${ANON_COOKIE_SECRET:-dev-secret-change-in-prod}
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8084/health" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     depends_on:
       postgres:
         condition: service_healthy
@@ -140,18 +170,24 @@ services:
       - JWT_SECRET=${JWT_SECRET:?required}
       - INTERNAL_SECRET_KEY=${INTERNAL_SECRET_KEY:?required}
       - REDIS_ADDR=cityevents-redis:6379 # For distributed rate limiting
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
     depends_on:
       redis:
         condition: service_healthy
       auth-service:
-        condition: service_started
+        condition: service_healthy
       event-service:
-        condition: service_started
+        condition: service_healthy
       join-service:
-        condition: service_started
+        condition: service_healthy
       feed-service:
-        condition: service_started
+        condition: service_healthy
 
   # -------------------------------------------------------------------------
   # FRONTEND

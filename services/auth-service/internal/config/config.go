@@ -145,7 +145,7 @@ func Load() (*Config, error) {
 	if cfg.RabbitURL == "" {
 		return nil, fmt.Errorf("missing required env var: RABBIT_URL")
 	}
-	cfg.RabbitExchange = getEnv("RABBIT_EXCHANGE", "cityevents")
+	cfg.RabbitExchange = getEnv("RABBIT_EXCHANGE", "city.events")
 
 	// Timeouts (optional)
 	cfg.HTTPReadTimeout, err = getDuration("HTTP_READ_TIMEOUT", 10*time.Second)
