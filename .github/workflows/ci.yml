@@ -73,6 +73,11 @@ jobs:
             pg_dsn: "" 
             redis_addr: "localhost:6382"
             rabbit_url: "amqp://guest:guest@localhost:5676/"
+          - svc: feed-service
+            compose_file: test/integration/infra/compose.yaml
+            pg_dsn: "postgres://user:pass@localhost:5435/app?sslmode=disable"
+            redis_addr: "localhost:6383"
+            rabbit_url: "amqp://guest:guest@localhost:5677/"
 
     env:
       # Common / Matrix
@@ -109,6 +114,9 @@ jobs:
       SMTP_PORT: "1026"
       MAILPIT_API_PORT: "8026"
       MAILPIT_API: "http://localhost:8026"
+
+      # Feed Service specific
+      FEED_BASE_URL: "http://localhost:8084"
 
     steps:
       - name: Checkout
