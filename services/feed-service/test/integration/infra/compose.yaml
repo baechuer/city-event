@@ -6,6 +6,8 @@ services:
     environment:
       - APP_ENV=test
       - HTTP_ADDR=:8084
+      - DB_HOST=postgres
+      - DB_PORT=5432
       - DB_ADDR=postgres://user:pass@postgres:5432/app?sslmode=disable
       - REDIS_ADDR=redis:6379
       - REDIS_DB=0
@@ -13,6 +15,12 @@ services:
       - ANON_COOKIE_SECRET=test-secret
     ports:
       - "8084:8084"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8084/api/feed/health" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
