@@ -8,6 +8,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o server ./api/cmd
 
 # Run Stage
 FROM alpine:latest
+RUN apk add --no-cache curl
 WORKDIR /app
 COPY --from=builder /app/server .
 # Email service typically consumes RMQ, no public port needed, but we expose 8080 for healthz
