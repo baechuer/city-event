@@ -48,9 +48,14 @@ func main() {
 	go runProfileRebuildWorker(profileRepo)
 
 	// Start RabbitMQ consumer
+	// Start RabbitMQ consumer
+	log.Printf("Checking RabbitMQ config: URL length=%d", len(cfg.RabbitURL))
 	if cfg.RabbitURL != "" {
+		log.Println("Starting RabbitMQ consumer goroutine...")
 		consumer := rabbitmq.NewConsumer(cfg.RabbitURL, trackRepo)
 		go consumer.Start(context.Background())
+	} else {
+		log.Println("RabbitMQ URL is empty, skipping consumer")
 	}
 
 	// HTTP Server

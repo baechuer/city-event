@@ -75,12 +75,24 @@ func AuthMiddleware(verifier security.AccessTokenVerifier, opt AuthOptions) func
 	}
 }
 
-func RateLimitMiddleware(cache domain.CacheRepository) func(next http.Handler) http.Handler {
+func RateLimitMiddleware(cache domain.CacheRepository, limit int, window time.Duration) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip := clientIP(r)
-			allowed, _ := cache.AllowRequest(r.Context(), ip, 100, time.Minute)
+			allowed, err := cache.AllowRequest(r.Context(), ip, limit, window)
+			if err != nil {
+				// Log error but proceed (fail open) - usually AllowRequest handles this but let's be safe
+				// fmt.Printf("RateLimit Error: %v\n", err)
+			}
 			if !allowed {
+				// DEBUG LOG
+				// In production, use structured logger. For debugging, fmt is fine or use global logger.
+				// We'll use a simple print to stdout/stderr which goes to k8s logs.
+				// logger.Logger.Warn().Str("ip", ip).Int("limit", limit).Dur("window", window).Msg("Rate limit exceeded")
+				// But since we don't have the logger imported easily here without cycle or messing imports:
+				// just print.
+				println("RATELIMIT_DEBUG: IP=" + ip + " Limit=" + string(rune(limit)) + " Blocked")
+
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
 			}

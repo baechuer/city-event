@@ -96,6 +96,8 @@ func main() {
 		Handler:   h,
 		Verifier:  verifier,
 		JWTIssuer: cfg.JWTIssuer,
+		RLLimit:   cfg.RLLimit,
+		RLWindow:  cfg.RLWindow,
 	})
 
 	// ---- MQ consumer (inbound snapshots from event-service) ----

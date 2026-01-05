@@ -32,8 +32,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bootstrapRef.current = true;
 
         const initAuth = async () => {
+            // 1. Check for OAuth result in sessionStorage (from redirect flow)
+            const oauthResult = sessionStorage.getItem('oauth_result');
+            if (oauthResult) {
+                try {
+                    const data = JSON.parse(oauthResult);
+                    if (data.type === 'oauth_success' && data.access_token && data.user) {
+                        tokenStore.setToken(data.access_token);
+                        // Restore avatar from localStorage if exists
+                        let userData = data.user;
+                        const savedAvatar = localStorage.getItem(`avatar_${userData.id}`);
+                        if (savedAvatar) {
+                            userData = { ...userData, avatar_url: savedAvatar };
+                        }
+                        setUser(userData);
+                        sessionStorage.removeItem('oauth_result');
+                        setLoading(false);
+                        return; // Skip cookie check if we have explicit token
+                    }
+                } catch (e) {
+                    console.error("Failed to parse oauth_result", e);
+                    sessionStorage.removeItem('oauth_result');
+                }
+            }
+
             try {
-                // Attempt to refresh session (HttpOnly cookie)
+                // 2. Attempt to refresh session (HttpOnly cookie)
                 // Now returns { tokens, user }
                 const res = await apiClient.post<BaseResponse<RefreshResponse>>('/auth/refresh');
 

@@ -37,6 +37,11 @@ spec:
                 secretKeyRef:
                   name: cityevents-secrets
                   key: REDIS_URL
+            - name: RABBIT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: RABBITMQ_URL
           resources:
             requests:
               memory: "64Mi"

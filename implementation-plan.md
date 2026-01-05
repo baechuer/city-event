@@ -230,10 +230,11 @@ Implement user profile management and password security.
 - [x] 修改密码功能逻辑通畅，且遵循 `auth-service` 的长度要求。
 - [x] 修改密码成功后有明确的 UI 反馈。
 - [x] `NavBar` 中的头像或名称可点击进入 `/profile`。
+- [x] **Social Login**: OAuth (Google/GitHub) Code Implemented.
 
 ---
 
-## Phase 7 — Minikube 环境搭建 (2–4 天)
+## Phase 7 — Minikube 环境搭建 (Manifests Ready)
 
 ### Tasks
 1) Minikube 基础
@@ -279,7 +280,7 @@ Implement user profile management and password security.
 
 ---
 
-## Phase 7 — 扩容演示（核心展示点）（1–2 天）
+## Phase 8 — 扩容演示（核心展示点）（1–2 天）
 
 ### Tasks
 - k6 脚本：
@@ -303,7 +304,7 @@ Implement user profile management and password security.
 
 ---
 
-## Phase 8 — 可观测性（加分项，建议做）（2–5 天，可并行）
+## Phase 9 — 可观测性（加分项，建议做）（2–5 天，可并行）
 
 ### Tasks
 - Trace：
@@ -326,7 +327,7 @@ Implement user profile management and password security.
 
 ---
 
-## Phase 9 — 后端 Phase 3 优化（在前端闭环后做）
+## Phase 10 — 后端 Phase 3 优化（在前端闭环后做）
 
 ### Tasks
 - Feed Subsystem（rule-based + 用户 profile + 缓存 + 异步更新）
@@ -370,10 +371,11 @@ Implement user profile management and password security.
 - [x] Phase 3：Auth B1 全链路 + refresh 单飞
 - [x] Phase 4：`/api/events/{id}/view` + join/cancel
 - [x] Phase 5：前端关键页面闭环
-- [ ] Phase 6：Minikube 部署 + Ingress 单入口
-- [ ] Phase 7：扩容演示脚本 + 指标对比
-- [ ] Phase 8：Tracing/Metrics（加分）
-- [ ] Phase 9：推荐/缓存优化与回归压测
+- [x] Phase 6：User Profile & Security + OAuth
+- [x] Phase 7：Minikube Manifests (Infra+Apps) Created
+- [ ] Phase 8：扩容演示脚本 + 指标对比
+- [ ] Phase 9：Tracing/Metrics（加分）
+- [ ] Phase 10：推荐/缓存优化与回归压测
 ## Global Quality Gates（全局质量门槛）
 
 - [ ] **单一入口**：浏览器只访问 `<host>/` 与 `<host>/api/*`（禁止直连微服务）

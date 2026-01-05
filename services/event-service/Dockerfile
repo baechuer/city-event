@@ -20,5 +20,5 @@ COPY --from=builder /app/migrations ./migrations
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-EXPOSE 8080
+EXPOSE 8082
 ENTRYPOINT ["./entrypoint.sh"]

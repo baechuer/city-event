@@ -1,0 +1,58 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-worker
+  namespace: city-events
+  labels:
+    app: media-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-worker
+  template:
+    metadata:
+      labels:
+        app: media-worker
+    spec:
+      containers:
+        - name: media-worker
+          image: real-time-recsys-media-worker:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: MEDIA_DB_URL
+            - name: RABBIT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: RABBITMQ_URL
+            - name: S3_ENDPOINT
+              value: "http://cityevents-minio:9000"
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: MINIO_ROOT_USER
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cityevents-secrets
+                  key: MINIO_ROOT_PASSWORD
+            - name: S3_USE_PATH_STYLE
+              value: "true"
+            - name: S3_RAW_BUCKET
+              value: "raw"
+            - name: S3_PUBLIC_BUCKET
+              value: "public"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"

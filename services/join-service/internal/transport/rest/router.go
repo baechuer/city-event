@@ -18,6 +18,8 @@ type RouterDeps struct {
 	Handler   *Handler
 	Verifier  security.AccessTokenVerifier
 	JWTIssuer string
+	RLLimit   int
+	RLWindow  time.Duration
 }
 
 func NewRouter(d RouterDeps) http.Handler {
@@ -42,7 +44,7 @@ func NewRouter(d RouterDeps) http.Handler {
 	r.Use(middleware.Recoverer)
 
 	// Cross-cutting
-	r.Use(RateLimitMiddleware(d.Cache))
+	r.Use(RateLimitMiddleware(d.Cache, d.RLLimit, d.RLWindow))
 	r.Use(SecurityHeaders)
 
 	// Operational endpoints (outside /api for K8s probes)

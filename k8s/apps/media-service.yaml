@@ -1,61 +1,63 @@
 ---
-# Join Service Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: join-service
+  name: media-service
   namespace: city-events
   labels:
-    app: join-service
+    app: media-service
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: join-service
+      app: media-service
   template:
     metadata:
       labels:
-        app: join-service
+        app: media-service
     spec:
       containers:
-        - name: join-service
-          image: real-time-recsys-join-service:latest
+        - name: media-service
+          image: real-time-recsys-media-service:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8083
+            - containerPort: 8085
               name: http
           env:
-            - name: PORT
-              value: "8083"
+            - name: HTTP_ADDR
+              value: ":8085"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: cityevents-secrets
-                  key: JOIN_DB_URL
-            - name: REDIS_ADDR
-              valueFrom:
-                secretKeyRef:
-                  name: cityevents-secrets
-                  key: REDIS_ADDR
+                  key: MEDIA_DB_URL
             - name: RABBIT_URL
               valueFrom:
                 secretKeyRef:
                   name: cityevents-secrets
                   key: RABBITMQ_URL
-            - name: RABBIT_EXCHANGE
-              value: "cityevents"
-            - name: RL_REQUESTS_LIMIT
-              value: "5000"
-            - name: JWT_SECRET
+            - name: S3_ENDPOINT
+              value: "http://cityevents-minio:9000"
+            - name: S3_EXTERNAL_ENDPOINT
+              value: "http://cityevents.local" # Routes via Ingress on port 80
+            - name: S3_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
                   name: cityevents-secrets
-                  key: JWT_SECRET
-            - name: JWT_ISSUER
+                  key: MINIO_ROOT_USER
+            - name: S3_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: cityevents-secrets
-                  key: JWT_ISSUER
+                  key: MINIO_ROOT_PASSWORD
+            - name: S3_USE_PATH_STYLE
+              value: "true"
+            - name: S3_RAW_BUCKET
+              value: "raw"
+            - name: S3_PUBLIC_BUCKET
+              value: "public"
+            - name: CDN_BASE_URL
+              value: "http://cityevents.local/public"
           resources:
             requests:
               memory: "64Mi"
@@ -66,29 +68,28 @@ spec:
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 8083
+              port: 8085
             initialDelaySeconds: 10
             periodSeconds: 15
           readinessProbe:
             httpGet:
               path: /readyz
-              port: 8083
+              port: 8085
             initialDelaySeconds: 5
             periodSeconds: 5
 ---
-# Join Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: join-service
+  name: media-service
   namespace: city-events
   labels:
-    app: join-service
+    app: media-service
 spec:
   type: ClusterIP
   ports:
-    - port: 8083
-      targetPort: 8083
+    - port: 8085
+      targetPort: 8085
       name: http
   selector:
-    app: join-service
+    app: media-service

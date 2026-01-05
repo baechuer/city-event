@@ -1,16 +1,18 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { bffClient } from "@/api/bff/client";
 import { LoadingState } from "@/components/LoadingState";
 import { ErrorState } from "@/components/ErrorState";
 import { ActionButtons } from "@/components/ActionButtons";
 import { getPublicUrl } from "@/lib/mediaApi";
-import { Calendar, MapPin, Users, User, ArrowLeft, AlertCircle, FileText } from "lucide-react";
+import { Calendar, MapPin, Users, User, ArrowLeft, AlertCircle, FileText, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function EventDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
     const { data, isLoading, isError, error, refetch } = useQuery({
         queryKey: ['events', 'view', id],
@@ -35,9 +37,27 @@ export function EventDetail() {
 
     const { event, participation, actions, degraded } = data;
 
-    const coverImageUrl = event.cover_image
-        ? (event.cover_image.startsWith('http') ? event.cover_image : getPublicUrl(event.cover_image, 'event_cover', '800'))
-        : null;
+    // Support both single cover_image and array cover_image_ids
+    const coverImages: string[] = [];
+    if (event.cover_image_ids && event.cover_image_ids.length > 0) {
+        event.cover_image_ids.forEach((id: string) => {
+            coverImages.push(getPublicUrl(id, 'event_cover', '800'));
+        });
+    } else if (event.cover_image) {
+        coverImages.push(
+            event.cover_image.startsWith('http')
+                ? event.cover_image
+                : getPublicUrl(event.cover_image, 'event_cover', '800')
+        );
+    }
+
+    const nextImage = () => {
+        setCurrentImageIndex((prev) => (prev + 1) % coverImages.length);
+    };
+
+    const prevImage = () => {
+        setCurrentImageIndex((prev) => (prev - 1 + coverImages.length) % coverImages.length);
+    };
 
     return (
         <div className="pb-24">
@@ -79,11 +99,49 @@ export function EventDetail() {
                     </Button>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-center">
-                        {/* Cover Image */}
-                        <div className="aspect-[4/3] glass-card rounded-3xl lg:col-span-1 shadow-2xl p-2 group overflow-hidden">
-                            <div className="w-full h-full rounded-2xl overflow-hidden bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center">
-                                {coverImageUrl ? (
-                                    <img src={coverImageUrl} alt={event.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                        {/* Cover Image Carousel */}
+                        <div className="aspect-[4/3] glass-card rounded-3xl lg:col-span-1 shadow-2xl p-2 group overflow-hidden relative">
+                            <div className="w-full h-full rounded-2xl overflow-hidden bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center relative">
+                                {coverImages.length > 0 ? (
+                                    <>
+                                        <img
+                                            src={coverImages[currentImageIndex]}
+                                            alt={`${event.title} - Image ${currentImageIndex + 1}`}
+                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                        />
+
+                                        {/* Navigation Arrows (only show if multiple images) */}
+                                        {coverImages.length > 1 && (
+                                            <>
+                                                <button
+                                                    onClick={prevImage}
+                                                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 dark:bg-black/50 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white dark:hover:bg-black/70"
+                                                >
+                                                    <ChevronLeft className="h-6 w-6 text-slate-700 dark:text-white" />
+                                                </button>
+                                                <button
+                                                    onClick={nextImage}
+                                                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 dark:bg-black/50 flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white dark:hover:bg-black/70"
+                                                >
+                                                    <ChevronRight className="h-6 w-6 text-slate-700 dark:text-white" />
+                                                </button>
+
+                                                {/* Dots Indicator */}
+                                                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
+                                                    {coverImages.map((_, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => setCurrentImageIndex(idx)}
+                                                            className={`w-2.5 h-2.5 rounded-full transition-all ${idx === currentImageIndex
+                                                                    ? 'bg-white scale-110 shadow-lg'
+                                                                    : 'bg-white/50 hover:bg-white/70'
+                                                                }`}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+                                    </>
                                 ) : (
                                     <div className="text-emerald-600/20 font-bold text-4xl">
                                         CityEvents

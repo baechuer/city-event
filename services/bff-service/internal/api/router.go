@@ -61,7 +61,9 @@ func NewRouter(cfg *config.Config) http.Handler {
 			r.Use(httprate.Limit(
 				cfg.RLLimit,
 				cfg.RLWindow,
-				httprate.WithKeyFuncs(httprate.KeyByIP),
+				httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
+					return middleware.KeyByUser(r), nil
+				}),
 			))
 			log.Println("Rate limiting: In-memory (single-node only)")
 		}
@@ -96,7 +98,9 @@ func NewRouter(cfg *config.Config) http.Handler {
 		r.Get("/healthz", readinessHandler.Healthz)
 
 		// Auth Service Proxy
-		authProxy, err := proxy.New(cfg.AuthServiceURL, "/api/auth", "/auth/v1")
+		// Chi router strips the /api/auth prefix when mounting, so we don't need to strip it again in the proxy.
+		// We just prepend /auth/v1 to the remaining path (e.g. /oauth/google/callback).
+		authProxy, err := proxy.New(cfg.AuthServiceURL, "", "/auth/v1")
 		if err != nil {
 			log.Fatalf("Invalid Auth URL: %v", err)
 		}

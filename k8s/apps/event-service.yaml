@@ -54,6 +54,10 @@ spec:
                 secretKeyRef:
                   name: cityevents-secrets
                   key: JWT_ISSUER
+            - name: AWS_REGION
+              value: "us-east-1"
+            - name: RL_IP_LIMIT
+              value: "5000"
           resources:
             requests:
               memory: "64Mi"

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -113,8 +114,8 @@ func KeyByIP(r *http.Request) string {
 // KeyByUser returns the user ID from context as the rate limit key.
 // Falls back to IP if user is not authenticated.
 func KeyByUser(r *http.Request) string {
-	if userID, ok := r.Context().Value("user_id").(string); ok && userID != "" {
-		return "user:" + userID
+	if userID, ok := r.Context().Value(UserIDKey).(uuid.UUID); ok && userID != uuid.Nil {
+		return "user:" + userID.String()
 	}
 	return KeyByIP(r)
 }

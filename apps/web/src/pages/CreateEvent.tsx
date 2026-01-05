@@ -32,7 +32,9 @@ export function CreateEvent() {
     const eventIdParam = searchParams.get("id");
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(false);
-    const [coverImages, setCoverImages] = useState<Array<{ url: string; uploadId: string }>>([]);
+    // Two fixed independent cover image slots
+    const [coverImage1, setCoverImage1] = useState<{ url: string; uploadId: string } | null>(null);
+    const [coverImage2, setCoverImage2] = useState<{ url: string; uploadId: string } | null>(null);
 
     const getFutureTime = (hours: number) => {
         const d = new Date();
@@ -52,26 +54,24 @@ export function CreateEvent() {
         capacity: 0,
     });
 
-    const handleCoverUpload = (result: UploadStatusResponse) => {
+    const handleCoverUpload1 = (result: UploadStatusResponse) => {
         if (result.status === 'READY' && result.derived_urls) {
             const url = result.derived_urls['800'] || Object.values(result.derived_urls)[0];
-            setCoverImages(prev => {
-                if (prev.length >= 2) {
-                    toast.error("Maximum 2 cover images allowed");
-                    return prev;
-                }
-                return [...prev, { url, uploadId: result.id }];
-            });
-            toast.success("Cover image uploaded!");
+            setCoverImage1({ url, uploadId: result.id });
+            toast.success("Cover image 1 uploaded!");
+        }
+    };
+
+    const handleCoverUpload2 = (result: UploadStatusResponse) => {
+        if (result.status === 'READY' && result.derived_urls) {
+            const url = result.derived_urls['800'] || Object.values(result.derived_urls)[0];
+            setCoverImage2({ url, uploadId: result.id });
+            toast.success("Cover image 2 uploaded!");
         }
     };
 
     const handleCoverError = (error: Error) => {
         toast.error(error.message || "Failed to upload cover image");
-    };
-
-    const removeCoverImage = (index: number) => {
-        setCoverImages(prev => prev.filter((_, i) => i !== index));
     };
 
     useEffect(() => {
@@ -103,11 +103,18 @@ export function CreateEvent() {
                 capacity: ev.capacity,
             });
 
+            // Load cover images into fixed slots
             if (ev.cover_image_ids && ev.cover_image_ids.length > 0) {
-                setCoverImages(ev.cover_image_ids.map((id: string) => ({
-                    url: getPublicUrl(id, 'event_cover', '800'),
-                    uploadId: id
-                })));
+                setCoverImage1({
+                    url: getPublicUrl(ev.cover_image_ids[0], 'event_cover', '800'),
+                    uploadId: ev.cover_image_ids[0]
+                });
+                if (ev.cover_image_ids.length > 1) {
+                    setCoverImage2({
+                        url: getPublicUrl(ev.cover_image_ids[1], 'event_cover', '800'),
+                        uploadId: ev.cover_image_ids[1]
+                    });
+                }
             }
         } catch (err) {
             toast.error("Failed to load event data");
@@ -147,8 +154,10 @@ export function CreateEvent() {
                 ...formData,
                 start_time: start.toISOString(),
                 end_time: end.toISOString(),
-                cover_image_ids: coverImages.map(img => img.uploadId),
+                cover_image_ids: [coverImage1?.uploadId, coverImage2?.uploadId].filter(Boolean) as string[],
             };
+
+            console.log("Submitting payload:", payload);
 
             if (eventId) {
                 // Update existing draft
@@ -237,32 +246,64 @@ export function CreateEvent() {
                                 />
                             </div>
 
-                            {/* Cover Images */}
+                            {/* Cover Images - Two Fixed Slots */}
                             <div className="space-y-2">
                                 <Label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                                     <ImageIcon className="w-3 h-3" /> Cover Images (Max 2)
                                 </Label>
                                 <div className="grid grid-cols-2 gap-4">
-                                    {coverImages.map((img, index) => (
-                                        <div key={index} className="relative aspect-video rounded-xl overflow-hidden group">
-                                            <img src={img.url} alt={`Cover ${index + 1}`} className="w-full h-full object-cover" />
-                                            <button
-                                                type="button"
-                                                onClick={() => removeCoverImage(index)}
-                                                className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm"
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                    ))}
-                                    {coverImages.length < 2 && (
-                                        <ImageUpload
-                                            purpose="event_cover"
-                                            onUploadComplete={handleCoverUpload}
-                                            onError={handleCoverError}
-                                            className="aspect-video"
-                                        />
-                                    )}
+                                    {/* Slot 1 */}
+                                    <div className="relative">
+                                        {coverImage1 ? (
+                                            <div className="relative aspect-video rounded-xl overflow-hidden group">
+                                                <img src={coverImage1.url} alt="Cover 1" className="w-full h-full object-cover" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCoverImage1(null)}
+                                                    className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm"
+                                                >
+                                                    ×
+                                                </button>
+                                                <span className="absolute bottom-2 left-2 text-xs font-bold text-white bg-black/50 px-2 py-1 rounded">1</span>
+                                            </div>
+                                        ) : (
+                                            <div className="relative">
+                                                <ImageUpload
+                                                    purpose="event_cover"
+                                                    onUploadComplete={handleCoverUpload1}
+                                                    onError={handleCoverError}
+                                                    className="aspect-video"
+                                                />
+                                                <span className="absolute bottom-2 left-2 text-xs font-bold text-slate-400 bg-white/80 dark:bg-black/50 px-2 py-1 rounded">1</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Slot 2 */}
+                                    <div className="relative">
+                                        {coverImage2 ? (
+                                            <div className="relative aspect-video rounded-xl overflow-hidden group">
+                                                <img src={coverImage2.url} alt="Cover 2" className="w-full h-full object-cover" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCoverImage2(null)}
+                                                    className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-sm"
+                                                >
+                                                    ×
+                                                </button>
+                                                <span className="absolute bottom-2 left-2 text-xs font-bold text-white bg-black/50 px-2 py-1 rounded">2</span>
+                                            </div>
+                                        ) : (
+                                            <div className="relative">
+                                                <ImageUpload
+                                                    purpose="event_cover"
+                                                    onUploadComplete={handleCoverUpload2}
+                                                    onError={handleCoverError}
+                                                    className="aspect-video"
+                                                />
+                                                <span className="absolute bottom-2 left-2 text-xs font-bold text-slate-400 bg-white/80 dark:bg-black/50 px-2 py-1 rounded">2</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -41,6 +41,7 @@ func NewConsumer(connURL string, repo *postgres.TrackRepo) *Consumer {
 }
 
 func (c *Consumer) Start(ctx context.Context) {
+	log.Println("Consumer.Start called")
 	for {
 		select {
 		case <-ctx.Done():
@@ -69,13 +70,13 @@ func (c *Consumer) connectAndConsume(ctx context.Context) error {
 
 	// Declare exchange (must match event-service)
 	err = ch.ExchangeDeclare(
-		"city.events", // name - must match event-service's exchange
-		"topic",       // type
-		true,          // durable
-		false,         // auto-deleted
-		false,         // internal
-		false,         // no-wait
-		nil,           // arguments
+		"cityevents", // name - must match event-service's exchange
+		"topic",      // type
+		true,         // durable
+		false,        // auto-deleted
+		false,        // internal
+		false,        // no-wait
+		nil,          // arguments
 	)
 	if err != nil {
 		return err
@@ -97,7 +98,7 @@ func (c *Consumer) connectAndConsume(ctx context.Context) error {
 	err = ch.QueueBind(
 		q.Name,
 		"event.published",
-		"city.events",
+		"cityevents",
 		false,
 		nil,
 	)

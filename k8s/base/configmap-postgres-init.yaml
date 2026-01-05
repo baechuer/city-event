@@ -14,12 +14,14 @@ data:
         CREATE DATABASE event_db;
         CREATE DATABASE join_db;
         CREATE DATABASE feed_db;
+        CREATE DATABASE media_db;
         
         -- Grant all privileges
         GRANT ALL PRIVILEGES ON DATABASE auth_db TO $POSTGRES_USER;
         GRANT ALL PRIVILEGES ON DATABASE event_db TO $POSTGRES_USER;
         GRANT ALL PRIVILEGES ON DATABASE join_db TO $POSTGRES_USER;
         GRANT ALL PRIVILEGES ON DATABASE feed_db TO $POSTGRES_USER;
+        GRANT ALL PRIVILEGES ON DATABASE media_db TO $POSTGRES_USER;
     EOSQL
     
     echo "All databases created successfully!"

@@ -28,18 +28,22 @@ spec:
             - name: HTTP_ADDR
               value: ":8080"
             - name: AUTH_SERVICE_URL
-              value: "http://auth-service.city-events.svc.cluster.local:8081"
+              value: "http://auth-service:8081"
             - name: EVENT_SERVICE_URL
               value: "http://event-service.city-events.svc.cluster.local:8082"
             - name: JOIN_SERVICE_URL
               value: "http://join-service.city-events.svc.cluster.local:8083"
             - name: FEED_SERVICE_URL
               value: "http://feed-service.city-events.svc.cluster.local:8084"
+            - name: MEDIA_SERVICE_URL
+              value: "http://media-service.city-events.svc.cluster.local:8085"
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
                   name: cityevents-secrets
                   key: REDIS_URL
+            - name: REDIS_ADDR
+              value: "cityevents-redis:6379"
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -49,6 +53,8 @@ spec:
               value: "http://cityevents.local,http://localhost:5173"
             - name: INTERNAL_SECRET_KEY
               value: "secure-internal-secret"
+            - name: RATE_LIMIT_REQUESTS
+              value: "5000"
           resources:
             requests:
               memory: "64Mi"
