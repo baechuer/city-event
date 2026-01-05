@@ -15,6 +15,7 @@ type Sender interface {
 	SendVerifyEmail(ctx context.Context, toEmail, url string) error
 	SendPasswordReset(ctx context.Context, toEmail, url string) error
 	SendEventCanceled(ctx context.Context, toEmail, eventID, reason string) error
+	SendEventUnpublished(ctx context.Context, toEmail, eventID, reason string) error
 }
 
 type permanentMarker interface{ Permanent() bool }

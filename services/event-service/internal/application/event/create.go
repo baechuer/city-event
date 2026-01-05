@@ -11,13 +11,14 @@ type CreateCmd struct {
 	ActorID   string
 	ActorRole string
 
-	Title       string
-	Description string
-	City        string
-	Category    string
-	StartTime   time.Time
-	EndTime     time.Time
-	Capacity    int
+	Title         string
+	Description   string
+	City          string
+	Category      string
+	StartTime     time.Time
+	EndTime       time.Time
+	Capacity      int
+	CoverImageIDs []string
 }
 
 func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*domain.Event, error) {
@@ -25,7 +26,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*domain.Event, err
 		return nil, domain.ErrForbidden("only organizer/admin can create events")
 	}
 	now := s.clock.Now()
-	e, err := domain.NewDraft(cmd.ActorID, cmd.Title, cmd.Description, cmd.City, cmd.Category, cmd.StartTime, cmd.EndTime, cmd.Capacity, now)
+	e, err := domain.NewDraft(cmd.ActorID, cmd.Title, cmd.Description, cmd.City, cmd.Category, cmd.StartTime, cmd.EndTime, cmd.Capacity, cmd.CoverImageIDs, now)
 	if err != nil {
 		return nil, err
 	}

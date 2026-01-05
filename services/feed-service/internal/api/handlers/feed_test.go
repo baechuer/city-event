@@ -17,14 +17,14 @@ type mockTrendingRepo struct {
 	err    error
 }
 
-func (m *mockTrendingRepo) GetTrending(ctx context.Context, city string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
+func (m *mockTrendingRepo) GetTrending(ctx context.Context, city string, category string, queryStr string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	return m.events, nil
 }
 
-func (m *mockTrendingRepo) GetLatest(ctx context.Context, city string, limit int, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
+func (m *mockTrendingRepo) GetLatest(ctx context.Context, city string, category string, queryStr string, limit int, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

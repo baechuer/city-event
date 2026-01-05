@@ -79,6 +79,22 @@
   }
 }
 
+/* Hide scrollbar for Chrome, Safari and Opera on mobile */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  html,
+  body {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+}
+
 @layer components {
   .glass-card {
     background: var(--glass-bg);

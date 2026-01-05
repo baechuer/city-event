@@ -53,6 +53,15 @@ func (s *FakeSender) SendEventCanceled(ctx context.Context, to, eventID, reason 
 	return s.maybeFail("event_canceled")
 }
 
+func (s *FakeSender) SendEventUnpublished(ctx context.Context, to, eventID, reason string) error {
+	s.lg.Info().
+		Str("to", to).
+		Str("event_id", eventID).
+		Str("reason", reason).
+		Msg("FAKE send event unpublished email")
+	return s.maybeFail("event_unpublished")
+}
+
 func (s *FakeSender) SendPasswordReset(ctx context.Context, toEmail, url string) error {
 	s.lg.Info().
 		Str("to", toEmail).

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -203,12 +204,25 @@ func (c *EventClient) PublishEvent(ctx context.Context, bearerToken, eventID str
 	return &wrapper.Data, nil
 }
 
-func (c *EventClient) UnpublishEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error) {
+func (c *EventClient) UnpublishEvent(ctx context.Context, bearerToken, eventID string, body interface{}) (*domain.Event, error) {
 	url := fmt.Sprintf("%s/event/v1/events/%s/unpublish", c.BaseURL, eventID)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	var reader io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		reader = bytes.NewReader(jsonBody)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
 	if err != nil {
 		return nil, err
+	}
+
+	if reader != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	if bearerToken != "" {
@@ -269,12 +283,25 @@ func (c *EventClient) UpdateEvent(ctx context.Context, bearerToken, eventID stri
 	return &wrapper.Data, nil
 }
 
-func (c *EventClient) CancelEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error) {
+func (c *EventClient) CancelEvent(ctx context.Context, bearerToken, eventID string, body interface{}) (*domain.Event, error) {
 	url := fmt.Sprintf("%s/event/v1/events/%s/cancel", c.BaseURL, eventID)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
+	var reader io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+		reader = bytes.NewReader(jsonBody)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
 	if err != nil {
 		return nil, err
+	}
+
+	if reader != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	if bearerToken != "" {

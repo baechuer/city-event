@@ -35,5 +35,15 @@ func ToEventResp(e *domain.Event, now time.Time) EventResp {
 
 		Ended:    ended,
 		Joinable: joinable,
+
+		CoverImageIDs: e.CoverImageIDs,
+		CoverImage:    firstItem(e.CoverImageIDs),
 	}
+}
+
+func firstItem(ids []string) string {
+	if len(ids) > 0 {
+		return ids[0]
+	}
+	return ""
 }

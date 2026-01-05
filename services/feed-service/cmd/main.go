@@ -13,6 +13,7 @@ import (
 	"github.com/baechuer/real-time-ressys/services/feed-service/internal/api/handlers"
 	"github.com/baechuer/real-time-ressys/services/feed-service/internal/config"
 	"github.com/baechuer/real-time-ressys/services/feed-service/internal/infrastructure/postgres"
+	"github.com/baechuer/real-time-ressys/services/feed-service/internal/infrastructure/rabbitmq"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -45,6 +46,12 @@ func main() {
 	go runOutboxWorker(trackRepo)
 	go runAggregationWorker(trendingRepo)
 	go runProfileRebuildWorker(profileRepo)
+
+	// Start RabbitMQ consumer
+	if cfg.RabbitURL != "" {
+		consumer := rabbitmq.NewConsumer(cfg.RabbitURL, trackRepo)
+		go consumer.Start(context.Background())
+	}
 
 	// HTTP Server
 	srv := &http.Server{

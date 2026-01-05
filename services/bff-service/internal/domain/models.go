@@ -19,6 +19,7 @@ type Event struct {
 	City               string    `json:"city"`
 	Category           string    `json:"category"`
 	CoverImage         string    `json:"cover_image,omitempty"`
+	CoverImageIDs      []string  `json:"cover_image_ids,omitempty"`
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	Location           string    `json:"location"`
@@ -49,6 +50,7 @@ type EventCard struct {
 	ID                 uuid.UUID `json:"id"`
 	Title              string    `json:"title"`
 	CoverImage         string    `json:"cover_image,omitempty"`
+	CoverImageIDs      []string  `json:"cover_image_ids,omitempty"`
 	StartTime          time.Time `json:"start_time"`
 	EndTime            time.Time `json:"end_time"`
 	City               string    `json:"city"`

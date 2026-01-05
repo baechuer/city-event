@@ -21,10 +21,10 @@ import {
     Image as ImageIcon
 } from "lucide-react";
 import { ImageUpload } from "@/components/ui/ImageUpload";
-import type { UploadStatusResponse } from "@/lib/mediaApi";
+import { type UploadStatusResponse, getPublicUrl } from "@/lib/mediaApi";
 
 // Categories aligned with FilterBar
-const CATEGORIES = ["Social", "Tech", "Career", "Health", "Creative", "Sports", "Food", "Other"];
+const CATEGORIES = ["Social", "Tech", "Career", "Health", "Music", "Creative", "Sports", "Food", "General", "Other"];
 
 export function CreateEvent() {
     const navigate = useNavigate();
@@ -102,6 +102,13 @@ export function CreateEvent() {
                 end_time: formatTime(ev.end_time),
                 capacity: ev.capacity,
             });
+
+            if (ev.cover_image_ids && ev.cover_image_ids.length > 0) {
+                setCoverImages(ev.cover_image_ids.map((id: string) => ({
+                    url: getPublicUrl(id, 'event_cover', '800'),
+                    uploadId: id
+                })));
+            }
         } catch (err) {
             toast.error("Failed to load event data");
             navigate("/me/events");
@@ -136,20 +143,19 @@ export function CreateEvent() {
         try {
             let eventId = eventIdParam;
 
+            const payload = {
+                ...formData,
+                start_time: start.toISOString(),
+                end_time: end.toISOString(),
+                cover_image_ids: coverImages.map(img => img.uploadId),
+            };
+
             if (eventId) {
                 // Update existing draft
-                await apiClient.patch(`/events/${eventId}`, {
-                    ...formData,
-                    start_time: start.toISOString(),
-                    end_time: end.toISOString(),
-                });
+                await apiClient.patch(`/events/${eventId}`, payload);
             } else {
                 // Create new event
-                const res = await apiClient.post("/events", {
-                    ...formData,
-                    start_time: start.toISOString(),
-                    end_time: end.toISOString(),
-                });
+                const res = await apiClient.post("/events", payload);
                 eventId = res.data.id;
             }
 

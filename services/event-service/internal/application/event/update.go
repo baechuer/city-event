@@ -13,13 +13,14 @@ type UpdateCmd struct {
 	ActorRole string
 	EventID   string
 
-	Title       *string
-	Description *string
-	City        *string
-	Category    *string
-	StartTime   *time.Time
-	EndTime     *time.Time
-	Capacity    *int
+	Title         *string
+	Description   *string
+	City          *string
+	Category      *string
+	StartTime     *time.Time
+	EndTime       *time.Time
+	Capacity      *int
+	CoverImageIDs *[]string
 }
 
 func (s *Service) Update(ctx context.Context, cmd UpdateCmd) (*domain.Event, error) {
@@ -35,7 +36,7 @@ func (s *Service) Update(ctx context.Context, cmd UpdateCmd) (*domain.Event, err
 		return nil, domain.ErrInvalidState("canceled event cannot be updated")
 	}
 
-	if err := ev.ApplyUpdate(cmd.Title, cmd.Description, cmd.City, cmd.Category, cmd.StartTime, cmd.EndTime, cmd.Capacity, s.clock.Now()); err != nil {
+	if err := ev.ApplyUpdate(cmd.Title, cmd.Description, cmd.City, cmd.Category, cmd.StartTime, cmd.EndTime, cmd.Capacity, cmd.CoverImageIDs, s.clock.Now()); err != nil {
 		return nil, err
 	}
 

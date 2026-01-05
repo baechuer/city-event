@@ -12,9 +12,10 @@ import (
 )
 
 type fakeHandler struct {
-	verifyCalled       int
-	resetCalled        int
-	eventCanceledCalls int // Added for testing
+	verifyCalled          int
+	resetCalled           int
+	eventCanceledCalls    int // Added for testing
+	eventUnpublishedCalls int // Added for testing
 
 	verifyErr error
 	resetErr  error
@@ -44,10 +45,15 @@ func (h *fakeHandler) PasswordReset(ctx context.Context, userID, email, url stri
 	return h.resetErr
 }
 
-func (h *fakeHandler) EventCanceled(ctx context.Context, eventID, userID, reason, prevStatus string) error {
+func (h *fakeHandler) EventCanceled(ctx context.Context, eventID, userID, reason, actorRole string) error {
 	_ = ctx
 	h.eventCanceledCalls++
-	// track if needed, or no-op
+	return nil
+}
+
+func (h *fakeHandler) EventUnpublished(ctx context.Context, eventID, userID, reason, actorRole string) error {
+	_ = ctx
+	h.eventUnpublishedCalls++
 	return nil
 }
 

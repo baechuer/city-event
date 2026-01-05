@@ -19,7 +19,8 @@ import (
 type Handler interface {
 	VerifyEmail(ctx context.Context, userID, email, url string) error
 	PasswordReset(ctx context.Context, userID, email, url string) error
-	EventCanceled(ctx context.Context, eventID, userID, reason, prevStatus string) error
+	EventCanceled(ctx context.Context, eventID, userID, reason, actorRole string) error
+	EventUnpublished(ctx context.Context, eventID, userID, reason, actorRole string) error
 }
 
 // Publisher is the MQ publish contract used by Consumer.
@@ -408,30 +409,62 @@ func (c *Consumer) handleDelivery(ctx context.Context, d amqp.Delivery) error {
 		return nil
 
 	case "email.event_canceled":
-		// Payload from join-service:
-		// {"event_id": "...", "user_id": "...", "reason": "...", "prev_status": "..."}
-
-		// We define a struct for this or use map. Let's use a struct.
-		// Since we don't have contracts package imported here, and I don't want to break imports,
-		// I will define a local struct or map. Local struct is safer.
-		type EventCanceledPayload struct {
+		// Legacy Payload from join-service:
+		type LegacyEventCanceledPayload struct {
 			EventID    string `json:"event_id"`
 			UserID     string `json:"user_id"`
 			Reason     string `json:"reason"`
 			PrevStatus string `json:"prev_status"`
 		}
-		var evt EventCanceledPayload
+		var evt LegacyEventCanceledPayload
 		if err := json.Unmarshal(d.Body, &evt); err != nil {
 			return c.toFinalDLQ(ctx, d, "bad_json", err)
 		}
-
-		// Validation
 		if evt.EventID == "" || evt.UserID == "" {
-			c.lg.Warn().Msg("email.event_canceled missing fields; dropping")
 			return nil
 		}
+		// Map Legacy to new handler signature (actorRole empty)
+		if err := c.handler.EventCanceled(ctx, evt.EventID, evt.UserID, evt.Reason, ""); err != nil {
+			return c.onHandlerError(ctx, d, err)
+		}
+		return nil
 
-		if err := c.handler.EventCanceled(ctx, evt.EventID, evt.UserID, evt.Reason, evt.PrevStatus); err != nil {
+	case "event.canceled":
+		type EventCanceledPayload struct {
+			EventID   string `json:"event_id"`
+			OwnerID   string `json:"owner_id"`
+			Reason    string `json:"reason"`
+			ActorRole string `json:"actor_role"`
+		}
+		type Envelope struct {
+			Payload EventCanceledPayload `json:"payload"`
+		}
+		var env Envelope
+		if err := json.Unmarshal(d.Body, &env); err != nil {
+			return c.toFinalDLQ(ctx, d, "bad_json", err)
+		}
+		evt := env.Payload
+		if err := c.handler.EventCanceled(ctx, evt.EventID, evt.OwnerID, evt.Reason, evt.ActorRole); err != nil {
+			return c.onHandlerError(ctx, d, err)
+		}
+		return nil
+
+	case "event.unpublished":
+		type EventUnpublishedPayload struct {
+			EventID   string `json:"event_id"`
+			OwnerID   string `json:"owner_id"`
+			Reason    string `json:"reason"`
+			ActorRole string `json:"actor_role"`
+		}
+		type Envelope struct {
+			Payload EventUnpublishedPayload `json:"payload"`
+		}
+		var env Envelope
+		if err := json.Unmarshal(d.Body, &env); err != nil {
+			return c.toFinalDLQ(ctx, d, "bad_json", err)
+		}
+		evt := env.Payload
+		if err := c.handler.EventUnpublished(ctx, evt.EventID, evt.OwnerID, evt.Reason, evt.ActorRole); err != nil {
 			return c.onHandlerError(ctx, d, err)
 		}
 		return nil

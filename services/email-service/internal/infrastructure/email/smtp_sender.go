@@ -77,6 +77,12 @@ func (s *SMTPSender) SendEventCanceled(ctx context.Context, toEmail, eventID, re
 	return s.send(ctx, toEmail, subject, text, "")
 }
 
+func (s *SMTPSender) SendEventUnpublished(ctx context.Context, toEmail, eventID, reason string) error {
+	subject := "Event Unpublished"
+	text := fmt.Sprintf("Your event (%s) has been unpublished by a moderator.\nReason: %s", eventID, reason)
+	return s.send(ctx, toEmail, subject, text, "")
+}
+
 func (s *SMTPSender) send(ctx context.Context, to, subject, textBody, htmlBody string) error {
 	if s.timeout > 0 {
 		var cancel context.CancelFunc

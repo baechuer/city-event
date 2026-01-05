@@ -26,15 +26,35 @@ export const PaginatedResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) =
 /**
  * 3. View Models
  */
-export const EventCardSchema = z.object({
-    id: z.string(),
-    title: z.string().catch("Untitled Event"),
-    cover_image: z.string().nullish(),
-    start_time: z.string().catch(() => new Date().toISOString()),
-    end_time: z.string().nullish().catch(null),
-    city: z.string().catch("Unknown City"),
-    category: z.string().catch("General"),
-}).passthrough();
+export const EventCardSchema = z.preprocess(
+    (val: any) => {
+        if (!val) return val;
+
+        const updates: any = {};
+
+        // Map tags[0] to category if category is missing
+        if (val.tags && Array.isArray(val.tags) && val.tags.length > 0 && !val.category) {
+            updates.category = val.tags[0];
+        }
+
+        // Map cover_image_ids[0] to cover_image if cover_image is missing
+        if (val.cover_image_ids && Array.isArray(val.cover_image_ids) && val.cover_image_ids.length > 0 && !val.cover_image) {
+            updates.cover_image = val.cover_image_ids[0];
+        }
+
+        return { ...val, ...updates };
+    },
+    z.object({
+        id: z.string(),
+        title: z.string().catch("Untitled Event"),
+        cover_image: z.string().nullish(),
+        cover_image_ids: z.array(z.string()).nullish().catch([]),
+        start_time: z.string().catch(() => new Date().toISOString()),
+        end_time: z.string().nullish().catch(null),
+        city: z.string().catch("Unknown City"),
+        category: z.string().catch("General"),
+    }).passthrough()
+);
 
 export const ParticipationSchema = z.object({
     // status is critical but we catch it to "none" if it drifts
@@ -63,6 +83,7 @@ export const EventSchema = z.object({
     city: z.string().catch(""),
     category: z.string().catch(""),
     cover_image: z.string().nullish().catch(null),
+    cover_image_ids: z.array(z.string()).nullish().catch([]),
     start_time: z.string().catch(() => new Date().toISOString()),
     end_time: z.string().nullish().catch(null),
     location: z.string().catch(""),

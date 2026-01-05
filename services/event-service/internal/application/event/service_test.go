@@ -135,7 +135,7 @@ func TestService_Cancel_Success(t *testing.T) {
 	}
 
 	t.Run("owner_can_cancel", func(t *testing.T) {
-		ev, err := svc.Cancel(context.Background(), eventID, ownerID, "user")
+		ev, err := svc.Cancel(context.Background(), eventID, ownerID, "user", "")
 		assert.NoError(t, err)
 		assert.Equal(t, domain.StatusCanceled, ev.Status)
 		assert.NotNil(t, ev.CanceledAt)
@@ -143,7 +143,7 @@ func TestService_Cancel_Success(t *testing.T) {
 
 	t.Run("admin_can_cancel_any_event", func(t *testing.T) {
 		repo.byID[eventID].Status = domain.StatusPublished
-		ev, err := svc.Cancel(context.Background(), eventID, "admin_user", "admin")
+		ev, err := svc.Cancel(context.Background(), eventID, "admin_user", "admin", "")
 		assert.NoError(t, err)
 		assert.Equal(t, domain.StatusCanceled, ev.Status)
 	})
@@ -341,7 +341,7 @@ func TestService_Cancel_StateValidation(t *testing.T) {
 	}
 
 	t.Run("cannot_cancel_already_canceled", func(t *testing.T) {
-		_, err := svc.Cancel(context.Background(), eventID, "owner", "user")
+		_, err := svc.Cancel(context.Background(), eventID, "owner", "user", "")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "already canceled")
 	})
@@ -365,13 +365,13 @@ func TestService_Unpublish(t *testing.T) {
 	// 1. Not Owner
 	t.Run("non_owner_cannot_unpublish", func(t *testing.T) {
 		repo.byID["evt_other"] = &domain.Event{ID: "evt_other", OwnerID: "other", Status: domain.StatusPublished}
-		_, err := svc.Unpublish(context.Background(), "evt_other", "intruder", "user")
+		_, err := svc.Unpublish(context.Background(), "evt_other", "intruder", "user", "")
 		assert.Error(t, err)
 	})
 
 	// 2. Success
 	t.Run("owner_can_unpublish", func(t *testing.T) {
-		ev, err := svc.Unpublish(context.Background(), eventID, ownerID, "user")
+		ev, err := svc.Unpublish(context.Background(), eventID, ownerID, "user", "")
 		assert.NoError(t, err)
 		assert.Equal(t, domain.StatusDraft, ev.Status)
 		_, exists := cache.store[cacheKeyEventDetails(eventID)]
@@ -380,7 +380,7 @@ func TestService_Unpublish(t *testing.T) {
 
 	// 3. Already Draft
 	t.Run("cannot_unpublish_draft", func(t *testing.T) {
-		_, err := svc.Unpublish(context.Background(), eventID, ownerID, "user")
+		_, err := svc.Unpublish(context.Background(), eventID, ownerID, "user", "")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "must be published")
 	})

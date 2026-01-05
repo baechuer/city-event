@@ -9,7 +9,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-func (s *Service) Cancel(ctx context.Context, eventID, actorID, actorRole string) (*domain.Event, error) {
+func (s *Service) Cancel(ctx context.Context, eventID, actorID, actorRole, reason string) (*domain.Event, error) {
 	var out *domain.Event
 
 	err := s.repo.WithTx(ctx, func(r TxEventRepo) error {
@@ -54,6 +54,8 @@ func (s *Service) Cancel(ctx context.Context, eventID, actorID, actorRole string
 				EndTime:   ev.EndTime,
 				Capacity:  ev.Capacity,
 				Status:    string(ev.Status),
+				Reason:    reason,
+				ActorRole: actorRole,
 			},
 		}
 

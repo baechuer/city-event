@@ -14,6 +14,7 @@ type contextKey string
 
 const (
 	UserIDKey      contextKey = "user_id"
+	UserRoleKey    contextKey = "user_role"
 	BearerTokenKey contextKey = "bearer_token"
 )
 
@@ -51,9 +52,12 @@ func Auth(secret string) func(http.Handler) http.Handler {
 				uidStr, _ = (*claims)["sub"].(string)
 			}
 
+			role, _ := (*claims)["role"].(string)
+
 			if uidStr != "" {
 				if uid, err := uuid.Parse(uidStr); err == nil {
 					ctx := context.WithValue(r.Context(), UserIDKey, uid)
+					ctx = context.WithValue(ctx, UserRoleKey, role)
 					ctx = context.WithValue(ctx, BearerTokenKey, authHeader)
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return
@@ -71,6 +75,14 @@ func GetUserID(ctx context.Context) uuid.UUID {
 		return uuid.Nil
 	}
 	return id
+}
+
+func GetUserRole(ctx context.Context) string {
+	role, ok := ctx.Value(UserRoleKey).(string)
+	if !ok {
+		return ""
+	}
+	return role
 }
 
 func GetBearerToken(ctx context.Context) string {

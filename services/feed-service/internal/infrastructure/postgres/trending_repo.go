@@ -45,11 +45,11 @@ func (r *TrendingRepo) RunAggregation(ctx context.Context) error {
 }
 
 // GetTrending returns trending events with online score calculation
-func (r *TrendingRepo) GetTrending(ctx context.Context, city string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]TrendingEvent, error) {
+func (r *TrendingRepo) GetTrending(ctx context.Context, city string, category string, queryStr string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]TrendingEvent, error) {
 	fmt.Printf("GetTrending: limit=%d cursor=(score=%f, time=%v, id=%s)\n", limit, afterScore, afterStartTime, afterID)
 	query := `
 		SELECT 
-			e.event_id, e.title, e.city, e.tags, e.start_time,
+			e.event_id, e.title, e.city, e.tags, e.start_time, e.cover_image_ids,
 			(4.0 * COALESCE(ts.join_users_24h, 0) +
 			 2.0 * COALESCE(ts.join_users_7d, 0) +
 			 0.5 * COALESCE(ts.view_users_24h, 0) +
@@ -65,6 +65,18 @@ func (r *TrendingRepo) GetTrending(ctx context.Context, city string, limit int, 
 	if city != "" {
 		query += fmt.Sprintf(" AND e.city = $%d", argNum)
 		args = append(args, city)
+		argNum++
+	}
+
+	if category != "" {
+		query += fmt.Sprintf(" AND $%d = ANY(e.tags)", argNum)
+		args = append(args, category)
+		argNum++
+	}
+
+	if queryStr != "" {
+		query += fmt.Sprintf(" AND (e.title ILIKE $%d OR e.city ILIKE $%d)", argNum, argNum)
+		args = append(args, "%"+queryStr+"%")
 		argNum++
 	}
 
@@ -94,7 +106,7 @@ func (r *TrendingRepo) GetTrending(ctx context.Context, city string, limit int, 
 	var events []TrendingEvent
 	for rows.Next() {
 		var e TrendingEvent
-		if err := rows.Scan(&e.EventID, &e.Title, &e.City, &e.Tags, &e.StartTime, &e.TrendScore); err != nil {
+		if err := rows.Scan(&e.EventID, &e.Title, &e.City, &e.Tags, &e.StartTime, &e.CoverImageIDs, &e.TrendScore); err != nil {
 			return nil, err
 		}
 		events = append(events, e)
@@ -103,19 +115,20 @@ func (r *TrendingRepo) GetTrending(ctx context.Context, city string, limit int, 
 }
 
 type TrendingEvent struct {
-	EventID    string    `json:"id"`
-	Title      string    `json:"title"`
-	City       string    `json:"city"`
-	Tags       []string  `json:"tags"`
-	StartTime  time.Time `json:"start_time"`
-	TrendScore float64   `json:"trend_score"`
+	EventID       string    `json:"id"`
+	Title         string    `json:"title"`
+	City          string    `json:"city"`
+	Tags          []string  `json:"tags"`
+	StartTime     time.Time `json:"start_time"`
+	TrendScore    float64   `json:"trend_score"`
+	CoverImageIDs []string  `json:"cover_image_ids"`
 }
 
 // GetLatest returns newest events ordered by creation time (created_at DESC)
-func (r *TrendingRepo) GetLatest(ctx context.Context, city string, limit int, afterStartTime time.Time, afterID string) ([]TrendingEvent, error) {
+func (r *TrendingRepo) GetLatest(ctx context.Context, city string, category string, queryStr string, limit int, afterStartTime time.Time, afterID string) ([]TrendingEvent, error) {
 	query := `
 		SELECT 
-			e.event_id, e.title, e.city, e.tags, e.start_time,
+			e.event_id, e.title, e.city, e.tags, e.start_time, e.cover_image_ids,
 			0.0 AS trend_score
 		FROM event_index e
 		WHERE e.status = 'published' AND e.start_time > NOW()
@@ -126,6 +139,18 @@ func (r *TrendingRepo) GetLatest(ctx context.Context, city string, limit int, af
 	if city != "" {
 		query += fmt.Sprintf(" AND e.city = $%d", argNum)
 		args = append(args, city)
+		argNum++
+	}
+
+	if category != "" {
+		query += fmt.Sprintf(" AND $%d = ANY(e.tags)", argNum)
+		args = append(args, category)
+		argNum++
+	}
+
+	if queryStr != "" {
+		query += fmt.Sprintf(" AND (e.title ILIKE $%d OR e.city ILIKE $%d)", argNum, argNum)
+		args = append(args, "%"+queryStr+"%")
 		argNum++
 	}
 
@@ -148,7 +173,7 @@ func (r *TrendingRepo) GetLatest(ctx context.Context, city string, limit int, af
 	var events []TrendingEvent
 	for rows.Next() {
 		var e TrendingEvent
-		if err := rows.Scan(&e.EventID, &e.Title, &e.City, &e.Tags, &e.StartTime, &e.TrendScore); err != nil {
+		if err := rows.Scan(&e.EventID, &e.Title, &e.City, &e.Tags, &e.StartTime, &e.CoverImageIDs, &e.TrendScore); err != nil {
 			return nil, err
 		}
 		events = append(events, e)

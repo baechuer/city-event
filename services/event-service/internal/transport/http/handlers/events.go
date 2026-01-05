@@ -145,15 +145,16 @@ func (h *EventsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cmd := event.CreateCmd{
-		ActorID:     middleware.UserID(r),
-		ActorRole:   middleware.Role(r),
-		Title:       req.Title,
-		Description: req.Description,
-		City:        req.City,
-		Category:    req.Category,
-		StartTime:   req.StartTime,
-		EndTime:     req.EndTime,
-		Capacity:    req.Capacity,
+		ActorID:       middleware.UserID(r),
+		ActorRole:     middleware.Role(r),
+		Title:         req.Title,
+		Description:   req.Description,
+		City:          req.City,
+		Category:      req.Category,
+		StartTime:     req.StartTime,
+		EndTime:       req.EndTime,
+		Capacity:      req.Capacity,
+		CoverImageIDs: req.CoverImageIDs,
 	}
 
 	ev, err := h.svc.Create(r.Context(), cmd)
@@ -184,16 +185,17 @@ func (h *EventsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cmd := event.UpdateCmd{
-		ActorID:     middleware.UserID(r),
-		ActorRole:   middleware.Role(r),
-		EventID:     id,
-		Title:       req.Title,
-		Description: req.Description,
-		City:        req.City,
-		Category:    req.Category,
-		StartTime:   req.StartTime,
-		EndTime:     req.EndTime,
-		Capacity:    req.Capacity,
+		ActorID:       middleware.UserID(r),
+		ActorRole:     middleware.Role(r),
+		EventID:       id,
+		Title:         req.Title,
+		Description:   req.Description,
+		City:          req.City,
+		Category:      req.Category,
+		StartTime:     req.StartTime,
+		EndTime:       req.EndTime,
+		Capacity:      req.Capacity,
+		CoverImageIDs: req.CoverImageIDs,
 	}
 
 	ev, err := h.svc.Update(r.Context(), cmd)
@@ -234,7 +236,13 @@ func (h *EventsHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ev, err := h.svc.Cancel(r.Context(), id, middleware.UserID(r), middleware.Role(r))
+	var req dto.CancelEventReq
+	if err := validate.DecodeJSON(r, &req); err != nil {
+		// Fallback for requests without body (e.g. legacy or internal calls that don't need reason)
+		req.Reason = ""
+	}
+
+	ev, err := h.svc.Cancel(r.Context(), id, middleware.UserID(r), middleware.Role(r), req.Reason)
 	if err != nil {
 		response.Err(w, r, err)
 		return
@@ -348,10 +356,15 @@ func (h *EventsHandler) Unpublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req dto.UnpublishEventReq
+	if err := validate.DecodeJSON(r, &req); err != nil {
+		req.Reason = ""
+	}
+
 	actorID := middleware.UserID(r)
 	actorRole := middleware.Role(r)
 
-	ev, err := h.svc.Unpublish(r.Context(), id, actorID, actorRole)
+	ev, err := h.svc.Unpublish(r.Context(), id, actorID, actorRole, req.Reason)
 	if err != nil {
 		response.Err(w, r, err)
 		return

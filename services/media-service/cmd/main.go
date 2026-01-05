@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
+	"github.com/baechuer/cityevents/services/media-service/internal/cleanup"
 	"github.com/baechuer/cityevents/services/media-service/internal/config"
 	"github.com/baechuer/cityevents/services/media-service/internal/handler"
 	"github.com/baechuer/cityevents/services/media-service/internal/messaging"
@@ -57,6 +58,10 @@ func main() {
 	// Initialize repository and handler
 	uploadRepo := repository.NewUploadRepository(pool)
 	uploadHandler := handler.NewUploadHandler(uploadRepo, s3Client, publisher, cfg, log)
+
+	// Initialize and run cleaner
+	cleaner := cleanup.NewCleaner(uploadRepo, s3Client, log)
+	go cleaner.Run(ctx)
 
 	// Setup router
 	r := chi.NewRouter()

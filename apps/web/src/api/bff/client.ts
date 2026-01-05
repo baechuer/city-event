@@ -127,4 +127,20 @@ export const bffClient = {
         const res = await apiClient.post(`/events/${id}/unpublish`);
         return res.data;
     },
+
+    /**
+     * Admin/Moderator: Cancel event with reason
+     */
+    async adminCancelEvent(id: string, reason: string): Promise<any> {
+        const res = await apiClient.post(`/admin/events/${id}/cancel`, { reason });
+        return res.data;
+    },
+
+    /**
+     * Admin/Moderator: Unpublish event with reason
+     */
+    async adminUnpublishEvent(id: string, reason: string): Promise<any> {
+        const res = await apiClient.post(`/admin/events/${id}/unpublish`, { reason });
+        return res.data;
+    },
 };

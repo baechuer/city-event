@@ -25,14 +25,18 @@ type DomainEventEnvelope[T any] struct {
 
 // EventPublishedPayload is the business payload for routing key: event.published
 type EventPublishedPayload struct {
-	EventID   string    `json:"event_id"`
-	OwnerID   string    `json:"owner_id"`
-	City      string    `json:"city"`
-	Category  string    `json:"category"`
-	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time"`
-	Capacity  int       `json:"capacity"`
-	Status    string    `json:"status"`
+	EventID       string    `json:"event_id"`
+	OwnerID       string    `json:"owner_id"`
+	Title         string    `json:"title"`
+	City          string    `json:"city"`
+	Category      string    `json:"category"`
+	StartTime     time.Time `json:"start_time"`
+	EndTime       time.Time `json:"end_time"`
+	Capacity      int       `json:"capacity"`
+	Status        string    `json:"status"`
+	Reason        string    `json:"reason,omitempty"`
+	ActorRole     string    `json:"actor_role,omitempty"`
+	CoverImageIDs []string  `json:"cover_image_ids,omitempty"`
 }
 
 // EventCanceledPayload is the business payload for routing key: event.canceled
@@ -45,6 +49,17 @@ type EventCanceledPayload struct {
 	EndTime   time.Time `json:"end_time"`
 	Capacity  int       `json:"capacity"`
 	Status    string    `json:"status"`
+	Reason    string    `json:"reason,omitempty"`
+	ActorRole string    `json:"actor_role,omitempty"`
+}
+
+// EventUnpublishedPayload is the business payload for routing key: event.unpublished
+type EventUnpublishedPayload struct {
+	EventID   string `json:"event_id"`
+	OwnerID   string `json:"owner_id"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason,omitempty"`
+	ActorRole string `json:"actor_role,omitempty"`
 }
 
 // ---- trace id plumbing ----

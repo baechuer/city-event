@@ -70,16 +70,16 @@ func (m *mockEventClient) UpdateEvent(ctx context.Context, bearerToken, eventID 
 	return args.Get(0).(*domain.Event), args.Error(1)
 }
 
-func (m *mockEventClient) CancelEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error) {
-	args := m.Called(ctx, bearerToken, eventID)
+func (m *mockEventClient) CancelEvent(ctx context.Context, bearerToken, eventID string, body interface{}) (*domain.Event, error) {
+	args := m.Called(ctx, bearerToken, eventID, body)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Event), args.Error(1)
 }
 
-func (m *mockEventClient) UnpublishEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error) {
-	args := m.Called(ctx, bearerToken, eventID)
+func (m *mockEventClient) UnpublishEvent(ctx context.Context, bearerToken, eventID string, body interface{}) (*domain.Event, error) {
+	args := m.Called(ctx, bearerToken, eventID, body)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

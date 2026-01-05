@@ -119,3 +119,44 @@ func (r *UploadRepository) GetByOwnerAndPurpose(ctx context.Context, ownerID uui
 	}
 	return &u, nil
 }
+
+// ListStale retrieves uploads that are stale (pending/failed for too long).
+func (r *UploadRepository) ListStale(ctx context.Context, pendingAge, failedAge time.Duration, limit int) ([]*domain.Upload, error) {
+	cutoffPending := time.Now().Add(-pendingAge)
+	cutoffFailed := time.Now().Add(-failedAge)
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, owner_id, purpose, status, raw_object_key, derived_keys, error_message, created_at, updated_at
+		FROM media_uploads 
+		WHERE (status = $1 AND created_at < $2) 
+		   OR (status = $3 AND created_at < $4)
+		LIMIT $5
+	`, domain.StatusPending, cutoffPending, domain.StatusFailed, cutoffFailed, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list stale uploads: %w", err)
+	}
+	defer rows.Close()
+
+	var uploads []*domain.Upload
+	for rows.Next() {
+		var u domain.Upload
+		var derivedJSON []byte
+
+		if err := rows.Scan(&u.ID, &u.OwnerID, &u.Purpose, &u.Status, &u.RawObjectKey, &derivedJSON, &u.ErrorMessage, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan upload: %w", err)
+		}
+
+		if len(derivedJSON) > 0 {
+			_ = json.Unmarshal(derivedJSON, &u.DerivedKeys)
+		}
+		uploads = append(uploads, &u)
+	}
+
+	return uploads, nil
+}
+
+// Delete permanently removes an upload record.
+func (r *UploadRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, "DELETE FROM media_uploads WHERE id = $1", id)
+	return err
+}

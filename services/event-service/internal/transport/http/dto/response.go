@@ -31,6 +31,9 @@ type EventResp struct {
 	// Derived
 	Ended    bool `json:"ended"`
 	Joinable bool `json:"joinable"`
+
+	CoverImageIDs []string `json:"cover_image_ids,omitempty"`
+	CoverImage    string   `json:"cover_image,omitempty"` // First image for BFF
 }
 
 type PageResp[T any] struct {

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (s *Service) EventCanceled(ctx context.Context, eventID, userID, reason, prevStatus string) error {
+func (s *Service) EventCanceled(ctx context.Context, eventID, userID, reason, actorRole string) error {
 	// 1. Idempotency Check
 	// Key: email:sent:event_canceled:<eventID>:<userID>
 	key := fmt.Sprintf("email:sent:event_canceled:%s:%s", eventID, userID)
@@ -58,5 +58,43 @@ func (s *Service) EventCanceled(ctx context.Context, eventID, userID, reason, pr
 		Str("user_id", userID).
 		Str("email", email).
 		Msg("event canceled email sent")
+	return nil
+}
+
+func (s *Service) EventUnpublished(ctx context.Context, eventID, userID, reason, actorRole string) error {
+	// 1. Idempotency Check
+	key := fmt.Sprintf("email:sent:event_unpublished:%s:%s", eventID, userID)
+	if s.idem != nil {
+		seen, e := s.idem.Seen(ctx, key)
+		if e != nil {
+			return e
+		}
+		if seen {
+			s.lg.Info().Str("event_id", eventID).Str("user_id", userID).Msg("idempotent skip")
+			return nil
+		}
+	}
+
+	// 2. Resolve User Email
+	email, err := s.resolver.GetEmail(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("resolve email failed: %w", err)
+	}
+	if email == "" {
+		return nil
+	}
+
+	// 3. Send Email
+	if err := s.sender.SendEventUnpublished(ctx, email, eventID, reason); err != nil {
+		return err
+	}
+
+	// 4. Mark Sent
+	if s.idem != nil {
+		if e := s.idem.MarkSent(ctx, key, 7*24*time.Hour); e != nil {
+			return nil
+		}
+	}
+
 	return nil
 }

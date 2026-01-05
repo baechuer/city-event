@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"math"
 	"math/rand"
 	"time"
@@ -24,7 +25,7 @@ INSERT INTO event_outbox (
 const selectEventForUpdateSQL = `
 SELECT id, owner_id, title, description, city, category,
        start_time, end_time, capacity, active_participants, status,
-       published_at, canceled_at, created_at, updated_at
+       published_at, canceled_at, created_at, updated_at, cover_image_ids
 FROM events WHERE id = $1
 FOR UPDATE
 `
@@ -34,23 +35,27 @@ func (r *txRepo) GetByIDForUpdate(ctx context.Context, id string) (*domain.Event
 
 	var e domain.Event
 	var status string
+	var coverIDsJSON string
 	err := row.Scan(
 		&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
 		&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
-		&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
+		&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt, &coverIDsJSON,
 	)
 	if err != nil {
 		return nil, err
 	}
 	e.Status = domain.EventStatus(status)
+	_ = json.Unmarshal([]byte(coverIDsJSON), &e.CoverImageIDs)
 	return &e, nil
 }
 
 func (r *txRepo) Update(ctx context.Context, e *domain.Event) error {
+	coverIDsJSON, _ := json.Marshal(e.CoverImageIDs)
 	_, err := r.tx.ExecContext(ctx, updateEventSQL,
-		e.ID, e.Title, e.Description, e.City, domain.NormalizeCity(e.City), e.Category,
+		e.ID,
+		e.Title, e.Description, e.City, domain.NormalizeCity(e.City), e.Category,
 		e.StartTime, e.EndTime, e.Capacity, string(e.Status),
-		e.PublishedAt, e.CanceledAt, e.UpdatedAt,
+		e.PublishedAt, e.CanceledAt, e.UpdatedAt, string(coverIDsJSON),
 	)
 	return err
 }

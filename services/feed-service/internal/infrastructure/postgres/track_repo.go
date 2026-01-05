@@ -97,3 +97,23 @@ func (r *TrackRepo) ProcessOutbox(ctx context.Context, batchSize int) (int, erro
 
 	return len(events), nil
 }
+
+func (r *TrackRepo) IndexEvent(ctx context.Context, eventID, ownerID, title, city, category string, startTime time.Time, status string, coverImageIDs []string) error {
+	query := `
+		INSERT INTO event_index (event_id, title, owner_id, city, tags, start_time, status, cover_image_ids, synced_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (event_id) DO UPDATE SET
+			title = EXCLUDED.title,
+			city = EXCLUDED.city,
+			tags = EXCLUDED.tags,
+			start_time = EXCLUDED.start_time,
+			status = EXCLUDED.status,
+			cover_image_ids = EXCLUDED.cover_image_ids,
+			synced_at = EXCLUDED.synced_at;
+	`
+	// Simple tag extraction for now: just category
+	tags := []string{category}
+
+	_, err := r.pool.Exec(ctx, query, eventID, title, ownerID, city, tags, startTime, status, coverImageIDs, time.Now())
+	return err
+}

@@ -17,8 +17,8 @@ import (
 
 // TrendingRepo defines the interface for trending data access
 type TrendingRepo interface {
-	GetTrending(ctx context.Context, city string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error)
-	GetLatest(ctx context.Context, city string, limit int, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error)
+	GetTrending(ctx context.Context, city string, category string, queryStr string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error)
+	GetLatest(ctx context.Context, city string, category string, queryStr string, limit int, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error)
 }
 
 // ProfileRepo defines the interface for user profile data access
@@ -41,10 +41,15 @@ func NewFeedHandler(trendingRepo TrendingRepo, profileRepo ProfileRepo) *FeedHan
 	}
 }
 
-// GetFeed handles GET /api/feed?type=trending|personalized|latest&city=&cursor=&limit=
+// GetFeed handles GET /api/feed?type=trending|personalized|latest&city=&cursor=&limit=&q=&category=
 func (h *FeedHandler) GetFeed(w http.ResponseWriter, r *http.Request) {
 	feedType := r.URL.Query().Get("type")
 	city := r.URL.Query().Get("city")
+	category := r.URL.Query().Get("category")
+	queryStr := r.URL.Query().Get("q")
+	if queryStr == "" {
+		queryStr = r.URL.Query().Get("search")
+	}
 
 	// Parse limit with default of 10
 	limit := 10
@@ -77,11 +82,11 @@ func (h *FeedHandler) GetFeed(w http.ResponseWriter, r *http.Request) {
 
 	switch feedType {
 	case "personalized":
-		events, err = h.getPersonalized(r, city, limit, afterScore, afterStartTime, afterID)
+		events, err = h.getPersonalized(r, city, category, queryStr, limit, afterScore, afterStartTime, afterID)
 	case "trending":
-		events, err = h.getTrending(r.Context(), city, limit, afterScore, afterStartTime, afterID)
+		events, err = h.getTrending(r.Context(), city, category, queryStr, limit, afterScore, afterStartTime, afterID)
 	case "latest":
-		events, err = h.getLatest(r.Context(), city, limit, afterStartTime, afterID)
+		events, err = h.getLatest(r.Context(), city, category, queryStr, limit, afterStartTime, afterID)
 	default:
 		http.Error(w, "invalid feed type", http.StatusBadRequest)
 		return
@@ -116,21 +121,21 @@ func (h *FeedHandler) GetFeed(w http.ResponseWriter, r *http.Request) {
 }
 
 // getTrending returns trending events with keyset pagination
-func (h *FeedHandler) getTrending(ctx context.Context, city string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
+func (h *FeedHandler) getTrending(ctx context.Context, city string, category string, queryStr string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
 	ctx, cancel := context.WithTimeout(ctx, 40*time.Millisecond)
 	defer cancel()
-	return h.trendingRepo.GetTrending(ctx, city, limit, afterScore, afterStartTime, afterID)
+	return h.trendingRepo.GetTrending(ctx, city, category, queryStr, limit, afterScore, afterStartTime, afterID)
 }
 
 // getLatest returns newest events ordered by start_time DESC
-func (h *FeedHandler) getLatest(ctx context.Context, city string, limit int, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
+func (h *FeedHandler) getLatest(ctx context.Context, city string, category string, queryStr string, limit int, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
 	ctx, cancel := context.WithTimeout(ctx, 40*time.Millisecond)
 	defer cancel()
-	return h.trendingRepo.GetLatest(ctx, city, limit, afterStartTime, afterID)
+	return h.trendingRepo.GetLatest(ctx, city, category, queryStr, limit, afterStartTime, afterID)
 }
 
 // getPersonalized returns personalized feed with fallback to trending
-func (h *FeedHandler) getPersonalized(r *http.Request, city string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
+func (h *FeedHandler) getPersonalized(r *http.Request, city string, category string, queryStr string, limit int, afterScore float64, afterStartTime time.Time, afterID string) ([]postgres.TrendingEvent, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
 
@@ -150,11 +155,11 @@ func (h *FeedHandler) getPersonalized(r *http.Request, city string, limit int, a
 	if candidateLimit > 200 {
 		candidateLimit = 200
 	}
-	candidates, err := h.trendingRepo.GetTrending(trendingCtx, city, candidateLimit, afterScore, afterStartTime, afterID)
+	candidates, err := h.trendingRepo.GetTrending(trendingCtx, city, category, queryStr, candidateLimit, afterScore, afterStartTime, afterID)
 	trendingCancel()
 	if err != nil || len(candidates) == 0 {
 		// Fallback to trending (simple pagination)
-		return h.getTrending(r.Context(), city, limit, afterScore, afterStartTime, afterID)
+		return h.getTrending(r.Context(), city, category, queryStr, limit, afterScore, afterStartTime, afterID)
 	}
 
 	// Get user prefs (20ms budget)

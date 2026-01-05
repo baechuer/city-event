@@ -133,6 +133,13 @@ func NewRouter(cfg *config.Config) http.Handler {
 			r.Post("/media/request-upload", mediaHandler.RequestUpload)
 			r.Post("/media/complete", mediaHandler.CompleteUpload)
 		})
+
+		// Admin/Moderator Routes
+		r.Group(func(r chi.Router) {
+			r.Use(RequireRole("admin", "moderator"))
+			r.Post("/admin/events/{id}/cancel", eventHandler.AdminCancelEvent)
+			r.Post("/admin/events/{id}/unpublish", eventHandler.AdminUnpublishEvent)
+		})
 	})
 
 	log.Printf("Routes Mounted:")
@@ -143,4 +150,19 @@ func NewRouter(cfg *config.Config) http.Handler {
 	log.Printf("  /api/events -> %s/event/v1/events", cfg.EventServiceURL)
 
 	return r
+}
+
+func RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			role := middleware.GetUserRole(r.Context())
+			for _, allowed := range allowedRoles {
+				if role == allowed {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			http.Error(w, "Forbidden: insufficient permissions", http.StatusForbidden)
+		})
+	}
 }

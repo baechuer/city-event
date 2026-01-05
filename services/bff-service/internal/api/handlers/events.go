@@ -25,10 +25,10 @@ type EventClient interface {
 	CreateEvent(ctx context.Context, bearerToken string, body interface{}) (*domain.Event, error)
 	PublishEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error)
 	UpdateEvent(ctx context.Context, bearerToken, eventID string, body interface{}) (*domain.Event, error)
-	CancelEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error)
+	CancelEvent(ctx context.Context, bearerToken, eventID string, body interface{}) (*domain.Event, error)
 	ListMine(ctx context.Context, bearerToken string, query url.Values) (*domain.PaginatedResponse[domain.EventCard], error)
 	GetCitySuggestions(ctx context.Context, query string) ([]string, error)
-	UnpublishEvent(ctx context.Context, bearerToken, eventID string) (*domain.Event, error)
+	UnpublishEvent(ctx context.Context, bearerToken, eventID string, body interface{}) (*domain.Event, error)
 }
 
 type JoinClient interface {
@@ -314,6 +314,7 @@ func (h *EventHandler) GetEventView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID := middleware.GetUserID(r.Context())
+	userRole := middleware.GetUserRole(r.Context())
 	bearerToken := middleware.GetBearerToken(r.Context())
 
 	var (
@@ -395,7 +396,7 @@ func (h *EventHandler) GetEventView(w http.ResponseWriter, r *http.Request) {
 		event.OrganizerName = "Unknown Host"
 	}
 
-	policy := domain.CalculateActionPolicy(event, part, userID, time.Now().UTC(), isDegraded)
+	policy := domain.CalculateActionPolicy(event, part, userID, userRole, time.Now().UTC(), isDegraded)
 
 	resp := EventViewResponse{
 		Event:         event,
@@ -533,9 +534,36 @@ func (h *EventHandler) CancelEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bearerToken := middleware.GetBearerToken(r.Context())
-	ev, err := h.eventClient.CancelEvent(r.Context(), bearerToken, eventID.String())
+	ev, err := h.eventClient.CancelEvent(r.Context(), bearerToken, eventID.String(), nil)
 	if err != nil {
 		handleDownstreamError(w, r, err, "failed to cancel event")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ev)
+}
+
+func (h *EventHandler) AdminCancelEvent(w http.ResponseWriter, r *http.Request) {
+	eventIDStr := chi.URLParam(r, "id")
+	eventID, err := uuid.Parse(eventIDStr)
+	if err != nil {
+		sendError(w, r, "validation_failed", "invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	var reqBody struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		sendError(w, r, "validation_failed", "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	bearerToken := middleware.GetBearerToken(r.Context())
+	ev, err := h.eventClient.CancelEvent(r.Context(), bearerToken, eventID.String(), reqBody)
+	if err != nil {
+		handleDownstreamError(w, r, err, "failed to cancel event as admin")
 		return
 	}
 
@@ -552,9 +580,36 @@ func (h *EventHandler) UnpublishEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bearerToken := middleware.GetBearerToken(r.Context())
-	ev, err := h.eventClient.UnpublishEvent(r.Context(), bearerToken, eventID.String())
+	ev, err := h.eventClient.UnpublishEvent(r.Context(), bearerToken, eventID.String(), nil)
 	if err != nil {
 		handleDownstreamError(w, r, err, "failed to unpublish event")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ev)
+}
+
+func (h *EventHandler) AdminUnpublishEvent(w http.ResponseWriter, r *http.Request) {
+	eventIDStr := chi.URLParam(r, "id")
+	eventID, err := uuid.Parse(eventIDStr)
+	if err != nil {
+		sendError(w, r, "validation_failed", "invalid event id", http.StatusBadRequest)
+		return
+	}
+
+	var reqBody struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		sendError(w, r, "validation_failed", "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	bearerToken := middleware.GetBearerToken(r.Context())
+	ev, err := h.eventClient.UnpublishEvent(r.Context(), bearerToken, eventID.String(), reqBody)
+	if err != nil {
+		handleDownstreamError(w, r, err, "failed to unpublish event as admin")
 		return
 	}
 

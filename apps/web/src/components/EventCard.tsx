@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Calendar, MapPin, Tag } from "lucide-react";
 import type { EventCard as EventCardType } from "@/types/api";
+import { getPublicUrl } from "@/lib/mediaApi";
 
 interface EventCardProps {
     event: EventCardType;
@@ -9,15 +10,20 @@ interface EventCardProps {
 export function EventCard({ event }: EventCardProps) {
     const navigate = useNavigate();
 
+    // Helper to resolve image URL
+    const imageUrl = event.cover_image
+        ? (event.cover_image.startsWith('http') ? event.cover_image : getPublicUrl(event.cover_image, 'event_cover', '800'))
+        : null;
+
     return (
         <div
             className="group relative flex flex-col overflow-hidden rounded-xl glass-card glass-card-hover cursor-pointer"
             onClick={() => navigate(`/events/${event.id}`)}
         >
             <div className="aspect-video w-full overflow-hidden bg-muted">
-                {event.cover_image ? (
+                {imageUrl ? (
                     <img
-                        src={event.cover_image}
+                        src={imageUrl}
                         alt={event.title}
                         className="h-full w-full object-cover transition-transform group-hover:scale-105"
                         loading="lazy"

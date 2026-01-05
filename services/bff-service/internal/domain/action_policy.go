@@ -8,7 +8,7 @@ import (
 
 // CalculateActionPolicy determines what actions a user can take on an event.
 // It follows the rules defined in PHASE_4_PLAN.md.
-func CalculateActionPolicy(event *Event, part *Participation, userID uuid.UUID, now time.Time, isDegraded bool) ActionPolicy {
+func CalculateActionPolicy(event *Event, part *Participation, userID uuid.UUID, userRole string, now time.Time, isDegraded bool) ActionPolicy {
 	// 1. Auth Gate
 	if userID == uuid.Nil {
 		return ActionPolicy{
@@ -34,11 +34,12 @@ func CalculateActionPolicy(event *Event, part *Participation, userID uuid.UUID, 
 	}
 
 	// 4. Owner / Admin Logic
-	// 4. Owner / Admin Logic
 	isOwner := event.OwnerID == userID
+	isAdminOrMod := userRole == "admin" || userRole == "moderator"
+
 	canEdit := isOwner
-	canCancelEvent := isOwner && event.StartTime.After(now)
-	canUnpublish := isOwner && event.Status == EventStatusPublished && event.StartTime.After(now)
+	canCancelEvent := (isOwner || isAdminOrMod) && event.StartTime.After(now)
+	canUnpublish := (isOwner || isAdminOrMod) && event.Status == EventStatusPublished && event.StartTime.After(now)
 
 	// Can Cancel Participation?
 	canCancel := !isOwner && (status == StatusActive || status == StatusWaitlisted) && event.StartTime.After(now)

@@ -14,6 +14,12 @@ export interface UploadStatusResponse {
     error?: string;
 }
 
+export const CDN_BASE_URL = import.meta.env.VITE_CDN_URL || 'http://localhost:9000/public';
+
+export function getPublicUrl(id: string, purpose: 'avatar' | 'event_cover', size: string = '800'): string {
+    return `${CDN_BASE_URL}/derived/${purpose}/${id}_${size}.jpg`;
+}
+
 /**
  * Request a presigned URL for uploading an image.
  * @param purpose - 'avatar' or 'event_cover'

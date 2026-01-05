@@ -29,7 +29,7 @@ type Event struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func NewDraft(ownerID, title, description, city, category string, start, end time.Time, capacity int, now time.Time) (*Event, error) {
+func NewDraft(ownerID, title, description, city, category string, start, end time.Time, capacity int, coverIDs []string, now time.Time) (*Event, error) {
 	ownerID = strings.TrimSpace(ownerID)
 	title = strings.TrimSpace(title)
 	description = strings.TrimSpace(description)
@@ -57,20 +57,24 @@ func NewDraft(ownerID, title, description, city, category string, start, end tim
 	if capacity < 0 {
 		return nil, ErrValidation("capacity must be >= 0 (0 means unlimited)")
 	}
+	if len(coverIDs) > 2 {
+		return nil, ErrValidation("maximum 2 cover images allowed")
+	}
 
 	return &Event{
-		ID:          uuid.NewString(),
-		OwnerID:     ownerID,
-		Title:       title,
-		Description: description,
-		City:        city,
-		Category:    category,
-		StartTime:   start.UTC(),
-		EndTime:     end.UTC(),
-		Capacity:    capacity,
-		Status:      StatusDraft,
-		CreatedAt:   now.UTC(),
-		UpdatedAt:   now.UTC(),
+		ID:            uuid.NewString(),
+		OwnerID:       ownerID,
+		Title:         title,
+		Description:   description,
+		City:          city,
+		Category:      category,
+		StartTime:     start.UTC(),
+		EndTime:       end.UTC(),
+		Capacity:      capacity,
+		Status:        StatusDraft,
+		CoverImageIDs: coverIDs,
+		CreatedAt:     now.UTC(),
+		UpdatedAt:     now.UTC(),
 	}, nil
 }
 
@@ -123,7 +127,7 @@ func (e *Event) Unpublish(now time.Time) error {
 }
 
 // MVP: allow update in draft/published (but not canceled/ended)
-func (e *Event) ApplyUpdate(title, description, city, category *string, start, end *time.Time, capacity *int, now time.Time) error {
+func (e *Event) ApplyUpdate(title, description, city, category *string, start, end *time.Time, capacity *int, coverIDs *[]string, now time.Time) error {
 	if e.Status == StatusCanceled {
 		return ErrInvalidState("canceled event cannot be updated")
 	}
@@ -173,6 +177,12 @@ func (e *Event) ApplyUpdate(title, description, city, category *string, start, e
 			return ErrValidation("capacity must be >= 0 (0 means unlimited)")
 		}
 		e.Capacity = *capacity
+	}
+	if coverIDs != nil {
+		if len(*coverIDs) > 2 {
+			return ErrValidation("maximum 2 cover images allowed")
+		}
+		e.CoverImageIDs = *coverIDs
 	}
 	e.UpdatedAt = now.UTC()
 	return nil

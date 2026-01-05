@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -17,10 +18,11 @@ type Repo struct {
 func New(db *sql.DB) *Repo { return &Repo{db: db} }
 
 func (r *Repo) Create(ctx context.Context, e *domain.Event) error {
+	coverIDsJSON, _ := json.Marshal(e.CoverImageIDs)
 	_, err := r.db.ExecContext(ctx, insertEventSQL,
 		e.ID, e.OwnerID, e.Title, e.Description, e.City, domain.NormalizeCity(e.City), e.Category,
 		e.StartTime, e.EndTime, e.Capacity, string(e.Status),
-		e.PublishedAt, e.CanceledAt, e.CreatedAt, e.UpdatedAt,
+		e.PublishedAt, e.CanceledAt, e.CreatedAt, e.UpdatedAt, string(coverIDsJSON),
 	)
 	return err
 }
@@ -30,10 +32,11 @@ func (r *Repo) GetByID(ctx context.Context, id string) (*domain.Event, error) {
 
 	var e domain.Event
 	var status string
+	var coverIDsJSON string
 	err := row.Scan(
 		&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
 		&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
-		&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
+		&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt, &coverIDsJSON,
 	)
 	if err == sql.ErrNoRows {
 		return nil, domain.ErrNotFound("event not found")
@@ -42,6 +45,7 @@ func (r *Repo) GetByID(ctx context.Context, id string) (*domain.Event, error) {
 		return nil, err
 	}
 	e.Status = domain.EventStatus(status)
+	_ = json.Unmarshal([]byte(coverIDsJSON), &e.CoverImageIDs)
 	if !e.Status.Valid() {
 		return nil, domain.ErrInvalidState("invalid status in db")
 	}
@@ -49,11 +53,12 @@ func (r *Repo) GetByID(ctx context.Context, id string) (*domain.Event, error) {
 }
 
 func (r *Repo) Update(ctx context.Context, e *domain.Event) error {
+	coverIDsJSON, _ := json.Marshal(e.CoverImageIDs)
 	_, err := r.db.ExecContext(ctx, updateEventSQL,
 		e.ID,
 		e.Title, e.Description, e.City, domain.NormalizeCity(e.City), e.Category,
 		e.StartTime, e.EndTime, e.Capacity, string(e.Status),
-		e.PublishedAt, e.CanceledAt, e.UpdatedAt,
+		e.PublishedAt, e.CanceledAt, e.UpdatedAt, string(coverIDsJSON),
 	)
 	return err
 }
@@ -79,7 +84,7 @@ func (r *Repo) GetByIDs(ctx context.Context, ids []string) ([]*domain.Event, err
 	query := `
 SELECT id, owner_id, title, description, city, category,
        start_time, end_time, capacity, active_participants, status,
-       published_at, canceled_at, created_at, updated_at
+       published_at, canceled_at, created_at, updated_at, cover_image_ids
 FROM events
 WHERE id IN (` + strings.Join(placeholders, ", ") + `) AND status = 'published'`
 
@@ -93,14 +98,16 @@ WHERE id IN (` + strings.Join(placeholders, ", ") + `) AND status = 'published'`
 	for rows.Next() {
 		var e domain.Event
 		var status string
+		var coverIDsJSON string
 		if err := rows.Scan(
 			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
 			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
-			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
+			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt, &coverIDsJSON,
 		); err != nil {
 			return nil, err
 		}
 		e.Status = domain.EventStatus(status)
+		_ = json.Unmarshal([]byte(coverIDsJSON), &e.CoverImageIDs)
 		out = append(out, &e)
 	}
 	if err := rows.Err(); err != nil {
@@ -131,6 +138,8 @@ func (r *Repo) ListByOwner(ctx context.Context, ownerID string, status string, p
 		where = append(where, fmt.Sprintf("status=$%d", argN))
 		args = append(args, status)
 		argN++
+	} else {
+		where = append(where, "status != 'canceled'")
 	}
 
 	whereSQL := "WHERE " + strings.Join(where, " AND ")
@@ -144,7 +153,7 @@ func (r *Repo) ListByOwner(ctx context.Context, ownerID string, status string, p
 	listSQL := `
 SELECT id, owner_id, title, description, city, category,
        start_time, end_time, capacity, active_participants, status,
-       published_at, canceled_at, created_at, updated_at
+       published_at, canceled_at, created_at, updated_at, cover_image_ids
 FROM events
 ` + whereSQL + `
 ORDER BY created_at DESC
@@ -162,14 +171,16 @@ LIMIT $` + fmt.Sprintf("%d", argN) + ` OFFSET $` + fmt.Sprintf("%d", argN+1)
 	for rows.Next() {
 		var e domain.Event
 		var s string
+		var coverIDsJSON string
 		if err := rows.Scan(
 			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
 			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &s,
-			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
+			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt, &coverIDsJSON,
 		); err != nil {
 			return nil, 0, err
 		}
 		e.Status = domain.EventStatus(s)
+		_ = json.Unmarshal([]byte(coverIDsJSON), &e.CoverImageIDs)
 		out = append(out, &e)
 	}
 	if err := rows.Err(); err != nil {
@@ -240,7 +251,7 @@ func (r *Repo) ListPublic(ctx context.Context, f event.ListFilter) ([]*domain.Ev
 	listSQL := `
 SELECT id, owner_id, title, description, city, category,
        start_time, end_time, capacity, active_participants, status,
-       published_at, canceled_at, created_at, updated_at
+       published_at, canceled_at, created_at, updated_at, cover_image_ids
 FROM events
 ` + whereSQL + `
 ORDER BY ` + orderBy + `
@@ -258,14 +269,16 @@ LIMIT $` + fmt.Sprintf("%d", argN) + ` OFFSET $` + fmt.Sprintf("%d", argN+1)
 	for rows.Next() {
 		var e domain.Event
 		var status string
+		var coverIDsJSON string
 		if err := rows.Scan(
 			&e.ID, &e.OwnerID, &e.Title, &e.Description, &e.City, &e.Category,
 			&e.StartTime, &e.EndTime, &e.Capacity, &e.ActiveParticipants, &status,
-			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt,
+			&e.PublishedAt, &e.CanceledAt, &e.CreatedAt, &e.UpdatedAt, &coverIDsJSON,
 		); err != nil {
 			return nil, 0, err
 		}
 		e.Status = domain.EventStatus(status)
+		_ = json.Unmarshal([]byte(coverIDsJSON), &e.CoverImageIDs)
 		out = append(out, &e)
 	}
 	if err := rows.Err(); err != nil {

@@ -4,6 +4,7 @@ import { bffClient } from "@/api/bff/client";
 import { LoadingState } from "@/components/LoadingState";
 import { ErrorState } from "@/components/ErrorState";
 import { ActionButtons } from "@/components/ActionButtons";
+import { getPublicUrl } from "@/lib/mediaApi";
 import { Calendar, MapPin, Users, User, ArrowLeft, AlertCircle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -33,6 +34,10 @@ export function EventDetail() {
     );
 
     const { event, participation, actions, degraded } = data;
+
+    const coverImageUrl = event.cover_image
+        ? (event.cover_image.startsWith('http') ? event.cover_image : getPublicUrl(event.cover_image, 'event_cover', '800'))
+        : null;
 
     return (
         <div className="pb-24">
@@ -77,8 +82,8 @@ export function EventDetail() {
                         {/* Cover Image */}
                         <div className="aspect-[4/3] glass-card rounded-3xl lg:col-span-1 shadow-2xl p-2 group overflow-hidden">
                             <div className="w-full h-full rounded-2xl overflow-hidden bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center">
-                                {event.cover_image ? (
-                                    <img src={event.cover_image} alt={event.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                                {coverImageUrl ? (
+                                    <img src={coverImageUrl} alt={event.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                                 ) : (
                                     <div className="text-emerald-600/20 font-bold text-4xl">
                                         CityEvents
