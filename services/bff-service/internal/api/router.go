@@ -98,9 +98,9 @@ func NewRouter(cfg *config.Config) http.Handler {
 		r.Get("/healthz", readinessHandler.Healthz)
 
 		// Auth Service Proxy
-		// Chi router strips the /api/auth prefix when mounting, so we don't need to strip it again in the proxy.
-		// We just prepend /auth/v1 to the remaining path (e.g. /oauth/google/callback).
-		authProxy, err := proxy.New(cfg.AuthServiceURL, "", "/auth/v1")
+		// Chi preserves the original URL path, so we must strip /api/auth explicitly,
+		// then prepend /auth/v1 to get the correct upstream path (e.g., /api/auth/login -> /auth/v1/login).
+		authProxy, err := proxy.New(cfg.AuthServiceURL, "/api/auth", "/auth/v1")
 		if err != nil {
 			log.Fatalf("Invalid Auth URL: %v", err)
 		}
