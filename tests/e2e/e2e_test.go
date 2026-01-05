@@ -66,7 +66,32 @@ func (c *Client) Get(path string) (int, map[string]any) {
 	return resp.StatusCode, resMap
 }
 
+// waitForService polls the given URL until it returns 200 or times out
+func waitForService(t *testing.T, url string, timeout time.Duration) {
+	client := &http.Client{Timeout: 2 * time.Second}
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(url)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			resp.Body.Close()
+			t.Logf("Service ready at %s", url)
+			return
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		time.Sleep(2 * time.Second)
+	}
+	t.Fatalf("Service at %s did not become ready within %v", url, timeout)
+}
+
 func TestE2E_Lifecycle(t *testing.T) {
+
+	// Wait for BFF to be ready
+	t.Log("Waiting for BFF service to be ready...")
+	waitForService(t, baseURL+"/readyz", 60*time.Second)
+
 	// 1. Setup
 	organizer := NewClient(t)
 	// user := NewClient(t) // Unused for now
