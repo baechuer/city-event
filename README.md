@@ -173,6 +173,89 @@ Available dashboards:
 - **Business Metrics**: Joins/sec, Logins, Event creations
 - **System Health**: Request rate, Error rate, Latency (RED)
 
+## 🔧 Distributed Systems Architecture
+
+This project demonstrates production-grade distributed systems patterns:
+
+### Correctness Guarantees
+
+| Challenge | Solution | Implementation |
+|-----------|----------|----------------|
+| **No Double-Writes** | Idempotency keys | `Idempotency-Key` header + DB storage |
+| **No Lost Messages** | Transactional Outbox | Write message + state in same DB transaction |
+| **No Duplicate Processing** | Inbox Pattern | Consumer-side `message_id` deduplication |
+| **No Over-Booking** | Pessimistic Locking | `SELECT FOR UPDATE` on capacity rows |
+
+### Message Delivery Guarantees
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│   Service    │───▶│    Outbox    │───▶│  RabbitMQ    │
+│   (BEGIN)    │    │   (INSERT)   │    │  (Publish)   │
+│   COMMIT     │    │   same TX    │    │   Worker     │
+└──────────────┘    └──────────────┘    └──────────────┘
+                                               │
+                    ┌──────────────────────────┘
+                    ▼
+              ┌──────────────┐    ┌──────────────┐
+              │   Consumer   │───▶│ processed_   │
+              │  (Check ID)  │    │ messages     │
+              └──────────────┘    └──────────────┘
+```
+
+- **Exactly-once semantics**: Outbox + consumer deduplication
+- **Retry with exponential backoff**: 1min → 5min → 30min → DLQ
+- **Dead Letter Queue**: Failed messages preserved for inspection
+
+### State Consistency Across Services
+
+| Source of Truth | Synced State | Mechanism |
+|-----------------|--------------|-----------|
+| event-service | Event capacity → join-service | `event.published` message |
+| join-service | Participant count → event-service | `join.confirmed` message |
+| event-service | Feed data → feed-service | CQRS read model projection |
+
+**Drift Prevention**: Periodic reconciliation queries + idempotent handlers
+
+### Caching Strategy
+
+| Pattern | Use Case | TTL |
+|---------|----------|-----|
+| **Write-Through** | Token versions, session state | N/A |
+| **Cache-Aside** | Event details, feed pages | 15s-5min |
+| **TTL-Based** | Rate limiters, OTT tokens | 1min-24h |
+
+**Cache Stampede Prevention**: Singleflight pattern for concurrent cache misses
+
+### Auto-Scaling & Statelessness
+
+```yaml
+# All services scale horizontally
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+spec:
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          averageUtilization: 70
+    - type: External
+      external:
+        metric:
+          name: rabbitmq_queue_messages
+        target:
+          averageValue: 500
+```
+
+**Stateless Design Principles**:
+- No in-memory session state (Redis-backed)
+- JWT for stateless authentication
+- Shared-nothing architecture between instances
+- Connection pooling for DB/Redis/RabbitMQ
+
 ## 🔒 Security Features
 
 - JWT with refresh token rotation
