@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 5: feed service. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, and Redis-backed feed reads.
+The current branch is in Phase 6: notification service. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, and idempotent notification records.
 
 ## Architecture Direction
 
@@ -19,6 +19,8 @@ The intended system is a RabbitMQ-based Go microservices platform:
 The core consistency boundary is `event-registration-service`, which owns event creation, registration, capacity, waitlist, cancellation, promotion, and durable outbox writes.
 
 RabbitMQ is used for asynchronous projections and side effects. Delivery is at least once; consumers must provide idempotent business effects. Redis is used as a non-authoritative cache for feed reads only.
+
+Notification delivery is local-development evidence through Mailpit. Current async messages carry `userId`, not verified email addresses, so production email delivery is still a later claim.
 
 ## Local Requirements
 
@@ -104,6 +106,24 @@ This runs:
 - 100-event bounded read test
 - feed service build and runtime route smoke
 
+## Verify Notification Service
+
+Phase 6 verification requires Postgres, RabbitMQ, Redis, and Mailpit from Docker Compose because the full integration suite includes earlier phases and local SMTP delivery.
+
+```powershell
+.\scripts\verify-phase-6.ps1
+```
+
+This runs:
+
+- default Go tests
+- full integration tests with Postgres, RabbitMQ, Redis, and Mailpit
+- notification idempotency and duplicate-message tests
+- provider failure recording tests
+- 100-message notification stress test
+- local SMTP acceptance test through Mailpit
+- notification worker and service builds
+
 ## Run Local Infrastructure
 
 ```powershell
@@ -169,16 +189,16 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 5 Claim Boundary
+## Phase 6 Claim Boundary
 
 Allowed claim:
 
 ```text
-Implemented an eventually consistent feed service backed by Postgres projections and Redis caching, with tested fallback when Redis is unavailable.
+Implemented idempotent asynchronous notification records from RabbitMQ events with local delivery evidence and provider-failure handling.
 ```
 
 Not yet allowed:
 
 ```text
-Redis-backed source of truth, strongly consistent feed counts, recommendation system, high-throughput claim without measured load results, or high availability.
+Production email delivery to verified user addresses, guaranteed exactly-once email sending, or high availability.
 ```

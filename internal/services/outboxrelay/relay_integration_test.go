@@ -326,6 +326,12 @@ func resetRabbitTopology(t *testing.T, conn *amqp.Connection) {
 	if _, err := ch.QueuePurge(messaging.FeedDeadLetterQueue, false); err != nil {
 		t.Fatalf("purge feed dlq: %v", err)
 	}
+	if _, err := ch.QueuePurge(messaging.NotificationQueue, false); err != nil {
+		t.Fatalf("purge notification queue: %v", err)
+	}
+	if _, err := ch.QueuePurge(messaging.NotificationDeadLetterQueue, false); err != nil {
+		t.Fatalf("purge notification dlq: %v", err)
+	}
 }
 
 func createRelayEvent(t *testing.T, svc *eventregistration.Service, organizerID string) eventregistration.EventDetail {

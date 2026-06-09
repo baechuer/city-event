@@ -8,10 +8,12 @@ import (
 )
 
 const (
-	EventExchange       = "cityevents.events"
-	DeadLetterExchange  = "cityevents.dlx"
-	FeedQueue           = "cityevents.feed.projection"
-	FeedDeadLetterQueue = "cityevents.feed.projection.dlq"
+	EventExchange               = "cityevents.events"
+	DeadLetterExchange          = "cityevents.dlx"
+	FeedQueue                   = "cityevents.feed.projection"
+	FeedDeadLetterQueue         = "cityevents.feed.projection.dlq"
+	NotificationQueue           = "cityevents.notification.delivery"
+	NotificationDeadLetterQueue = "cityevents.notification.delivery.dlq"
 )
 
 type Envelope struct {

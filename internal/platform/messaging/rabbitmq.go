@@ -23,13 +23,29 @@ func DeclareTopology(ch *amqp.Channel) error {
 	if _, err := ch.QueueDeclare(FeedDeadLetterQueue, true, false, false, false, nil); err != nil {
 		return err
 	}
+	if _, err := ch.QueueDeclare(NotificationQueue, true, false, false, false, amqp.Table{
+		"x-dead-letter-exchange": DeadLetterExchange,
+	}); err != nil {
+		return err
+	}
+	if _, err := ch.QueueDeclare(NotificationDeadLetterQueue, true, false, false, false, nil); err != nil {
+		return err
+	}
 	if err := ch.QueueBind(FeedQueue, "event.*", EventExchange, false, nil); err != nil {
 		return err
 	}
 	if err := ch.QueueBind(FeedQueue, "join.*", EventExchange, false, nil); err != nil {
 		return err
 	}
+	for _, routingKey := range []string{"join.confirmed", "join.waitlisted", "join.promoted", "join.canceled", "event.canceled"} {
+		if err := ch.QueueBind(NotificationQueue, routingKey, EventExchange, false, nil); err != nil {
+			return err
+		}
+	}
 	if err := ch.QueueBind(FeedDeadLetterQueue, "#", DeadLetterExchange, false, nil); err != nil {
+		return err
+	}
+	if err := ch.QueueBind(NotificationDeadLetterQueue, "#", DeadLetterExchange, false, nil); err != nil {
 		return err
 	}
 	return nil

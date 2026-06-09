@@ -40,6 +40,7 @@ var serviceDefinitions = []ServiceDefinition{
 	{Name: "media-worker", Role: "worker", DefaultHTTPAddr: ":8086"},
 	{Name: "outbox-relay", Role: "worker", DefaultHTTPAddr: ":8087"},
 	{Name: "feed-worker", Role: "worker", DefaultHTTPAddr: ":8088"},
+	{Name: "notification-worker", Role: "worker", DefaultHTTPAddr: ":8089"},
 }
 
 func Services() []ServiceDefinition {
