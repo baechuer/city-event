@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 4: RabbitMQ outbox and consumers. It contains the Go service foundation, auth service, core event-registration consistency boundary, and asynchronous messaging path.
+The current branch is in Phase 5: feed service. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, and Redis-backed feed reads.
 
 ## Architecture Direction
 
@@ -18,7 +18,7 @@ The intended system is a RabbitMQ-based Go microservices platform:
 
 The core consistency boundary is `event-registration-service`, which owns event creation, registration, capacity, waitlist, cancellation, promotion, and durable outbox writes.
 
-RabbitMQ is used for asynchronous projections and side effects. Delivery is at least once; consumers must provide idempotent business effects.
+RabbitMQ is used for asynchronous projections and side effects. Delivery is at least once; consumers must provide idempotent business effects. Redis is used as a non-authoritative cache for feed reads only.
 
 ## Local Requirements
 
@@ -88,6 +88,22 @@ This runs:
 - feed projection idempotency tests
 - worker binary builds for `outbox-relay` and `feed-worker`
 
+## Verify Feed Service
+
+Phase 5 verification requires Postgres, RabbitMQ, and Redis from Docker Compose because the full integration suite includes earlier async tests too.
+
+```powershell
+.\scripts\verify-phase-5.ps1
+```
+
+This runs:
+
+- default Go tests
+- full integration tests with Postgres, RabbitMQ, and Redis
+- feed repository and cache fallback tests
+- 100-event bounded read test
+- feed service build and runtime route smoke
+
 ## Run Local Infrastructure
 
 ```powershell
@@ -153,16 +169,16 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 4 Claim Boundary
+## Phase 5 Claim Boundary
 
 Allowed claim:
 
 ```text
-Implemented RabbitMQ-based asynchronous decoupling using a transactional outbox, publisher confirms, persistent messages, and idempotent consumers for eventual-consistency projections.
+Implemented an eventually consistent feed service backed by Postgres projections and Redis caching, with tested fallback when Redis is unavailable.
 ```
 
 Not yet allowed:
 
 ```text
-Exactly-once RabbitMQ consumption, full feed ranking/search, email notification delivery, or high availability.
+Redis-backed source of truth, strongly consistent feed counts, recommendation system, high-throughput claim without measured load results, or high availability.
 ```
