@@ -64,3 +64,25 @@ func TestRootEndpointIdentifiesService(t *testing.T) {
 		t.Fatalf("expected root response to include service name, got %s", rec.Body.String())
 	}
 }
+
+func TestCORSPreflight(t *testing.T) {
+	cfg, err := config.Load("api-gateway", nil)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := NewRouter(cfg, nil)
+
+	req := httptest.NewRequest(http.MethodOptions, "/v1/events", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("preflight returned %d, want 204", rec.Code)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("allow origin = %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-User-ID") {
+		t.Fatalf("allow headers = %q", got)
+	}
+}

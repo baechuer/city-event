@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 7: media service and worker. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, and asynchronous media metadata processing.
+The current branch is in Phase 8: frontend product demo. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, and a browser demo.
 
 ## Architecture Direction
 
@@ -23,6 +23,8 @@ RabbitMQ is used for asynchronous projections and side effects. Delivery is at l
 Notification delivery is local-development evidence through Mailpit. Current async messages carry `userId`, not verified email addresses, so production email delivery is still a later claim.
 
 Media uses Postgres metadata plus MinIO object storage locally. Media processing is asynchronous and state-based; it does not sit in the core event-registration transaction.
+
+The frontend is a dependency-free browser app because this workspace has Node but no npm package manager. React, TypeScript, and Vite remain a later frontend-hardening step.
 
 ## Local Requirements
 
@@ -145,6 +147,30 @@ This runs:
 - media service and worker builds
 - media-service runtime smoke for upload intent and detail
 
+## Verify Frontend Product Demo
+
+```powershell
+.\scripts\verify-phase-8.ps1
+```
+
+This runs:
+
+- backend default Go tests
+- frontend JavaScript tests with Node's built-in test runner
+- static frontend file checks
+
+To run the browser demo:
+
+```powershell
+.\scripts\serve-frontend.ps1
+```
+
+Then open:
+
+```text
+http://127.0.0.1:18088
+```
+
 ## Run Local Infrastructure
 
 ```powershell
@@ -210,16 +236,16 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 7 Claim Boundary
+## Phase 8 Claim Boundary
 
 Allowed claim:
 
 ```text
-Implemented asynchronous media metadata and processing workflow using Postgres state transitions and MinIO object storage.
+Built a frontend product demo for the CityEvents workflow with configurable API integration and tested UI state helpers.
 ```
 
 Not yet allowed:
 
 ```text
-CDN-backed production media pipeline, advanced image transformations, virus scanning, or high availability.
+Production frontend deployment, full BFF/gateway architecture, React/TypeScript/Vite implementation, or high availability.
 ```

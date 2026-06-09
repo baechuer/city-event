@@ -1,0 +1,298 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #eef1f4;
+  color: #18202a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  background: #1c6b5a;
+  color: white;
+  padding: 9px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #99a3ad;
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid #c8d0d8;
+  border-radius: 6px;
+  padding: 9px 10px;
+  background: #fff;
+  color: #18202a;
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #18202a;
+  color: #f6f8fa;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.brand {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+nav {
+  display: grid;
+  gap: 8px;
+}
+
+.nav-button {
+  text-align: left;
+  background: #2b3541;
+}
+
+.nav-button.active {
+  background: #1c6b5a;
+}
+
+.auth-panel {
+  margin-top: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.auth-panel form,
+.wide-form {
+  display: grid;
+  gap: 10px;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.workspace {
+  padding: 18px;
+  display: grid;
+  gap: 18px;
+}
+
+.toolbar,
+.panel,
+.form-band {
+  background: #ffffff;
+  border: 1px solid #d9e0e7;
+  border-radius: 8px;
+}
+
+.toolbar {
+  padding: 12px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: minmax(160px, 260px) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.inline-form span,
+.muted {
+  color: #697481;
+  font-size: 13px;
+}
+
+.grid-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(360px, 1fr);
+  gap: 18px;
+}
+
+.panel {
+  min-height: 320px;
+  overflow: hidden;
+}
+
+.panel-header {
+  min-height: 58px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e9ee;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.event-list {
+  display: grid;
+}
+
+.event-row {
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf0f3;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+}
+
+.event-row:hover,
+.event-row.selected {
+  background: #f3faf7;
+}
+
+.right {
+  text-align: right;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tone-good {
+  background: #dcefe5;
+  color: #15513f;
+}
+
+.tone-warn {
+  background: #fff0ce;
+  color: #745018;
+}
+
+.tone-bad {
+  background: #ffe0df;
+  color: #8b2521;
+}
+
+.tone-neutral {
+  background: #e9eef3;
+  color: #485361;
+}
+
+.detail-panel {
+  padding-bottom: 16px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 10px;
+  padding: 16px;
+}
+
+.detail-panel p {
+  padding: 0 16px 16px;
+  color: #46515d;
+}
+
+.actions {
+  padding: 0 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.form-band {
+  padding: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.form-grid textarea {
+  grid-column: 1 / -1;
+}
+
+.notice {
+  min-height: 22px;
+  color: #46515d;
+}
+
+.error,
+.empty {
+  padding: 16px;
+  color: #8b2521;
+}
+
+.media-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+code {
+  word-break: break-all;
+  color: #46515d;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    min-height: auto;
+  }
+
+  .grid-layout,
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-form {
+    grid-template-columns: 1fr;
+  }
+}

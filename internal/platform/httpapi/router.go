@@ -23,6 +23,7 @@ func NewBaseRouter(cfg config.Config, logger *slog.Logger) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
+	r.Use(localCORSMiddleware)
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		health.WriteJSON(w, http.StatusOK, map[string]string{
@@ -41,4 +42,18 @@ func NewBaseRouter(cfg config.Config, logger *slog.Logger) chi.Router {
 	})
 
 	return r
+}
+
+func localCORSMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-User-ID, Idempotency-Key")
+		w.Header().Set("Access-Control-Max-Age", "600")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
