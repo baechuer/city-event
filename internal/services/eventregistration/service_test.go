@@ -76,6 +76,39 @@ func TestServiceRejectsCanceledEventJoin(t *testing.T) {
 	}
 }
 
+func TestServiceCancelOutboxIncludesPreviousStatus(t *testing.T) {
+	svc, repo := testEventService()
+	ctx := context.Background()
+	event := createTestEvent(t, svc, "organizer-1", 1)
+	if _, err := svc.JoinEvent(ctx, event.Event.ID, "user-1", ""); err != nil {
+		t.Fatalf("join first: %v", err)
+	}
+	if _, err := svc.JoinEvent(ctx, event.Event.ID, "user-2", ""); err != nil {
+		t.Fatalf("join second: %v", err)
+	}
+	if _, err := svc.CancelJoin(ctx, event.Event.ID, "user-1"); err != nil {
+		t.Fatalf("cancel join: %v", err)
+	}
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	var sawCancel, sawPromote bool
+	for _, msg := range repo.outbox {
+		if msg.RoutingKey == RoutingJoinCanceled && msg.Payload["previousStatus"] == RegistrationStatusConfirmed {
+			sawCancel = true
+		}
+		if msg.RoutingKey == RoutingJoinPromoted && msg.Payload["previousStatus"] == RegistrationStatusWaitlisted {
+			sawPromote = true
+		}
+	}
+	if !sawCancel {
+		t.Fatal("join.canceled outbox did not include previous CONFIRMED status")
+	}
+	if !sawPromote {
+		t.Fatal("join.promoted outbox did not include previous WAITLISTED status")
+	}
+}
+
 func TestServiceCapacityReductionBelowConfirmedRejected(t *testing.T) {
 	svc, _ := testEventService()
 	ctx := context.Background()

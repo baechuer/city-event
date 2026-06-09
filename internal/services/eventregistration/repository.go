@@ -219,7 +219,7 @@ func (r *MemoryRepository) CancelJoin(_ context.Context, eventID, userID string,
 	reg.Status = RegistrationStatusCanceled
 	reg.UpdatedAt = now.UTC()
 	r.registrations[reg.ID] = reg
-	r.addOutbox("registration", reg.ID, RoutingJoinCanceled, registrationPayload(reg), now)
+	r.addOutbox("registration", reg.ID, RoutingJoinCanceled, registrationTransitionPayload(reg, oldStatus), now)
 
 	result := CancelJoinResult{Status: RegistrationStatusCanceled, Canceled: &reg}
 	if oldStatus == RegistrationStatusConfirmed {
@@ -228,7 +228,7 @@ func (r *MemoryRepository) CancelJoin(_ context.Context, eventID, userID string,
 			promoted.WaitlistPosition = 0
 			promoted.UpdatedAt = now.UTC()
 			r.registrations[promoted.ID] = promoted
-			r.addOutbox("registration", promoted.ID, RoutingJoinPromoted, registrationPayload(promoted), now)
+			r.addOutbox("registration", promoted.ID, RoutingJoinPromoted, registrationTransitionPayload(promoted, RegistrationStatusWaitlisted), now)
 			result.Promoted = &promoted
 		}
 	}
@@ -399,6 +399,12 @@ func registrationPayload(reg Registration) map[string]any {
 		"status":           reg.Status,
 		"waitlistPosition": reg.WaitlistPosition,
 	}
+}
+
+func registrationTransitionPayload(reg Registration, previousStatus RegistrationStatus) map[string]any {
+	payload := registrationPayload(reg)
+	payload["previousStatus"] = previousStatus
+	return payload
 }
 
 func marshalPayload(payload map[string]any) ([]byte, error) {

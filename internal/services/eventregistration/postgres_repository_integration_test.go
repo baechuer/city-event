@@ -304,6 +304,12 @@ func setupEventPostgres(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	if err := pool.Ping(ctx); err != nil {
 		t.Fatalf("ping postgres: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `SELECT pg_advisory_lock(424242)`); err != nil {
+		t.Fatalf("take integration schema lock: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `SELECT pg_advisory_unlock(424242)`)
+	})
 
 	if _, err := pool.Exec(ctx, `
 		DROP TABLE IF EXISTS outbox_messages;

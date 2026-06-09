@@ -302,7 +302,7 @@ func (r *PostgresRepository) CancelJoin(ctx context.Context, eventID, userID str
 	`, reg.ID, reg.UpdatedAt); err != nil {
 		return CancelJoinResult{}, err
 	}
-	if err := insertOutbox(ctx, tx, "registration", reg.ID, RoutingJoinCanceled, registrationPayload(reg), now); err != nil {
+	if err := insertOutbox(ctx, tx, "registration", reg.ID, RoutingJoinCanceled, registrationTransitionPayload(reg, oldStatus), now); err != nil {
 		return CancelJoinResult{}, err
 	}
 
@@ -323,7 +323,7 @@ func (r *PostgresRepository) CancelJoin(ctx context.Context, eventID, userID str
 			`, promoted.ID, promoted.UpdatedAt); err != nil {
 				return CancelJoinResult{}, err
 			}
-			if err := insertOutbox(ctx, tx, "registration", promoted.ID, RoutingJoinPromoted, registrationPayload(promoted), now); err != nil {
+			if err := insertOutbox(ctx, tx, "registration", promoted.ID, RoutingJoinPromoted, registrationTransitionPayload(promoted, RegistrationStatusWaitlisted), now); err != nil {
 				return CancelJoinResult{}, err
 			}
 			result.Promoted = &promoted

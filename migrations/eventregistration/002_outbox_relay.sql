@@ -1,0 +1,5 @@
+ALTER TABLE outbox_messages
+    ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE outbox_messages
+    ADD COLUMN IF NOT EXISTS last_error TEXT NOT NULL DEFAULT '';

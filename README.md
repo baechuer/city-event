@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 3: event-registration. It contains the Go service foundation, auth service, and the core event-registration consistency boundary.
+The current branch is in Phase 4: RabbitMQ outbox and consumers. It contains the Go service foundation, auth service, core event-registration consistency boundary, and asynchronous messaging path.
 
 ## Architecture Direction
 
@@ -17,6 +17,8 @@ The intended system is a RabbitMQ-based Go microservices platform:
 - `media-worker`
 
 The core consistency boundary is `event-registration-service`, which owns event creation, registration, capacity, waitlist, cancellation, promotion, and durable outbox writes.
+
+RabbitMQ is used for asynchronous projections and side effects. Delivery is at least once; consumers must provide idempotent business effects.
 
 ## Local Requirements
 
@@ -69,6 +71,22 @@ This runs:
 - default Go tests
 - full integration tests with Postgres
 - runtime smoke for create event -> confirmed join -> waitlist join -> cancel and promote -> authoritative status/detail
+
+## Verify RabbitMQ Outbox And Consumers
+
+Phase 4 verification requires Postgres and RabbitMQ from Docker Compose.
+
+```powershell
+.\scripts\verify-phase-4.ps1
+```
+
+This runs:
+
+- default Go tests
+- full integration tests with Postgres and RabbitMQ
+- outbox relay stress and retry tests
+- feed projection idempotency tests
+- worker binary builds for `outbox-relay` and `feed-worker`
 
 ## Run Local Infrastructure
 
@@ -135,16 +153,16 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 3 Claim Boundary
+## Phase 4 Claim Boundary
 
 Allowed claim:
 
 ```text
-Implemented the core event-registration consistency boundary with transactional capacity enforcement, waitlisting, cancellation, promotion, and durable outbox writes.
+Implemented RabbitMQ-based asynchronous decoupling using a transactional outbox, publisher confirms, persistent messages, and idempotent consumers for eventual-consistency projections.
 ```
 
 Not yet allowed:
 
 ```text
-Published outbox events to RabbitMQ, implemented asynchronous feed or notification consumers, guaranteed RabbitMQ reliability, or implemented high availability.
+Exactly-once RabbitMQ consumption, full feed ranking/search, email notification delivery, or high availability.
 ```
