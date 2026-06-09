@@ -25,6 +25,9 @@ type Config struct {
 	RedisURL        string
 	MinIOEndpoint   string
 	SMTPAddr        string
+	JWTSecret       string
+	JWTIssuer       string
+	AccessTokenTTL  time.Duration
 }
 
 var serviceDefinitions = []ServiceDefinition{
@@ -66,17 +69,24 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid SHUTDOWN_TIMEOUT: %w", err)
 	}
+	accessTokenTTL, err := parseDuration(env(getenv, "ACCESS_TOKEN_TTL", "1h"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid ACCESS_TOKEN_TTL: %w", err)
+	}
 
 	cfg := Config{
 		Service:         service,
 		Environment:     env(getenv, "CITYEVENTS_ENV", "local"),
 		HTTPAddr:        serviceEnv(getenv, service.Name, "HTTP_ADDR", env(getenv, "HTTP_ADDR", service.DefaultHTTPAddr)),
 		ShutdownTimeout: shutdownTimeout,
-		PostgresURL:     env(getenv, "POSTGRES_URL", "postgres://cityevents:cityevents@localhost:5432/cityevents?sslmode=disable"),
+		PostgresURL:     serviceEnv(getenv, service.Name, "POSTGRES_URL", env(getenv, "POSTGRES_URL", "postgres://cityevents:cityevents@localhost:5432/cityevents?sslmode=disable")),
 		RabbitMQURL:     env(getenv, "RABBITMQ_URL", "amqp://cityevents:cityevents@localhost:5672/"),
 		RedisURL:        env(getenv, "REDIS_URL", "redis://localhost:6379/0"),
 		MinIOEndpoint:   env(getenv, "MINIO_ENDPOINT", "http://localhost:9000"),
 		SMTPAddr:        env(getenv, "SMTP_ADDR", "localhost:1025"),
+		JWTSecret:       serviceEnv(getenv, service.Name, "JWT_SECRET", env(getenv, "JWT_SECRET", "dev-secret-change-me")),
+		JWTIssuer:       env(getenv, "JWT_ISSUER", "cityevents"),
+		AccessTokenTTL:  accessTokenTTL,
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -100,6 +110,15 @@ func (c Config) Validate() error {
 	}
 	if c.ShutdownTimeout <= 0 {
 		return fmt.Errorf("shutdown timeout must be positive")
+	}
+	if c.JWTSecret == "" {
+		return fmt.Errorf("jwt secret is required")
+	}
+	if c.JWTIssuer == "" {
+		return fmt.Errorf("jwt issuer is required")
+	}
+	if c.AccessTokenTTL <= 0 {
+		return fmt.Errorf("access token ttl must be positive")
 	}
 	return nil
 }

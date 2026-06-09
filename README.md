@@ -42,6 +42,20 @@ To also start local infrastructure when Docker Desktop is running:
 .\scripts\verify-phase-1.ps1 -StartInfrastructure
 ```
 
+## Verify Auth Service
+
+Phase 2 auth verification requires Postgres from Docker Compose.
+
+```powershell
+.\scripts\verify-phase-2.ps1
+```
+
+This runs:
+
+- default Go tests
+- auth Postgres integration tests
+- runtime smoke for register -> login -> me -> logout -> revoked token fails
+
 ## Run Local Infrastructure
 
 ```powershell

@@ -11,6 +11,10 @@ import (
 )
 
 func NewRouter(cfg config.Config, logger *slog.Logger) http.Handler {
+	return NewBaseRouter(cfg, logger)
+}
+
+func NewBaseRouter(cfg config.Config, logger *slog.Logger) chi.Router {
 	if logger == nil {
 		logger = slog.Default()
 	}

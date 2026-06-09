@@ -16,11 +16,13 @@ import (
 	"github.com/baechuer/cityevents/internal/platform/logging"
 )
 
-func Main(serviceName string) {
-	os.Exit(Run(serviceName))
+type RouterFactory func(context.Context, config.Config, *slog.Logger) (http.Handler, func(context.Context) error, error)
+
+func Main(serviceName string, factories ...RouterFactory) {
+	os.Exit(Run(serviceName, factories...))
 }
 
-func Run(serviceName string) int {
+func Run(serviceName string, factories ...RouterFactory) int {
 	cfg, err := config.Load(serviceName, os.Getenv)
 	if err != nil {
 		slog.Error("config load failed", slog.String("service", serviceName), slog.String("error", err.Error()))
@@ -28,11 +30,31 @@ func Run(serviceName string) int {
 	}
 
 	logger := logging.New(cfg.Service.Name, cfg.Environment)
-	router := httpapi.NewRouter(cfg, logger)
 
 	if startupCheckOnly() {
+		_ = httpapi.NewRouter(cfg, logger)
 		logger.Info("startup check passed", slog.String("http_addr", cfg.HTTPAddr))
 		return 0
+	}
+
+	factory := defaultRouterFactory
+	if len(factories) > 0 && factories[0] != nil {
+		factory = factories[0]
+	}
+
+	router, cleanup, err := factory(context.Background(), cfg, logger)
+	if err != nil {
+		logger.Error("router setup failed", slog.String("error", err.Error()))
+		return 1
+	}
+	if cleanup != nil {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+			defer cancel()
+			if err := cleanup(ctx); err != nil {
+				logger.Error("service cleanup failed", slog.String("error", err.Error()))
+			}
+		}()
 	}
 
 	server := &http.Server{
@@ -69,6 +91,10 @@ func Run(serviceName string) int {
 
 	logger.Info("service stopped")
 	return 0
+}
+
+func defaultRouterFactory(_ context.Context, cfg config.Config, logger *slog.Logger) (http.Handler, func(context.Context) error, error) {
+	return httpapi.NewRouter(cfg, logger), nil, nil
 }
 
 func startupCheckOnly() bool {

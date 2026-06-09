@@ -1,0 +1,158 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
+)
+
+func TestServiceRegisterLoginCurrentLogoutWorkflow(t *testing.T) {
+	svc, _ := testService()
+	ctx := context.Background()
+
+	registered, err := svc.Register(ctx, RegisterCommand{
+		Email:       "USER@example.com",
+		Password:    "StrongerPass123",
+		DisplayName: "User",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if registered.User.Email != "user@example.com" {
+		t.Fatalf("expected normalized email, got %q", registered.User.Email)
+	}
+
+	loggedIn, err := svc.Login(ctx, LoginCommand{Email: "user@example.com", Password: "StrongerPass123"})
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+
+	current, err := svc.CurrentUser(ctx, loggedIn.AccessToken)
+	if err != nil {
+		t.Fatalf("me: %v", err)
+	}
+	if current.ID != registered.User.ID {
+		t.Fatalf("current user id = %q, want %q", current.ID, registered.User.ID)
+	}
+
+	if err := svc.Logout(ctx, loggedIn.AccessToken); err != nil {
+		t.Fatalf("logout: %v", err)
+	}
+	if err := svc.Logout(ctx, loggedIn.AccessToken); err != nil {
+		t.Fatalf("second logout should be safe: %v", err)
+	}
+	if _, err := svc.CurrentUser(ctx, loggedIn.AccessToken); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expected revoked token to be unauthorized, got %v", err)
+	}
+}
+
+func TestServiceDoesNotStorePlaintextPassword(t *testing.T) {
+	svc, repo := testService()
+	ctx := context.Background()
+
+	_, err := svc.Register(ctx, RegisterCommand{
+		Email:       "hash@example.com",
+		Password:    "StrongerPass123",
+		DisplayName: "Hash User",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	user, err := repo.FindUserByEmail(ctx, "hash@example.com")
+	if err != nil {
+		t.Fatalf("find user: %v", err)
+	}
+	if user.PasswordHash == "StrongerPass123" {
+		t.Fatalf("plaintext password was stored")
+	}
+	if !svc.hasher.Verify(user.PasswordHash, "StrongerPass123") {
+		t.Fatalf("stored hash should verify original password")
+	}
+}
+
+func TestServiceRejectsDuplicateRegistration(t *testing.T) {
+	svc, repo := testService()
+	ctx := context.Background()
+
+	cmd := RegisterCommand{Email: "dupe@example.com", Password: "StrongerPass123", DisplayName: "User"}
+	if _, err := svc.Register(ctx, cmd); err != nil {
+		t.Fatalf("first register: %v", err)
+	}
+	for i := 0; i < 20; i++ {
+		if _, err := svc.Register(ctx, cmd); !errors.Is(err, ErrDuplicateEmail) {
+			t.Fatalf("attempt %d expected duplicate email, got %v", i, err)
+		}
+	}
+	if count := repo.CountUsersByEmail("dupe@example.com"); count != 1 {
+		t.Fatalf("expected one user after duplicates, got %d", count)
+	}
+}
+
+func TestServiceConcurrentDuplicateRegistrationCreatesOneUser(t *testing.T) {
+	svc, repo := testService()
+	ctx := context.Background()
+	cmd := RegisterCommand{Email: "race@example.com", Password: "StrongerPass123", DisplayName: "User"}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 25)
+	for i := 0; i < 25; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := svc.Register(ctx, cmd)
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	successes := 0
+	for err := range errs {
+		if err == nil {
+			successes++
+			continue
+		}
+		if !errors.Is(err, ErrDuplicateEmail) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("expected one successful registration, got %d", successes)
+	}
+	if count := repo.CountUsersByEmail("race@example.com"); count != 1 {
+		t.Fatalf("expected one persisted user, got %d", count)
+	}
+}
+
+func TestServiceRateLimitsRepeatedWrongLogin(t *testing.T) {
+	svc, _ := testService()
+	ctx := context.Background()
+	_, err := svc.Register(ctx, RegisterCommand{Email: "rate@example.com", Password: "StrongerPass123", DisplayName: "User"})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		_, err := svc.Login(ctx, LoginCommand{Email: "rate@example.com", Password: "WrongPass123"})
+		if !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("attempt %d expected invalid credentials, got %v", i, err)
+		}
+	}
+	_, err = svc.Login(ctx, LoginCommand{Email: "rate@example.com", Password: "WrongPass123"})
+	if !errors.Is(err, ErrTooManyAttempts) {
+		t.Fatalf("expected rate limit, got %v", err)
+	}
+}
+
+func testService() (*Service, *MemoryRepository) {
+	repo := NewMemoryRepository()
+	hasher := NewPasswordHasher(bcrypt.MinCost)
+	tokens := NewTokenManager("secret", "cityevents-test", time.Hour)
+	guard := NewLoginGuard(3, time.Minute)
+	return NewService(repo, hasher, tokens, guard), repo
+}
