@@ -1,1 +1,0 @@
-ALTER TABLE events ADD COLUMN IF NOT EXISTS active_participants INT NOT NULL DEFAULT 0;
