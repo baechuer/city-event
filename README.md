@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 6: notification service. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, and idempotent notification records.
+The current branch is in Phase 7: media service and worker. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, and asynchronous media metadata processing.
 
 ## Architecture Direction
 
@@ -21,6 +21,8 @@ The core consistency boundary is `event-registration-service`, which owns event 
 RabbitMQ is used for asynchronous projections and side effects. Delivery is at least once; consumers must provide idempotent business effects. Redis is used as a non-authoritative cache for feed reads only.
 
 Notification delivery is local-development evidence through Mailpit. Current async messages carry `userId`, not verified email addresses, so production email delivery is still a later claim.
+
+Media uses Postgres metadata plus MinIO object storage locally. Media processing is asynchronous and state-based; it does not sit in the core event-registration transaction.
 
 ## Local Requirements
 
@@ -124,6 +126,25 @@ This runs:
 - local SMTP acceptance test through Mailpit
 - notification worker and service builds
 
+## Verify Media Service And Worker
+
+Phase 7 verification requires Postgres, RabbitMQ, Redis, MinIO, and Mailpit from Docker Compose because the full integration suite includes earlier phases too.
+
+```powershell
+.\scripts\verify-phase-7.ps1
+```
+
+This runs:
+
+- default Go tests
+- full integration tests with Postgres, RabbitMQ, Redis, MinIO, and Mailpit
+- media metadata repository tests
+- MinIO bucket/object tests
+- 50-media processing stress test
+- concurrent media worker claim test
+- media service and worker builds
+- media-service runtime smoke for upload intent and detail
+
 ## Run Local Infrastructure
 
 ```powershell
@@ -189,16 +210,16 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 6 Claim Boundary
+## Phase 7 Claim Boundary
 
 Allowed claim:
 
 ```text
-Implemented idempotent asynchronous notification records from RabbitMQ events with local delivery evidence and provider-failure handling.
+Implemented asynchronous media metadata and processing workflow using Postgres state transitions and MinIO object storage.
 ```
 
 Not yet allowed:
 
 ```text
-Production email delivery to verified user addresses, guaranteed exactly-once email sending, or high availability.
+CDN-backed production media pipeline, advanced image transformations, virus scanning, or high availability.
 ```

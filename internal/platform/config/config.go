@@ -24,6 +24,9 @@ type Config struct {
 	RabbitMQURL     string
 	RedisURL        string
 	MinIOEndpoint   string
+	MinIOAccessKey  string
+	MinIOSecretKey  string
+	MinIOBucket     string
 	SMTPAddr        string
 	JWTSecret       string
 	JWTIssuer       string
@@ -86,6 +89,9 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 		RabbitMQURL:     env(getenv, "RABBITMQ_URL", "amqp://cityevents:cityevents@localhost:5672/"),
 		RedisURL:        env(getenv, "REDIS_URL", "redis://localhost:6379/0"),
 		MinIOEndpoint:   env(getenv, "MINIO_ENDPOINT", "http://localhost:9000"),
+		MinIOAccessKey:  env(getenv, "MINIO_ACCESS_KEY", "cityevents"),
+		MinIOSecretKey:  env(getenv, "MINIO_SECRET_KEY", "cityevents-password"),
+		MinIOBucket:     env(getenv, "MINIO_BUCKET", "cityevents-media"),
 		SMTPAddr:        env(getenv, "SMTP_ADDR", "localhost:1025"),
 		JWTSecret:       serviceEnv(getenv, service.Name, "JWT_SECRET", env(getenv, "JWT_SECRET", "dev-secret-change-me")),
 		JWTIssuer:       env(getenv, "JWT_ISSUER", "cityevents"),
@@ -122,6 +128,18 @@ func (c Config) Validate() error {
 	}
 	if c.AccessTokenTTL <= 0 {
 		return fmt.Errorf("access token ttl must be positive")
+	}
+	if c.MinIOEndpoint == "" {
+		return fmt.Errorf("minio endpoint is required")
+	}
+	if c.MinIOAccessKey == "" {
+		return fmt.Errorf("minio access key is required")
+	}
+	if c.MinIOSecretKey == "" {
+		return fmt.Errorf("minio secret key is required")
+	}
+	if c.MinIOBucket == "" {
+		return fmt.Errorf("minio bucket is required")
 	}
 	return nil
 }
