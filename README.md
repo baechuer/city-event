@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 1: foundation. It contains runnable Go service skeletons, shared platform conventions, and local infrastructure for later phases.
+The current branch is in Phase 3: event-registration. It contains the Go service foundation, auth service, and the core event-registration consistency boundary.
 
 ## Architecture Direction
 
@@ -16,7 +16,7 @@ The intended system is a RabbitMQ-based Go microservices platform:
 - `media-service`
 - `media-worker`
 
-The core consistency boundary will be `event-registration-service`, which will later own event creation, registration, capacity, waitlist, cancellation, and promotion.
+The core consistency boundary is `event-registration-service`, which owns event creation, registration, capacity, waitlist, cancellation, promotion, and durable outbox writes.
 
 ## Local Requirements
 
@@ -55,6 +55,20 @@ This runs:
 - default Go tests
 - auth Postgres integration tests
 - runtime smoke for register -> login -> me -> logout -> revoked token fails
+
+## Verify Event Registration Service
+
+Phase 3 event-registration verification requires Postgres from Docker Compose.
+
+```powershell
+.\scripts\verify-phase-3.ps1
+```
+
+This runs:
+
+- default Go tests
+- full integration tests with Postgres
+- runtime smoke for create event -> confirmed join -> waitlist join -> cancel and promote -> authoritative status/detail
 
 ## Run Local Infrastructure
 
@@ -121,16 +135,16 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 1 Claim Boundary
+## Phase 3 Claim Boundary
 
 Allowed claim:
 
 ```text
-Established a Go microservices foundation with shared config, structured health endpoints, Docker Compose infrastructure, and CI verification commands.
+Implemented the core event-registration consistency boundary with transactional capacity enforcement, waitlisting, cancellation, promotion, and durable outbox writes.
 ```
 
 Not yet allowed:
 
 ```text
-Implemented registration, event joining, reliable RabbitMQ outbox, high throughput, or high availability.
+Published outbox events to RabbitMQ, implemented asynchronous feed or notification consumers, guaranteed RabbitMQ reliability, or implemented high availability.
 ```

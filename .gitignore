@@ -43,6 +43,7 @@ out/
 *.out
 coverage.*
 *.coverprofile
+.cache/
 
 # =========================
 # Air (hot reload) temp dirs

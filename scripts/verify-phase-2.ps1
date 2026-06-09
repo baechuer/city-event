@@ -4,6 +4,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$repoRoot = (Resolve-Path -LiteralPath ".").Path
+$env:GOCACHE = Join-Path $repoRoot ".cache\go-build"
+New-Item -ItemType Directory -Force -Path $env:GOCACHE | Out-Null
+
 Write-Host "== Default Go tests =="
 go test ./...
 

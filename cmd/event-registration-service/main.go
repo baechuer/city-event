@@ -1,7 +1,10 @@
 package main
 
-import "github.com/baechuer/cityevents/internal/platform/app"
+import (
+	"github.com/baechuer/cityevents/internal/platform/app"
+	eventregistration "github.com/baechuer/cityevents/internal/services/eventregistration"
+)
 
 func main() {
-	app.Main("event-registration-service")
+	app.Main("event-registration-service", eventregistration.NewRouter)
 }
