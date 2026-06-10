@@ -48,10 +48,6 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
     return auth.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {};
   }
 
-  function userHeaders(auth = loadAuth()) {
-    return auth.user?.id ? { 'X-User-ID': auth.user.id } : {};
-  }
-
   return {
     bases,
     loadAuth,
@@ -79,6 +75,13 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
       });
       clearAuth();
     },
+    updateUserRole(userID, role) {
+      return request(bases.authBase, `/v1/auth/users/${encodeURIComponent(userID)}/role`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ role }),
+      });
+    },
     listFeed(city = '') {
       const params = new URLSearchParams({ limit: '20', offset: '0' });
       if (city.trim()) params.set('city', city.trim());
@@ -86,32 +89,32 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
     },
     getEvent(eventID) {
       return request(bases.eventBase, `/v1/events/${encodeURIComponent(eventID)}`, {
-        headers: userHeaders(),
+        headers: authHeaders(),
       });
     },
     createEvent(data) {
       return request(bases.eventBase, '/v1/events', {
         method: 'POST',
-        headers: userHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify(data),
       });
     },
     joinEvent(eventID) {
       return request(bases.eventBase, `/v1/events/${encodeURIComponent(eventID)}/join`, {
         method: 'POST',
-        headers: userHeaders(),
+        headers: authHeaders(),
       });
     },
     cancelJoin(eventID) {
       return request(bases.eventBase, `/v1/events/${encodeURIComponent(eventID)}/join`, {
         method: 'DELETE',
-        headers: userHeaders(),
+        headers: authHeaders(),
       });
     },
     createUpload(data) {
       return request(bases.mediaBase, '/v1/media/uploads', {
         method: 'POST',
-        headers: userHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify(data),
       });
     },

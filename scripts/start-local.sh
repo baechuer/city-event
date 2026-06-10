@@ -78,6 +78,13 @@ common_env=(
   "SMTP_ADDR=localhost:1025"
   "JWT_SECRET=local-dev-secret-not-for-production"
   "JWT_ISSUER=cityevents-local"
+  "SEED_ADMIN_EMAIL=admin@cityevents.local"
+  "SEED_ADMIN_PASSWORD=AdminPass12345"
+  "SEED_ADMIN_DISPLAY_NAME=CityEvents Admin"
+  "AUTH_SERVICE_URL=http://127.0.0.1:8081"
+  "EVENT_SERVICE_URL=http://127.0.0.1:8082"
+  "FEED_SERVICE_URL=http://127.0.0.1:8083"
+  "MEDIA_SERVICE_URL=http://127.0.0.1:8085"
 )
 
 http_services=(
@@ -397,6 +404,10 @@ CityEvents local stack is running.
 
 Entry point:
   http://127.0.0.1:$frontend_port
+
+Seeded admin:
+  email     admin@cityevents.local
+  password  AdminPass12345
 
 Backend health:
   api-gateway                 http://127.0.0.1:8080/readyz

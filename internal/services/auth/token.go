@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 var (
@@ -26,6 +28,7 @@ type TokenManager struct {
 type Claims struct {
 	UserID    string
 	Email     string
+	Role      identity.Role
 	TokenID   string
 	Issuer    string
 	IssuedAt  time.Time
@@ -46,6 +49,7 @@ func (m TokenManager) Sign(user User) (string, Claims, error) {
 	claims := Claims{
 		UserID:    user.ID,
 		Email:     user.Email,
+		Role:      identity.NormalizeRole(string(user.Role)),
 		TokenID:   NewID(),
 		Issuer:    m.Issuer,
 		IssuedAt:  now,
@@ -56,6 +60,7 @@ func (m TokenManager) Sign(user User) (string, Claims, error) {
 	payload := map[string]any{
 		"sub":   claims.UserID,
 		"email": claims.Email,
+		"role":  claims.Role,
 		"jti":   claims.TokenID,
 		"iss":   claims.Issuer,
 		"iat":   claims.IssuedAt.Unix(),
@@ -91,6 +96,7 @@ func (m TokenManager) Verify(token string) (Claims, error) {
 	var payload struct {
 		Subject string `json:"sub"`
 		Email   string `json:"email"`
+		Role    string `json:"role"`
 		TokenID string `json:"jti"`
 		Issuer  string `json:"iss"`
 		Issued  int64  `json:"iat"`
@@ -106,10 +112,15 @@ func (m TokenManager) Verify(token string) (Claims, error) {
 	if payload.Issuer != m.Issuer || payload.Subject == "" || payload.TokenID == "" {
 		return Claims{}, ErrInvalidToken
 	}
+	role := identity.NormalizeRole(payload.Role)
+	if !identity.ValidRole(role) {
+		return Claims{}, ErrInvalidToken
+	}
 
 	claims := Claims{
 		UserID:    payload.Subject,
 		Email:     payload.Email,
+		Role:      role,
 		TokenID:   payload.TokenID,
 		Issuer:    payload.Issuer,
 		IssuedAt:  time.Unix(payload.Issued, 0).UTC(),

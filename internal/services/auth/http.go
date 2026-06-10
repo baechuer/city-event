@@ -11,6 +11,7 @@ import (
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/health"
 	"github.com/baechuer/cityevents/internal/platform/httpapi"
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -31,6 +32,20 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 
 	repo := NewPostgresRepository(pool)
 	service := NewDefaultService(repo, cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
+	if cfg.SeedAdminEmail != "" || cfg.SeedAdminPass != "" {
+		admin, err := service.EnsureSeedAdmin(ctx, SeedAdminCommand{
+			Email:       cfg.SeedAdminEmail,
+			Password:    cfg.SeedAdminPass,
+			DisplayName: cfg.SeedAdminName,
+		})
+		if err != nil {
+			pool.Close()
+			return nil, nil, err
+		}
+		if logger != nil {
+			logger.Info("seed admin ready", slog.String("email", admin.Email), slog.String("role", admin.Role))
+		}
+	}
 	router := NewHTTPHandler(cfg, logger, service)
 
 	cleanup := func(context.Context) error {
@@ -49,6 +64,7 @@ func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) ht
 		r.Post("/login", handler.login)
 		r.Get("/me", handler.me)
 		r.Post("/logout", handler.logout)
+		r.Patch("/users/{userID}/role", handler.updateRole)
 	})
 
 	return r
@@ -117,6 +133,34 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) updateRole(w http.ResponseWriter, r *http.Request) {
+	token, ok := bearerToken(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	actor, err := h.service.CurrentUser(r.Context(), token)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	var req updateRoleRequest
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
+		return
+	}
+	updated, err := h.service.UpdateUserRole(r.Context(), UpdateRoleCommand{
+		ActorUserID:  actor.ID,
+		TargetUserID: chi.URLParam(r, "userID"),
+		Role:         identity.NormalizeRole(req.Role),
+	})
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	health.WriteJSON(w, http.StatusOK, map[string]PublicUser{"user": updated})
+}
+
 type registerRequest struct {
 	Email       string `json:"email"`
 	Password    string `json:"password"`
@@ -126,6 +170,10 @@ type registerRequest struct {
 type loginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type updateRoleRequest struct {
+	Role string `json:"role"`
 }
 
 type errorResponse struct {
@@ -157,14 +205,20 @@ func writeAuthError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidEmail), errors.Is(err, ErrWeakPassword), errors.Is(err, ErrInvalidDisplayName):
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+	case errors.Is(err, ErrInvalidRole):
+		writeError(w, http.StatusBadRequest, "invalid_role", err.Error())
 	case errors.Is(err, ErrDuplicateEmail):
 		writeError(w, http.StatusConflict, "duplicate_email", "email is already registered")
 	case errors.Is(err, ErrInvalidCredentials):
 		writeError(w, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
 	case errors.Is(err, ErrUnauthorized):
 		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+	case errors.Is(err, ErrForbidden):
+		writeError(w, http.StatusForbidden, "forbidden", "operation is not allowed")
 	case errors.Is(err, ErrTooManyAttempts):
 		writeError(w, http.StatusTooManyRequests, "too_many_attempts", "too many login attempts")
+	case errors.Is(err, ErrUserNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "user not found")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal server error")
 	}

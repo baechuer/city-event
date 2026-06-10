@@ -7,12 +7,14 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 type Repository interface {
 	CreateEvent(context.Context, Event) (EventDetail, error)
-	UpdateEvent(context.Context, string, string, UpdateEventCommand, time.Time) (EventDetail, error)
-	CancelEvent(context.Context, string, string, time.Time) (EventDetail, error)
+	UpdateEvent(context.Context, string, string, identity.Role, UpdateEventCommand, time.Time) (EventDetail, error)
+	CancelEvent(context.Context, string, string, identity.Role, time.Time) (EventDetail, error)
 	ListPublishedEvents(context.Context) ([]EventDetail, error)
 	GetEventDetail(context.Context, string, string) (EventDetail, error)
 	JoinEvent(context.Context, string, string, string, time.Time) (JoinResult, error)
@@ -56,7 +58,7 @@ func (r *MemoryRepository) CreateEvent(_ context.Context, event Event) (EventDet
 	return r.detailLocked(event.ID, ""), nil
 }
 
-func (r *MemoryRepository) UpdateEvent(_ context.Context, eventID, organizerID string, cmd UpdateEventCommand, now time.Time) (EventDetail, error) {
+func (r *MemoryRepository) UpdateEvent(_ context.Context, eventID, organizerID string, role identity.Role, cmd UpdateEventCommand, now time.Time) (EventDetail, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -64,7 +66,7 @@ func (r *MemoryRepository) UpdateEvent(_ context.Context, eventID, organizerID s
 	if !ok {
 		return EventDetail{}, ErrNotFound
 	}
-	if event.OrganizerID != organizerID {
+	if event.OrganizerID != organizerID && !identity.CanAdmin(role) {
 		return EventDetail{}, ErrForbidden
 	}
 	if event.Status == EventStatusCanceled {
@@ -103,7 +105,7 @@ func (r *MemoryRepository) UpdateEvent(_ context.Context, eventID, organizerID s
 	return r.detailLocked(eventID, ""), nil
 }
 
-func (r *MemoryRepository) CancelEvent(_ context.Context, eventID, organizerID string, now time.Time) (EventDetail, error) {
+func (r *MemoryRepository) CancelEvent(_ context.Context, eventID, organizerID string, role identity.Role, now time.Time) (EventDetail, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -111,7 +113,7 @@ func (r *MemoryRepository) CancelEvent(_ context.Context, eventID, organizerID s
 	if !ok {
 		return EventDetail{}, ErrNotFound
 	}
-	if event.OrganizerID != organizerID {
+	if event.OrganizerID != organizerID && !identity.CanAdmin(role) {
 		return EventDetail{}, ErrForbidden
 	}
 	if event.Status == EventStatusCanceled {

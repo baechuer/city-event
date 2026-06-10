@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 var (
@@ -16,6 +18,7 @@ type Repository interface {
 	CreateUser(context.Context, User) error
 	FindUserByEmail(context.Context, string) (User, error)
 	FindUserByID(context.Context, string) (User, error)
+	UpdateUserRole(context.Context, string, identity.Role) (User, error)
 	RevokeToken(context.Context, string, string, time.Time) error
 	IsTokenRevoked(context.Context, string) (bool, error)
 }
@@ -49,6 +52,7 @@ func (r *MemoryRepository) CreateUser(_ context.Context, user User) error {
 		return ErrDuplicateEmail
 	}
 	user.Email = email
+	user.Role = identity.NormalizeRole(string(user.Role))
 	r.usersByID[user.ID] = user
 	r.usersByEmail[email] = user
 	return nil
@@ -73,6 +77,21 @@ func (r *MemoryRepository) FindUserByID(_ context.Context, id string) (User, err
 	if !exists {
 		return User{}, ErrUserNotFound
 	}
+	return user, nil
+}
+
+func (r *MemoryRepository) UpdateUserRole(_ context.Context, id string, role identity.Role) (User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	user, exists := r.usersByID[id]
+	if !exists {
+		return User{}, ErrUserNotFound
+	}
+	user.Role = identity.NormalizeRole(string(role))
+	user.UpdatedAt = time.Now().UTC()
+	r.usersByID[id] = user
+	r.usersByEmail[NormalizeEmail(user.Email)] = user
 	return user, nil
 }
 

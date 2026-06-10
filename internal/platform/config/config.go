@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,6 +32,13 @@ type Config struct {
 	JWTSecret       string
 	JWTIssuer       string
 	AccessTokenTTL  time.Duration
+	SeedAdminEmail  string
+	SeedAdminPass   string
+	SeedAdminName   string
+	AuthServiceURL  string
+	EventServiceURL string
+	FeedServiceURL  string
+	MediaServiceURL string
 }
 
 var serviceDefinitions = []ServiceDefinition{
@@ -96,6 +104,13 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 		JWTSecret:       serviceEnv(getenv, service.Name, "JWT_SECRET", env(getenv, "JWT_SECRET", "dev-secret-change-me")),
 		JWTIssuer:       env(getenv, "JWT_ISSUER", "cityevents"),
 		AccessTokenTTL:  accessTokenTTL,
+		SeedAdminEmail:  env(getenv, "SEED_ADMIN_EMAIL", ""),
+		SeedAdminPass:   env(getenv, "SEED_ADMIN_PASSWORD", ""),
+		SeedAdminName:   env(getenv, "SEED_ADMIN_DISPLAY_NAME", "CityEvents Admin"),
+		AuthServiceURL:  env(getenv, "AUTH_SERVICE_URL", "http://127.0.0.1:8081"),
+		EventServiceURL: env(getenv, "EVENT_SERVICE_URL", "http://127.0.0.1:8082"),
+		FeedServiceURL:  env(getenv, "FEED_SERVICE_URL", "http://127.0.0.1:8083"),
+		MediaServiceURL: env(getenv, "MEDIA_SERVICE_URL", "http://127.0.0.1:8085"),
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -141,6 +156,16 @@ func (c Config) Validate() error {
 	if c.MinIOBucket == "" {
 		return fmt.Errorf("minio bucket is required")
 	}
+	for name, value := range map[string]string{
+		"auth service url":  c.AuthServiceURL,
+		"event service url": c.EventServiceURL,
+		"feed service url":  c.FeedServiceURL,
+		"media service url": c.MediaServiceURL,
+	} {
+		if err := validateHTTPURL(value); err != nil {
+			return fmt.Errorf("invalid %s %q: %w", name, value, err)
+		}
+	}
 	return nil
 }
 
@@ -177,4 +202,18 @@ func normalizeAddr(addr string) string {
 		return "localhost" + addr
 	}
 	return addr
+}
+
+func validateHTTPURL(value string) error {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("scheme must be http or https")
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("host is required")
+	}
+	return nil
 }

@@ -1,5 +1,5 @@
 import { createApiClient } from './api.js';
-import { canCancel, canJoin, createInitialState, formatDateTime, statusLabel, statusTone } from './state.js';
+import { canCancel, canJoin, canPublish, createInitialState, formatDateTime, statusLabel, statusTone } from './state.js';
 
 const api = createApiClient(window.CITYEVENTS_CONFIG || {});
 const state = createInitialState();
@@ -391,6 +391,7 @@ function renderEventDetailPage(eventID) {
 
 function renderPublishPage() {
   const signedIn = Boolean(state.auth.user?.id);
+  const allowed = canPublish(state.auth.user);
   return `
     <section class="publish-layout">
       <div class="page-intro">
@@ -399,9 +400,19 @@ function renderPublishPage() {
         <p>Keep creation focused: title, place, time, capacity, and a short reason to show up.</p>
       </div>
       <div class="publish-card">
-        ${signedIn ? renderCreateEventForm() : renderAuthPanel('Sign in to publish', 'Create your account first, then the publish form unlocks.')}
+        ${signedIn ? allowed ? renderCreateEventForm() : renderRoleBlockedPanel() : renderAuthPanel('Sign in to publish', 'Create your account first, then the publish form unlocks.')}
       </div>
     </section>
+  `;
+}
+
+function renderRoleBlockedPanel() {
+  return `
+    <div class="state-message">
+      <strong>Organizer role required</strong>
+      <span>Your current role is ${escapeHTML(state.auth.user?.role || 'USER')}. Use the seeded admin account to promote this account before publishing.</span>
+      <a class="primary-button" href="/me" data-route>Account</a>
+    </div>
   `;
 }
 
@@ -425,6 +436,7 @@ function renderAccountPage() {
         <p class="eyebrow">Signed in</p>
         <h1>${escapeHTML(state.auth.user.displayName || 'CityEvents user')}</h1>
         <p>${escapeHTML(state.auth.user.email || state.auth.user.id)}</p>
+        <span class="label-pill soft">${escapeHTML(state.auth.user.role || 'USER')}</span>
         <button type="button" class="secondary-button" data-action="logout">Log out</button>
       </div>
       <div class="account-actions">
@@ -435,6 +447,7 @@ function renderAccountPage() {
           </div>
           ${renderSelectedEventSummary()}
         </section>
+        ${state.auth.user.role === 'ADMIN' ? renderAdminRolePanel() : ''}
         ${renderMediaPanel()}
       </div>
     </section>
@@ -677,6 +690,32 @@ function renderMediaPanel() {
   `;
 }
 
+function renderAdminRolePanel() {
+  return `
+    <section class="compact-panel">
+      <div class="section-heading">
+        <span><strong>Role admin</strong></span>
+        <span class="label-pill soft">ADMIN</span>
+      </div>
+      <form id="admin-role-form" class="stacked-form">
+        <label>
+          <span>User ID</span>
+          <input name="userId" placeholder="Paste target user id" required />
+        </label>
+        <label>
+          <span>Role</span>
+          <select name="role">
+            <option value="USER">USER</option>
+            <option value="ORGANIZER">ORGANIZER</option>
+            <option value="ADMIN">ADMIN</option>
+          </select>
+        </label>
+        <button type="submit" class="secondary-button" ${isPending('role') ? 'disabled' : ''}>${isPending('role') ? 'Updating' : 'Update role'}</button>
+      </form>
+    </section>
+  `;
+}
+
 function renderMediaResult() {
   const asset = state.media.asset || {};
   return `
@@ -704,6 +743,7 @@ function bind() {
   document.querySelector('#browse-filter')?.addEventListener('submit', handleSearch);
   document.querySelector('#auth-form')?.addEventListener('submit', handleAuth);
   document.querySelector('#create-event-form')?.addEventListener('submit', handleCreateEvent);
+  document.querySelector('#admin-role-form')?.addEventListener('submit', handleAdminRoleUpdate);
   document.querySelector('#media-form')?.addEventListener('submit', handleCreateUpload);
   document.querySelector('[data-action="logout"]')?.addEventListener('click', handleLogout);
   document.querySelector('[data-action="join"]')?.addEventListener('click', handleJoin);
@@ -862,6 +902,10 @@ async function handleCreateEvent(event) {
     navigate('/me');
     return;
   }
+  if (!canPublish(state.auth.user)) {
+    setNotice('Organizer role required before publishing.', 'bad');
+    return;
+  }
   const form = new FormData(event.currentTarget);
   await withPending('create', async () => {
     const detail = await api.createEvent({
@@ -879,6 +923,15 @@ async function handleCreateEvent(event) {
     setNotice('Event published.', 'good');
     await refreshFeed({ renderAfter: false });
     navigate(`/events/${detail.event.id}`);
+  });
+}
+
+async function handleAdminRoleUpdate(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  await withPending('role', async () => {
+    await api.updateUserRole(String(form.get('userId') || ''), String(form.get('role') || 'USER'));
+    setNotice('Role updated.', 'good');
   });
 }
 

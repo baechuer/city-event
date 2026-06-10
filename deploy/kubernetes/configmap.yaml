@@ -11,6 +11,10 @@ data:
   SHUTDOWN_TIMEOUT: 10s
   ACCESS_TOKEN_TTL: 1h
   JWT_ISSUER: cityevents
+  AUTH_SERVICE_URL: http://auth-service
+  EVENT_SERVICE_URL: http://event-registration-service
+  FEED_SERVICE_URL: http://feed-service
+  MEDIA_SERVICE_URL: http://media-service
   REDIS_URL: redis://redis:6379/0
   MINIO_ENDPOINT: http://minio:9000
   MINIO_BUCKET: cityevents-media

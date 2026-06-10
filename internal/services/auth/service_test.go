@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -25,6 +26,9 @@ func TestServiceRegisterLoginCurrentLogoutWorkflow(t *testing.T) {
 	if registered.User.Email != "user@example.com" {
 		t.Fatalf("expected normalized email, got %q", registered.User.Email)
 	}
+	if registered.User.Role != string(identity.RoleUser) {
+		t.Fatalf("registered role = %q, want USER", registered.User.Role)
+	}
 
 	loggedIn, err := svc.Login(ctx, LoginCommand{Email: "user@example.com", Password: "StrongerPass123"})
 	if err != nil {
@@ -37,6 +41,9 @@ func TestServiceRegisterLoginCurrentLogoutWorkflow(t *testing.T) {
 	}
 	if current.ID != registered.User.ID {
 		t.Fatalf("current user id = %q, want %q", current.ID, registered.User.ID)
+	}
+	if current.Role != string(identity.RoleUser) {
+		t.Fatalf("current user role = %q, want USER", current.Role)
 	}
 
 	if err := svc.Logout(ctx, loggedIn.AccessToken); err != nil {
@@ -146,6 +153,68 @@ func TestServiceRateLimitsRepeatedWrongLogin(t *testing.T) {
 	_, err = svc.Login(ctx, LoginCommand{Email: "rate@example.com", Password: "WrongPass123"})
 	if !errors.Is(err, ErrTooManyAttempts) {
 		t.Fatalf("expected rate limit, got %v", err)
+	}
+}
+
+func TestServiceSeedAdminAndRoleUpdates(t *testing.T) {
+	svc, repo := testService()
+	ctx := context.Background()
+
+	admin, err := svc.EnsureSeedAdmin(ctx, SeedAdminCommand{
+		Email:       "ADMIN@example.com",
+		Password:    "AdminPass12345",
+		DisplayName: "Admin",
+	})
+	if err != nil {
+		t.Fatalf("seed admin: %v", err)
+	}
+	if admin.Email != "admin@example.com" || admin.Role != string(identity.RoleAdmin) {
+		t.Fatalf("unexpected admin: %+v", admin)
+	}
+
+	userResult, err := svc.Register(ctx, RegisterCommand{
+		Email:       "organizer@example.com",
+		Password:    "StrongerPass123",
+		DisplayName: "Organizer",
+	})
+	if err != nil {
+		t.Fatalf("register user: %v", err)
+	}
+
+	updated, err := svc.UpdateUserRole(ctx, UpdateRoleCommand{
+		ActorUserID:  admin.ID,
+		TargetUserID: userResult.User.ID,
+		Role:         identity.RoleOrganizer,
+	})
+	if err != nil {
+		t.Fatalf("update role: %v", err)
+	}
+	if updated.Role != string(identity.RoleOrganizer) {
+		t.Fatalf("updated role = %q, want ORGANIZER", updated.Role)
+	}
+
+	plain, err := svc.Register(ctx, RegisterCommand{
+		Email:       "plain@example.com",
+		Password:    "StrongerPass123",
+		DisplayName: "Plain",
+	})
+	if err != nil {
+		t.Fatalf("register plain: %v", err)
+	}
+	if _, err := svc.UpdateUserRole(ctx, UpdateRoleCommand{
+		ActorUserID:  plain.User.ID,
+		TargetUserID: userResult.User.ID,
+		Role:         identity.RoleAdmin,
+	}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("expected non-admin role update to be forbidden, got %v", err)
+	}
+
+	stored, err := repo.FindUserByEmail(ctx, "organizer@example.com")
+	if err != nil {
+		t.Fatalf("find organizer: %v", err)
+	}
+	if stored.Role != identity.RoleOrganizer {
+		t.Fatalf("stored role = %q, want ORGANIZER", stored.Role)
 	}
 }
 

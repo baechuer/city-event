@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 type Service struct {
@@ -13,6 +15,7 @@ type Service struct {
 
 type CreateEventCommand struct {
 	OrganizerID string
+	Role        identity.Role
 	Title       string
 	Description string
 	City        string
@@ -35,6 +38,9 @@ func NewService(repo Repository) *Service {
 }
 
 func (s *Service) CreateEvent(ctx context.Context, cmd CreateEventCommand) (EventDetail, error) {
+	if !identity.CanPublishEvents(identity.NormalizeRole(string(cmd.Role))) {
+		return EventDetail{}, ErrForbidden
+	}
 	event, err := NewEvent(cmd.OrganizerID, cmd.Title, cmd.Description, cmd.City, cmd.Venue, cmd.StartsAt, cmd.Capacity, s.now())
 	if err != nil {
 		return EventDetail{}, err
@@ -42,18 +48,24 @@ func (s *Service) CreateEvent(ctx context.Context, cmd CreateEventCommand) (Even
 	return s.repo.CreateEvent(ctx, event)
 }
 
-func (s *Service) UpdateEvent(ctx context.Context, eventID, organizerID string, cmd UpdateEventCommand) (EventDetail, error) {
+func (s *Service) UpdateEvent(ctx context.Context, eventID, organizerID string, role identity.Role, cmd UpdateEventCommand) (EventDetail, error) {
 	if strings.TrimSpace(organizerID) == "" {
 		return EventDetail{}, ErrUnauthorized
 	}
-	return s.repo.UpdateEvent(ctx, strings.TrimSpace(eventID), strings.TrimSpace(organizerID), cmd, s.now())
+	if !identity.CanPublishEvents(identity.NormalizeRole(string(role))) {
+		return EventDetail{}, ErrForbidden
+	}
+	return s.repo.UpdateEvent(ctx, strings.TrimSpace(eventID), strings.TrimSpace(organizerID), identity.NormalizeRole(string(role)), cmd, s.now())
 }
 
-func (s *Service) CancelEvent(ctx context.Context, eventID, organizerID string) (EventDetail, error) {
+func (s *Service) CancelEvent(ctx context.Context, eventID, organizerID string, role identity.Role) (EventDetail, error) {
 	if strings.TrimSpace(organizerID) == "" {
 		return EventDetail{}, ErrUnauthorized
 	}
-	return s.repo.CancelEvent(ctx, strings.TrimSpace(eventID), strings.TrimSpace(organizerID), s.now())
+	if !identity.CanPublishEvents(identity.NormalizeRole(string(role))) {
+		return EventDetail{}, ErrForbidden
+	}
+	return s.repo.CancelEvent(ctx, strings.TrimSpace(eventID), strings.TrimSpace(organizerID), identity.NormalizeRole(string(role)), s.now())
 }
 
 func (s *Service) ListPublishedEvents(ctx context.Context) ([]EventDetail, error) {

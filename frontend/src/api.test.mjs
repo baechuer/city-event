@@ -16,7 +16,7 @@ test('register stores auth result', async () => {
   const fetchImpl = async (url, options) => {
     calls.push({ url, options });
     return response(201, {
-      user: { id: 'user-1', email: 'user@example.com', displayName: 'User' },
+      user: { id: 'user-1', email: 'user@example.com', displayName: 'User', role: 'USER' },
       accessToken: 'token-1',
     });
   };
@@ -27,7 +27,7 @@ test('register stores auth result', async () => {
   assert.equal(calls[0].url, 'http://auth/v1/auth/register');
 });
 
-test('event mutations use X-User-ID header', async () => {
+test('event mutations use bearer token through gateway', async () => {
   const storage = memoryStorage();
   storage.setItem('cityevents.auth', JSON.stringify({ user: { id: 'user-1' }, accessToken: 'token-1' }));
   const calls = [];
@@ -38,7 +38,8 @@ test('event mutations use X-User-ID header', async () => {
   const client = createApiClient({ eventBase: 'http://events' }, fetchImpl, storage);
   await client.joinEvent('event-1');
   assert.equal(calls[0].url, 'http://events/v1/events/event-1/join');
-  assert.equal(calls[0].options.headers['X-User-ID'], 'user-1');
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer token-1');
+  assert.equal(calls[0].options.headers['X-User-ID'], undefined);
 });
 
 test('feed list includes city filter', async () => {
@@ -49,6 +50,20 @@ test('feed list includes city filter', async () => {
   }, memoryStorage());
   await client.listFeed('Sydney');
   assert.equal(calls[0].url, 'http://feed/v1/feed/events?limit=20&offset=0&city=Sydney');
+});
+
+test('admin role update uses bearer token', async () => {
+  const storage = memoryStorage();
+  storage.setItem('cityevents.auth', JSON.stringify({ user: { id: 'admin-1', role: 'ADMIN' }, accessToken: 'token-1' }));
+  const calls = [];
+  const client = createApiClient({ authBase: 'http://auth' }, async (url, options) => {
+    calls.push({ url, options });
+    return response(200, { user: { id: 'user-1', role: 'ORGANIZER' } });
+  }, storage);
+  await client.updateUserRole('user-1', 'ORGANIZER');
+  assert.equal(calls[0].url, 'http://auth/v1/auth/users/user-1/role');
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer token-1');
+  assert.equal(calls[0].options.headers['Content-Type'], 'application/json');
 });
 
 test('request errors expose backend message', async () => {

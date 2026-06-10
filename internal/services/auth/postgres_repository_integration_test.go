@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/config"
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -43,6 +44,9 @@ func TestPostgresRepositoryUserAndRevocation(t *testing.T) {
 	if byEmail.ID != user.ID {
 		t.Fatalf("find by email id = %q, want %q", byEmail.ID, user.ID)
 	}
+	if byEmail.Role != identity.RoleUser {
+		t.Fatalf("find by email role = %q, want USER", byEmail.Role)
+	}
 
 	byID, err := repo.FindUserByID(ctx, user.ID)
 	if err != nil {
@@ -50,6 +54,14 @@ func TestPostgresRepositoryUserAndRevocation(t *testing.T) {
 	}
 	if byID.Email != user.Email {
 		t.Fatalf("find by id email = %q, want %q", byID.Email, user.Email)
+	}
+
+	updated, err := repo.UpdateUserRole(ctx, user.ID, identity.RoleOrganizer)
+	if err != nil {
+		t.Fatalf("update role: %v", err)
+	}
+	if updated.Role != identity.RoleOrganizer {
+		t.Fatalf("updated role = %q, want ORGANIZER", updated.Role)
 	}
 
 	if err := repo.RevokeToken(ctx, "token-1", user.ID, time.Now().Add(time.Hour)); err != nil {

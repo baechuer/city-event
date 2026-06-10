@@ -12,6 +12,7 @@ import (
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/health"
 	"github.com/baechuer/cityevents/internal/platform/httpapi"
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -57,7 +58,7 @@ func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) ht
 }
 
 func (h *Handler) createEvent(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromHeader(r)
+	principal, ok := principalFromHeader(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
@@ -68,7 +69,8 @@ func (h *Handler) createEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	detail, err := h.service.CreateEvent(r.Context(), CreateEventCommand{
-		OrganizerID: userID,
+		OrganizerID: principal.UserID,
+		Role:        principal.Role,
 		Title:       req.Title,
 		Description: req.Description,
 		City:        req.City,
@@ -84,7 +86,7 @@ func (h *Handler) createEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateEvent(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromHeader(r)
+	principal, ok := principalFromHeader(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
@@ -94,7 +96,7 @@ func (h *Handler) updateEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
 		return
 	}
-	detail, err := h.service.UpdateEvent(r.Context(), chi.URLParam(r, "eventID"), userID, UpdateEventCommand{
+	detail, err := h.service.UpdateEvent(r.Context(), chi.URLParam(r, "eventID"), principal.UserID, principal.Role, UpdateEventCommand{
 		Title:       req.Title,
 		Description: req.Description,
 		City:        req.City,
@@ -110,12 +112,12 @@ func (h *Handler) updateEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) cancelEvent(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromHeader(r)
+	principal, ok := principalFromHeader(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
 	}
-	detail, err := h.service.CancelEvent(r.Context(), chi.URLParam(r, "eventID"), userID)
+	detail, err := h.service.CancelEvent(r.Context(), chi.URLParam(r, "eventID"), principal.UserID, principal.Role)
 	if err != nil {
 		writeEventError(w, err)
 		return
@@ -307,9 +309,23 @@ func decodeJSON(r *http.Request, target any) error {
 	return decoder.Decode(target)
 }
 
+type principal struct {
+	UserID string
+	Role   identity.Role
+}
+
+func principalFromHeader(r *http.Request) (principal, bool) {
+	userID := strings.TrimSpace(r.Header.Get(identity.HeaderUserID))
+	if userID == "" {
+		return principal{}, false
+	}
+	role := identity.NormalizeRole(r.Header.Get(identity.HeaderUserRole))
+	return principal{UserID: userID, Role: role}, true
+}
+
 func userIDFromHeader(r *http.Request) (string, bool) {
-	userID := strings.TrimSpace(r.Header.Get("X-User-ID"))
-	return userID, userID != ""
+	principal, ok := principalFromHeader(r)
+	return principal.UserID, ok
 }
 
 func writeEventError(w http.ResponseWriter, err error) {

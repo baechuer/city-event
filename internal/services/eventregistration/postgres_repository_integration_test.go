@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -27,7 +28,7 @@ func TestPostgresCreateUpdateCancelOutbox(t *testing.T) {
 
 	title := "Updated Meetup"
 	capacity := 12
-	updated, err := svc.UpdateEvent(ctx, event.Event.ID, "organizer-1", UpdateEventCommand{Title: &title, Capacity: &capacity})
+	updated, err := svc.UpdateEvent(ctx, event.Event.ID, "organizer-1", identity.RoleOrganizer, UpdateEventCommand{Title: &title, Capacity: &capacity})
 	if err != nil {
 		t.Fatalf("update event: %v", err)
 	}
@@ -36,11 +37,11 @@ func TestPostgresCreateUpdateCancelOutbox(t *testing.T) {
 	}
 	assertOutboxCount(t, ctx, repo, RoutingEventUpdated, 1)
 
-	if _, err := svc.UpdateEvent(ctx, event.Event.ID, "other-organizer", UpdateEventCommand{Title: &title}); !errors.Is(err, ErrForbidden) {
+	if _, err := svc.UpdateEvent(ctx, event.Event.ID, "other-organizer", identity.RoleOrganizer, UpdateEventCommand{Title: &title}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("expected non-organizer update to fail, got %v", err)
 	}
 
-	canceled, err := svc.CancelEvent(ctx, event.Event.ID, "organizer-1")
+	canceled, err := svc.CancelEvent(ctx, event.Event.ID, "organizer-1", identity.RoleOrganizer)
 	if err != nil {
 		t.Fatalf("cancel event: %v", err)
 	}
@@ -61,6 +62,7 @@ func TestPostgresOutboxIncludesCorrelationID(t *testing.T) {
 
 	event, err := svc.CreateEvent(ctx, CreateEventCommand{
 		OrganizerID: "organizer-1",
+		Role:        identity.RoleOrganizer,
 		Title:       "Tech Meetup",
 		Description: "Monthly meetup",
 		City:        "Sydney",
@@ -151,7 +153,7 @@ func TestPostgresCapacityReductionBelowConfirmedRejected(t *testing.T) {
 	}
 
 	newCapacity := 1
-	if _, err := svc.UpdateEvent(ctx, event.Event.ID, "organizer-1", UpdateEventCommand{Capacity: &newCapacity}); !errors.Is(err, ErrCapacityBelowConfirmed) {
+	if _, err := svc.UpdateEvent(ctx, event.Event.ID, "organizer-1", identity.RoleOrganizer, UpdateEventCommand{Capacity: &newCapacity}); !errors.Is(err, ErrCapacityBelowConfirmed) {
 		t.Fatalf("expected capacity reduction error, got %v", err)
 	}
 }
@@ -164,7 +166,7 @@ func TestPostgresListExcludesCanceledAndDetailIncludesViewerStatus(t *testing.T)
 
 	active := createPostgresEvent(t, svc, "organizer-1", 10)
 	canceled := createPostgresEvent(t, svc, "organizer-1", 10)
-	if _, err := svc.CancelEvent(ctx, canceled.Event.ID, "organizer-1"); err != nil {
+	if _, err := svc.CancelEvent(ctx, canceled.Event.ID, "organizer-1", identity.RoleOrganizer); err != nil {
 		t.Fatalf("cancel event: %v", err)
 	}
 	if _, err := svc.JoinEvent(ctx, active.Event.ID, "viewer-1", ""); err != nil {
@@ -365,6 +367,7 @@ func createPostgresEvent(t *testing.T, svc *Service, organizerID string, capacit
 	t.Helper()
 	event, err := svc.CreateEvent(context.Background(), CreateEventCommand{
 		OrganizerID: organizerID,
+		Role:        identity.RoleOrganizer,
 		Title:       "Tech Meetup",
 		Description: "Monthly meetup",
 		City:        "Sydney",

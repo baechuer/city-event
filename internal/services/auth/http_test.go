@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/baechuer/cityevents/internal/platform/config"
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -19,7 +20,11 @@ func TestAuthHandlersWorkflow(t *testing.T) {
 	if registerResp.Code != http.StatusCreated {
 		t.Fatalf("register status = %d body=%s", registerResp.Code, registerResp.Body.String())
 	}
-	token := accessTokenFromBody(t, registerResp.Body.Bytes())
+	registerPayload := authPayloadFromBody(t, registerResp.Body.Bytes())
+	token := registerPayload.AccessToken
+	if registerPayload.User.Role != string(identity.RoleUser) {
+		t.Fatalf("registered role = %q, want USER", registerPayload.User.Role)
+	}
 
 	loginResp := doJSON(router, http.MethodPost, "/v1/auth/login", `{"email":"user@example.com","password":"StrongerPass123"}`, "")
 	if loginResp.Code != http.StatusOK {
@@ -30,6 +35,13 @@ func TestAuthHandlersWorkflow(t *testing.T) {
 	meResp := doJSON(router, http.MethodGet, "/v1/auth/me", "", loginToken)
 	if meResp.Code != http.StatusOK {
 		t.Fatalf("me status = %d body=%s", meResp.Code, meResp.Body.String())
+	}
+	var mePayload struct {
+		User PublicUser `json:"user"`
+	}
+	decodeJSONBody(t, meResp.Body.Bytes(), &mePayload)
+	if mePayload.User.Role != string(identity.RoleUser) {
+		t.Fatalf("me role = %q, want USER", mePayload.User.Role)
 	}
 
 	logoutResp := doJSON(router, http.MethodPost, "/v1/auth/logout", "", loginToken)
@@ -98,7 +110,56 @@ func TestAuthHandlersMeRequiresToken(t *testing.T) {
 	}
 }
 
+func TestAuthHandlersAdminCanUpdateRoles(t *testing.T) {
+	router, _, svc := testAuthRouterWithService(t)
+	ctx := httptest.NewRequest(http.MethodGet, "/", nil).Context()
+	admin, err := svc.EnsureSeedAdmin(ctx, SeedAdminCommand{
+		Email:       "admin@example.com",
+		Password:    "AdminPass12345",
+		DisplayName: "Admin",
+	})
+	if err != nil {
+		t.Fatalf("seed admin: %v", err)
+	}
+	adminLogin := doJSON(router, http.MethodPost, "/v1/auth/login", `{"email":"admin@example.com","password":"AdminPass12345"}`, "")
+	if adminLogin.Code != http.StatusOK {
+		t.Fatalf("admin login status = %d body=%s admin=%+v", adminLogin.Code, adminLogin.Body.String(), admin)
+	}
+	adminToken := accessTokenFromBody(t, adminLogin.Body.Bytes())
+
+	registerResp := doJSON(router, http.MethodPost, "/v1/auth/register", `{"email":"org@example.com","password":"StrongerPass123","displayName":"Org"}`, "")
+	if registerResp.Code != http.StatusCreated {
+		t.Fatalf("register status = %d body=%s", registerResp.Code, registerResp.Body.String())
+	}
+	target := authPayloadFromBody(t, registerResp.Body.Bytes()).User
+
+	updateResp := doJSON(router, http.MethodPatch, "/v1/auth/users/"+target.ID+"/role", `{"role":"ORGANIZER"}`, adminToken)
+	if updateResp.Code != http.StatusOK {
+		t.Fatalf("update role status = %d body=%s", updateResp.Code, updateResp.Body.String())
+	}
+	var payload struct {
+		User PublicUser `json:"user"`
+	}
+	decodeJSONBody(t, updateResp.Body.Bytes(), &payload)
+	if payload.User.Role != string(identity.RoleOrganizer) {
+		t.Fatalf("updated role = %q, want ORGANIZER", payload.User.Role)
+	}
+
+	userLogin := doJSON(router, http.MethodPost, "/v1/auth/login", `{"email":"org@example.com","password":"StrongerPass123"}`, "")
+	userToken := accessTokenFromBody(t, userLogin.Body.Bytes())
+	forbiddenResp := doJSON(router, http.MethodPatch, "/v1/auth/users/"+admin.ID+"/role", `{"role":"USER"}`, userToken)
+	if forbiddenResp.Code != http.StatusForbidden {
+		t.Fatalf("non-admin role update status = %d body=%s", forbiddenResp.Code, forbiddenResp.Body.String())
+	}
+}
+
 func testAuthRouter(t *testing.T) (http.Handler, *MemoryRepository) {
+	t.Helper()
+	router, repo, _ := testAuthRouterWithService(t)
+	return router, repo
+}
+
+func testAuthRouterWithService(t *testing.T) (http.Handler, *MemoryRepository, *Service) {
 	t.Helper()
 	repo := NewMemoryRepository()
 	tokens := NewTokenManager("secret", "cityevents-test", 3600000000000)
@@ -107,7 +168,7 @@ func testAuthRouter(t *testing.T) (http.Handler, *MemoryRepository) {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	return NewHTTPHandler(cfg, nil, svc), repo
+	return NewHTTPHandler(cfg, nil, svc), repo, svc
 }
 
 func doJSON(handler http.Handler, method, path, body, token string) *httptest.ResponseRecorder {
@@ -131,14 +192,23 @@ func doJSON(handler http.Handler, method, path, body, token string) *httptest.Re
 
 func accessTokenFromBody(t *testing.T, body []byte) string {
 	t.Helper()
-	var payload struct {
-		AccessToken string `json:"accessToken"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatalf("decode token response: %v", err)
-	}
+	payload := authPayloadFromBody(t, body)
 	if payload.AccessToken == "" {
 		t.Fatalf("expected access token in response: %s", string(body))
 	}
 	return payload.AccessToken
+}
+
+func authPayloadFromBody(t *testing.T, body []byte) AuthResult {
+	t.Helper()
+	var payload AuthResult
+	decodeJSONBody(t, body, &payload)
+	return payload
+}
+
+func decodeJSONBody(t *testing.T, body []byte, target any) {
+	t.Helper()
+	if err := json.Unmarshal(body, target); err != nil {
+		t.Fatalf("decode JSON body %s: %v", string(body), err)
+	}
 }

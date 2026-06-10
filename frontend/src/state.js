@@ -1,8 +1,8 @@
 export const defaultConfig = {
-  authBase: 'http://127.0.0.1:8081',
-  eventBase: 'http://127.0.0.1:8082',
-  feedBase: 'http://127.0.0.1:8083',
-  mediaBase: 'http://127.0.0.1:8085',
+  authBase: 'http://127.0.0.1:8080',
+  eventBase: 'http://127.0.0.1:8080',
+  feedBase: 'http://127.0.0.1:8080',
+  mediaBase: 'http://127.0.0.1:8080',
 };
 
 export const statusTone = {
@@ -61,4 +61,8 @@ export function canJoin(status) {
 
 export function canCancel(status) {
   return status === 'CONFIRMED' || status === 'WAITLISTED';
+}
+
+export function canPublish(user) {
+  return user?.role === 'ORGANIZER' || user?.role === 'ADMIN';
 }

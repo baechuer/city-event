@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 12: final evidence audit and resume framing. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, a documented HA deferral, and resume-safe claim guidance.
+The current branch is in Phase 12: final evidence audit and resume framing. It contains the Go service foundation, auth service, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, a documented HA deferral, and resume-safe claim guidance.
 
 ## Architecture Direction
 
@@ -28,7 +28,7 @@ The frontend is a dependency-free browser app because this workspace has Node bu
 
 Services emit correlation IDs, structured request logs, and basic Prometheus-style metrics. This is not a full OpenTelemetry/Grafana stack yet.
 
-Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, and resource limits. They do not prove high availability.
+Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, ingress routing, and resource limits. They do not prove high availability.
 
 High availability is intentionally documented as a later stage in `docs/architecture/high-availability-decision.md`.
 
@@ -47,6 +47,15 @@ The browser demo is the local entry point:
 ```bash
 ./scripts/start-local.sh
 ```
+
+The local stack seeds a development admin account:
+
+```text
+email: admin@cityevents.local
+password: AdminPass12345
+```
+
+Use the admin account to promote test users to `ORGANIZER` before publishing events through the frontend.
 
 Then open:
 
@@ -339,7 +348,7 @@ unset CITYEVENTS_STARTUP_CHECK_ONLY
 Allowed claim:
 
 ```text
-Built a portfolio-grade Go microservices event platform with PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis feed caching, idempotent consumers, observability hooks, Kubernetes-ready manifests, and documented production/HA limitations.
+Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis feed caching, idempotent consumers, observability hooks, Kubernetes-ready manifests, and documented production/HA limitations.
 ```
 
 Not yet allowed:

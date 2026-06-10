@@ -22,6 +22,7 @@ for file in \
   deploy/kubernetes/secret.example.yaml \
   deploy/kubernetes/deployments.yaml \
   deploy/kubernetes/services.yaml \
+  deploy/kubernetes/ingress.yaml \
   deploy/kubernetes/kustomization.yaml; do
   require_file "$file"
 done
@@ -52,9 +53,16 @@ done
 
 require_contains deploy/kubernetes/configmap.yaml "CITYEVENTS_ENV"
 require_contains deploy/kubernetes/configmap.yaml "HTTP_ADDR"
+require_contains deploy/kubernetes/configmap.yaml "AUTH_SERVICE_URL"
+require_contains deploy/kubernetes/configmap.yaml "EVENT_SERVICE_URL"
+require_contains deploy/kubernetes/configmap.yaml "FEED_SERVICE_URL"
+require_contains deploy/kubernetes/configmap.yaml "MEDIA_SERVICE_URL"
 require_contains deploy/kubernetes/secret.example.yaml "POSTGRES_URL"
 require_contains deploy/kubernetes/secret.example.yaml "RABBITMQ_URL"
 require_contains deploy/kubernetes/secret.example.yaml "JWT_SECRET"
+require_contains deploy/kubernetes/secret.example.yaml "SEED_ADMIN_EMAIL"
+require_contains deploy/kubernetes/ingress.yaml "name: cityevents-api"
+require_contains deploy/kubernetes/ingress.yaml "name: api-gateway"
 
 if command -v kubectl >/dev/null 2>&1; then
   log "kubectl kustomize"

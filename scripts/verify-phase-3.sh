@@ -50,7 +50,7 @@ fi
 
 starts_at="$(date -u -d '+1 day' '+%Y-%m-%dT%H:%M:%SZ')"
 create_body="$(printf '{"title":"Phase 3 Smoke Event","description":"Runtime smoke event","city":"Sydney","venue":"Town Hall","startsAt":"%s","capacity":1}' "$starts_at")"
-created="$(curl -fsS -X POST "http://127.0.0.1:$port/v1/events" -H "Content-Type: application/json" -H "X-User-ID: phase3-organizer" --data "$create_body")"
+created="$(curl -fsS -X POST "http://127.0.0.1:$port/v1/events" -H "Content-Type: application/json" -H "X-User-ID: phase3-organizer" -H "X-User-Role: ORGANIZER" --data "$create_body")"
 event_id="$(json_string_field "$created" id)"
 [[ -n "$event_id" ]] || die "create event did not return an event ID."
 

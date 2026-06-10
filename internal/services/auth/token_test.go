@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 func TestTokenManagerSignsAndVerifies(t *testing.T) {
@@ -11,7 +13,7 @@ func TestTokenManagerSignsAndVerifies(t *testing.T) {
 	manager := NewTokenManager("secret", "cityevents", time.Hour)
 	manager.Now = func() time.Time { return now }
 
-	user := User{ID: "user-1", Email: "user@example.com"}
+	user := User{ID: "user-1", Email: "user@example.com", Role: identity.RoleOrganizer}
 	token, signedClaims, err := manager.Sign(user)
 	if err != nil {
 		t.Fatalf("sign token: %v", err)
@@ -21,7 +23,7 @@ func TestTokenManagerSignsAndVerifies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify token: %v", err)
 	}
-	if claims.UserID != user.ID || claims.Email != user.Email || claims.TokenID == "" {
+	if claims.UserID != user.ID || claims.Email != user.Email || claims.Role != identity.RoleOrganizer || claims.TokenID == "" {
 		t.Fatalf("unexpected claims: %+v signed=%+v", claims, signedClaims)
 	}
 }

@@ -25,6 +25,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.PostgresURL == "" || cfg.RabbitMQURL == "" || cfg.RedisURL == "" {
 		t.Fatalf("expected dependency defaults to be set")
 	}
+	if cfg.AuthServiceURL != "http://127.0.0.1:8081" || cfg.EventServiceURL != "http://127.0.0.1:8082" {
+		t.Fatalf("expected local service URL defaults, got auth=%q event=%q", cfg.AuthServiceURL, cfg.EventServiceURL)
+	}
 }
 
 func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
@@ -103,6 +106,30 @@ func TestValidateRejectsNonPositiveShutdownTimeout(t *testing.T) {
 
 	if err := cfg.Validate(); err == nil {
 		t.Fatalf("expected non-positive shutdown timeout to be rejected")
+	}
+}
+
+func TestLoadGatewayDownstreamURLs(t *testing.T) {
+	cfg, err := Load("api-gateway", mapGetenv(map[string]string{
+		"AUTH_SERVICE_URL":  "http://auth-service",
+		"EVENT_SERVICE_URL": "http://event-registration-service",
+		"FEED_SERVICE_URL":  "http://feed-service",
+		"MEDIA_SERVICE_URL": "http://media-service",
+	}))
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.AuthServiceURL != "http://auth-service" || cfg.MediaServiceURL != "http://media-service" {
+		t.Fatalf("unexpected downstream urls: %+v", cfg)
+	}
+}
+
+func TestValidateRejectsInvalidDownstreamURL(t *testing.T) {
+	_, err := Load("api-gateway", mapGetenv(map[string]string{
+		"AUTH_SERVICE_URL": "not-a-url",
+	}))
+	if err == nil {
+		t.Fatalf("expected invalid downstream url")
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,9 +21,9 @@ func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
 
 func (r *PostgresRepository) CreateUser(ctx context.Context, user User) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO auth_users (id, email, display_name, password_hash, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, user.ID, NormalizeEmail(user.Email), user.DisplayName, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
+		INSERT INTO auth_users (id, email, display_name, role, password_hash, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, user.ID, NormalizeEmail(user.Email), user.DisplayName, user.Role, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
 	if isUniqueViolation(err) {
 		return ErrDuplicateEmail
 	}
@@ -31,7 +32,7 @@ func (r *PostgresRepository) CreateUser(ctx context.Context, user User) error {
 
 func (r *PostgresRepository) FindUserByEmail(ctx context.Context, email string) (User, error) {
 	return scanUser(r.pool.QueryRow(ctx, `
-		SELECT id, email, display_name, password_hash, created_at, updated_at
+		SELECT id, email, display_name, role, password_hash, created_at, updated_at
 		FROM auth_users
 		WHERE email = $1
 	`, NormalizeEmail(email)))
@@ -39,10 +40,19 @@ func (r *PostgresRepository) FindUserByEmail(ctx context.Context, email string) 
 
 func (r *PostgresRepository) FindUserByID(ctx context.Context, id string) (User, error) {
 	return scanUser(r.pool.QueryRow(ctx, `
-		SELECT id, email, display_name, password_hash, created_at, updated_at
+		SELECT id, email, display_name, role, password_hash, created_at, updated_at
 		FROM auth_users
 		WHERE id = $1
 	`, id))
+}
+
+func (r *PostgresRepository) UpdateUserRole(ctx context.Context, id string, role identity.Role) (User, error) {
+	return scanUser(r.pool.QueryRow(ctx, `
+		UPDATE auth_users
+		SET role = $2, updated_at = now()
+		WHERE id = $1
+		RETURNING id, email, display_name, role, password_hash, created_at, updated_at
+	`, id, identity.NormalizeRole(string(role))))
 }
 
 func (r *PostgresRepository) RevokeToken(ctx context.Context, tokenID, userID string, expiresAt time.Time) error {
@@ -68,10 +78,11 @@ func (r *PostgresRepository) IsTokenRevoked(ctx context.Context, tokenID string)
 
 func scanUser(row pgx.Row) (User, error) {
 	var user User
-	err := row.Scan(&user.ID, &user.Email, &user.DisplayName, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	err := row.Scan(&user.ID, &user.Email, &user.DisplayName, &user.Role, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
+	user.Role = identity.NormalizeRole(string(user.Role))
 	return user, err
 }
 

@@ -1,6 +1,11 @@
 package auth
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	"github.com/baechuer/cityevents/internal/platform/identity"
+)
 
 func TestNormalizeEmail(t *testing.T) {
 	got := NormalizeEmail("  USER@Example.COM ")
@@ -35,5 +40,14 @@ func TestValidateDisplayName(t *testing.T) {
 	}
 	if err := ValidateDisplayName("  "); err == nil {
 		t.Fatalf("expected empty display name to be rejected")
+	}
+}
+
+func TestValidateRole(t *testing.T) {
+	if err := ValidateRole(identity.RoleOrganizer); err != nil {
+		t.Fatalf("expected organizer role to be valid: %v", err)
+	}
+	if err := ValidateRole(identity.Role("OWNER")); !errors.Is(err, ErrInvalidRole) {
+		t.Fatalf("expected invalid role, got %v", err)
 	}
 }

@@ -36,9 +36,9 @@ The rebuilt architecture uses:
 | Notification side effects | Supported locally | notification decision tests, idempotent repository tests, provider failure tests, Mailpit SMTP integration |
 | Media worker | Supported locally | metadata repository tests, MinIO integration, worker state transition tests, failure-state tests |
 | Observability/debugging | Supported as basic observability | correlation IDs, structured request logs, `/metrics`, outbox correlation propagation, debugging walkthrough |
-| Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/probes/resource limits, `scripts/verify-phase-10.sh` |
+| Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/Ingress/probes/resource limits, `scripts/verify-phase-10.sh` |
 | High availability | Deferred | `docs/architecture/high-availability-decision.md`; manifests are single-replica and dependencies are not HA |
-| Production deployment | Not supported | no verified live cluster, ingress, TLS, managed secrets, production database, or failure-test evidence |
+| Production deployment | Not supported | no verified live cluster run, TLS, managed secrets, production database, or failure-test evidence |
 
 ## Verification Commands
 

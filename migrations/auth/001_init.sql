@@ -2,10 +2,28 @@ CREATE TABLE IF NOT EXISTS auth_users (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL CHECK (length(trim(display_name)) > 0),
+    role TEXT NOT NULL DEFAULT 'USER' CHECK (role IN ('USER', 'ORGANIZER', 'ADMIN')),
     password_hash TEXT NOT NULL CHECK (length(password_hash) > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE auth_users
+ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'USER';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'auth_users_role_check'
+          AND conrelid = 'auth_users'::regclass
+    ) THEN
+        ALTER TABLE auth_users
+        ADD CONSTRAINT auth_users_role_check
+        CHECK (role IN ('USER', 'ORGANIZER', 'ADMIN'));
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS revoked_tokens (
     token_id TEXT PRIMARY KEY,

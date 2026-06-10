@@ -23,11 +23,17 @@ docker build --build-arg SERVICE=outbox-relay -t cityevents/outbox-relay:dev .
 
 ## Apply Manifests
 
-Replace `secret.example.yaml` values before any real deployment.
+Replace `secret.example.yaml` values before any real deployment. The example contains a seed admin so the role workflow can be verified, but the password is not production-safe.
 
 ```bash
 kubectl apply -k deploy/kubernetes
 ```
+
+## Ingress
+
+`ingress.yaml` routes `cityevents.local/v1`, `/readyz`, `/livez`, and `/metrics` to the API gateway. It assumes an ingress controller that supports `ingressClassName: nginx`.
+
+Ingress is not high availability by itself. It only exposes HTTP routing. HA still needs more than one gateway pod, pod disruption budgets, autoscaling, multi-node scheduling, and highly available data stores.
 
 ## Claim Boundary
 

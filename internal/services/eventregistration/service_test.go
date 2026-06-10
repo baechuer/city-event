@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 func TestServiceCreateJoinWaitlistCancelPromote(t *testing.T) {
@@ -68,7 +70,7 @@ func TestServiceRejectsCanceledEventJoin(t *testing.T) {
 	svc, _ := testEventService()
 	ctx := context.Background()
 	event := createTestEvent(t, svc, "organizer-1", 10)
-	if _, err := svc.CancelEvent(ctx, event.Event.ID, "organizer-1"); err != nil {
+	if _, err := svc.CancelEvent(ctx, event.Event.ID, "organizer-1", identity.RoleOrganizer); err != nil {
 		t.Fatalf("cancel event: %v", err)
 	}
 	if _, err := svc.JoinEvent(ctx, event.Event.ID, "user-1", ""); !errors.Is(err, ErrEventCanceled) {
@@ -117,7 +119,7 @@ func TestServiceCapacityReductionBelowConfirmedRejected(t *testing.T) {
 	_, _ = svc.JoinEvent(ctx, event.Event.ID, "user-2", "")
 
 	newCapacity := 1
-	if _, err := svc.UpdateEvent(ctx, event.Event.ID, "organizer-1", UpdateEventCommand{Capacity: &newCapacity}); !errors.Is(err, ErrCapacityBelowConfirmed) {
+	if _, err := svc.UpdateEvent(ctx, event.Event.ID, "organizer-1", identity.RoleOrganizer, UpdateEventCommand{Capacity: &newCapacity}); !errors.Is(err, ErrCapacityBelowConfirmed) {
 		t.Fatalf("expected capacity reduction to fail, got %v", err)
 	}
 }
@@ -193,6 +195,7 @@ func createTestEvent(t *testing.T, svc *Service, organizerID string, capacity in
 	t.Helper()
 	event, err := svc.CreateEvent(context.Background(), CreateEventCommand{
 		OrganizerID: organizerID,
+		Role:        identity.RoleOrganizer,
 		Title:       "Tech Meetup",
 		Description: "Monthly meetup",
 		City:        "Sydney",

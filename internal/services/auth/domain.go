@@ -7,18 +7,22 @@ import (
 	"net/mail"
 	"strings"
 	"time"
+
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 var (
 	ErrInvalidEmail       = errors.New("invalid email")
 	ErrWeakPassword       = errors.New("weak password")
 	ErrInvalidDisplayName = errors.New("invalid display name")
+	ErrInvalidRole        = errors.New("invalid role")
 )
 
 type User struct {
 	ID           string
 	Email        string
 	DisplayName  string
+	Role         identity.Role
 	PasswordHash string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -28,12 +32,14 @@ type PublicUser struct {
 	ID          string `json:"id"`
 	Email       string `json:"email"`
 	DisplayName string `json:"displayName"`
+	Role        string `json:"role"`
 }
 
 type RegisterCommand struct {
 	Email       string
 	Password    string
 	DisplayName string
+	Role        identity.Role
 }
 
 type LoginCommand struct {
@@ -41,11 +47,24 @@ type LoginCommand struct {
 	Password string
 }
 
+type SeedAdminCommand struct {
+	Email       string
+	Password    string
+	DisplayName string
+}
+
+type UpdateRoleCommand struct {
+	ActorUserID  string
+	TargetUserID string
+	Role         identity.Role
+}
+
 func (u User) Public() PublicUser {
 	return PublicUser{
 		ID:          u.ID,
 		Email:       u.Email,
 		DisplayName: u.DisplayName,
+		Role:        string(u.Role),
 	}
 }
 
@@ -91,13 +110,25 @@ func ValidateDisplayName(displayName string) error {
 	return nil
 }
 
-func NewUser(email, displayName, passwordHash string, now time.Time) (User, error) {
+func ValidateRole(role identity.Role) error {
+	role = identity.NormalizeRole(string(role))
+	if !identity.ValidRole(role) {
+		return ErrInvalidRole
+	}
+	return nil
+}
+
+func NewUser(email, displayName string, role identity.Role, passwordHash string, now time.Time) (User, error) {
 	email = NormalizeEmail(email)
 	displayName = strings.TrimSpace(displayName)
+	role = identity.NormalizeRole(string(role))
 	if err := ValidateEmail(email); err != nil {
 		return User{}, err
 	}
 	if err := ValidateDisplayName(displayName); err != nil {
+		return User{}, err
+	}
+	if err := ValidateRole(role); err != nil {
 		return User{}, err
 	}
 	if passwordHash == "" {
@@ -108,6 +139,7 @@ func NewUser(email, displayName, passwordHash string, now time.Time) (User, erro
 		ID:           NewID(),
 		Email:        email,
 		DisplayName:  displayName,
+		Role:         role,
 		PasswordHash: passwordHash,
 		CreatedAt:    now.UTC(),
 		UpdatedAt:    now.UTC(),

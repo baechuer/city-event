@@ -7,12 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrUnauthorized       = errors.New("unauthorized")
+	ErrForbidden          = errors.New("forbidden")
 	ErrTooManyAttempts    = errors.New("too many attempts")
 )
 
@@ -68,7 +70,8 @@ func (s *Service) Register(ctx context.Context, cmd RegisterCommand) (AuthResult
 	if err != nil {
 		return AuthResult{}, err
 	}
-	user, err := NewUser(email, displayName, hash, s.now())
+	role := identity.NormalizeRole(string(cmd.Role))
+	user, err := NewUser(email, displayName, role, hash, s.now())
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -76,6 +79,75 @@ func (s *Service) Register(ctx context.Context, cmd RegisterCommand) (AuthResult
 		return AuthResult{}, err
 	}
 	return s.issue(user)
+}
+
+func (s *Service) EnsureSeedAdmin(ctx context.Context, cmd SeedAdminCommand) (PublicUser, error) {
+	email := NormalizeEmail(cmd.Email)
+	displayName := strings.TrimSpace(cmd.DisplayName)
+	if displayName == "" {
+		displayName = "CityEvents Admin"
+	}
+	if err := ValidateEmail(email); err != nil {
+		return PublicUser{}, err
+	}
+	if err := ValidatePassword(cmd.Password); err != nil {
+		return PublicUser{}, err
+	}
+	if err := ValidateDisplayName(displayName); err != nil {
+		return PublicUser{}, err
+	}
+
+	existing, err := s.repo.FindUserByEmail(ctx, email)
+	if err == nil {
+		if existing.Role != identity.RoleAdmin {
+			existing, err = s.repo.UpdateUserRole(ctx, existing.ID, identity.RoleAdmin)
+			if err != nil {
+				return PublicUser{}, err
+			}
+		}
+		return existing.Public(), nil
+	}
+	if !errors.Is(err, ErrUserNotFound) {
+		return PublicUser{}, err
+	}
+
+	hash, err := s.hasher.Hash(cmd.Password)
+	if err != nil {
+		return PublicUser{}, err
+	}
+	admin, err := NewUser(email, displayName, identity.RoleAdmin, hash, s.now())
+	if err != nil {
+		return PublicUser{}, err
+	}
+	if err := s.repo.CreateUser(ctx, admin); err != nil {
+		return PublicUser{}, err
+	}
+	return admin.Public(), nil
+}
+
+func (s *Service) UpdateUserRole(ctx context.Context, cmd UpdateRoleCommand) (PublicUser, error) {
+	if strings.TrimSpace(cmd.ActorUserID) == "" || strings.TrimSpace(cmd.TargetUserID) == "" {
+		return PublicUser{}, ErrUnauthorized
+	}
+	role := identity.NormalizeRole(string(cmd.Role))
+	if err := ValidateRole(role); err != nil {
+		return PublicUser{}, err
+	}
+	actor, err := s.repo.FindUserByID(ctx, strings.TrimSpace(cmd.ActorUserID))
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return PublicUser{}, ErrUnauthorized
+		}
+		return PublicUser{}, err
+	}
+	if !identity.CanAdmin(actor.Role) {
+		return PublicUser{}, ErrForbidden
+	}
+	updated, err := s.repo.UpdateUserRole(ctx, strings.TrimSpace(cmd.TargetUserID), role)
+	if err != nil {
+		return PublicUser{}, err
+	}
+	return updated.Public(), nil
 }
 
 func (s *Service) Login(ctx context.Context, cmd LoginCommand) (AuthResult, error) {

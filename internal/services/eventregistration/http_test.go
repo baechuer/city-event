@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/config"
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 func TestEventHandlersWorkflow(t *testing.T) {
@@ -82,7 +83,12 @@ func TestEventHandlersValidationAndAuthorization(t *testing.T) {
 		t.Fatalf("create without user status = %d", unauthorized.Code)
 	}
 
-	invalid := doEventJSON(router, http.MethodPost, "/v1/events", `{"title":"","city":"Sydney","venue":"Town Hall","startsAt":"`+startsAt+`","capacity":10}`, "organizer-1", nil)
+	plainUser := doEventJSON(router, http.MethodPost, "/v1/events", body, "user-1", nil)
+	if plainUser.Code != http.StatusForbidden {
+		t.Fatalf("create as plain user status = %d", plainUser.Code)
+	}
+
+	invalid := doEventJSON(router, http.MethodPost, "/v1/events", `{"title":"","city":"Sydney","venue":"Town Hall","startsAt":"`+startsAt+`","capacity":10}`, "organizer-1", organizerHeaders())
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid create status = %d body=%s", invalid.Code, invalid.Body.String())
 	}
@@ -93,13 +99,20 @@ func TestEventHandlersValidationAndAuthorization(t *testing.T) {
 	if forbidden.Code != http.StatusForbidden {
 		t.Fatalf("non-organizer patch status = %d body=%s", forbidden.Code, forbidden.Body.String())
 	}
+
+	adminPatch := doEventJSON(router, http.MethodPatch, "/v1/events/"+created.Event.ID, patch, "admin-1", map[string]string{
+		identity.HeaderUserRole: string(identity.RoleAdmin),
+	})
+	if adminPatch.Code != http.StatusOK {
+		t.Fatalf("admin patch status = %d body=%s", adminPatch.Code, adminPatch.Body.String())
+	}
 }
 
 func TestEventHandlersListExcludesCanceledAndDetailIncludesViewerStatus(t *testing.T) {
 	router, _ := testEventRouter(t)
 	active := createEventViaHTTP(t, router, "organizer-1", 10)
 	canceled := createEventViaHTTP(t, router, "organizer-1", 10)
-	_ = doEventJSON(router, http.MethodPost, "/v1/events/"+canceled.Event.ID+"/cancel", "", "organizer-1", nil)
+	_ = doEventJSON(router, http.MethodPost, "/v1/events/"+canceled.Event.ID+"/cancel", "", "organizer-1", organizerHeaders())
 	_ = doEventJSON(router, http.MethodPost, "/v1/events/"+active.Event.ID+"/join", "", "viewer-1", nil)
 
 	list := doEventJSON(router, http.MethodGet, "/v1/events", "", "", nil)
@@ -123,7 +136,7 @@ func createEventViaHTTP(t *testing.T, router http.Handler, organizerID string, c
 	t.Helper()
 	startsAt := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
 	body := `{"title":"Tech Meetup","description":"Monthly meetup","city":"Sydney","venue":"Town Hall","startsAt":"` + startsAt + `","capacity":` + strconv.Itoa(capacity) + `}`
-	resp := doEventJSON(router, http.MethodPost, "/v1/events", body, organizerID, nil)
+	resp := doEventJSON(router, http.MethodPost, "/v1/events", body, organizerID, organizerHeaders())
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("create event status = %d body=%s", resp.Code, resp.Body.String())
 	}
@@ -150,7 +163,7 @@ func doEventJSON(handler http.Handler, method, path, body, userID string, header
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if userID != "" {
-		req.Header.Set("X-User-ID", userID)
+		req.Header.Set(identity.HeaderUserID, userID)
 	}
 	for key, value := range headers {
 		req.Header.Set(key, value)
@@ -158,6 +171,10 @@ func doEventJSON(handler http.Handler, method, path, body, userID string, header
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
+}
+
+func organizerHeaders() map[string]string {
+	return map[string]string{identity.HeaderUserRole: string(identity.RoleOrganizer)}
 }
 
 func decodeBody(t *testing.T, body []byte, target any) {

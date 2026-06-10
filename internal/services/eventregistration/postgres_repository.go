@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,7 +41,7 @@ func (r *PostgresRepository) CreateEvent(ctx context.Context, event Event) (Even
 	return r.GetEventDetail(ctx, event.ID, "")
 }
 
-func (r *PostgresRepository) UpdateEvent(ctx context.Context, eventID, organizerID string, cmd UpdateEventCommand, now time.Time) (EventDetail, error) {
+func (r *PostgresRepository) UpdateEvent(ctx context.Context, eventID, organizerID string, role identity.Role, cmd UpdateEventCommand, now time.Time) (EventDetail, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return EventDetail{}, err
@@ -51,7 +52,7 @@ func (r *PostgresRepository) UpdateEvent(ctx context.Context, eventID, organizer
 	if err != nil {
 		return EventDetail{}, err
 	}
-	if event.OrganizerID != organizerID {
+	if event.OrganizerID != organizerID && !identity.CanAdmin(role) {
 		return EventDetail{}, ErrForbidden
 	}
 	if event.Status == EventStatusCanceled {
@@ -104,7 +105,7 @@ func (r *PostgresRepository) UpdateEvent(ctx context.Context, eventID, organizer
 	return r.GetEventDetail(ctx, eventID, "")
 }
 
-func (r *PostgresRepository) CancelEvent(ctx context.Context, eventID, organizerID string, now time.Time) (EventDetail, error) {
+func (r *PostgresRepository) CancelEvent(ctx context.Context, eventID, organizerID string, role identity.Role, now time.Time) (EventDetail, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return EventDetail{}, err
@@ -115,7 +116,7 @@ func (r *PostgresRepository) CancelEvent(ctx context.Context, eventID, organizer
 	if err != nil {
 		return EventDetail{}, err
 	}
-	if event.OrganizerID != organizerID {
+	if event.OrganizerID != organizerID && !identity.CanAdmin(role) {
 		return EventDetail{}, ErrForbidden
 	}
 	if event.Status != EventStatusCanceled {
