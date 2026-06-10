@@ -131,10 +131,21 @@ if ($kubectl) {
     }
 
     if ($canReadKubeConfig) {
-        Write-Host "== kubectl client dry-run =="
-        Invoke-Checked "kubectl" @("apply", "--dry-run=client", "--validate=false", "-k", "deploy/kubernetes")
+        $previousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        & kubectl cluster-info --request-timeout=3s *> $null
+        $clusterInfoExitCode = $LASTEXITCODE
+        $ErrorActionPreference = $previousErrorActionPreference
+        if ($clusterInfoExitCode -eq 0) {
+            Write-Host "== kubectl client dry-run =="
+            Invoke-Checked "kubectl" @("apply", "--dry-run=client", "--validate=false", "-k", "deploy/kubernetes")
+        } else {
+            Write-Host "kubectl cluster is not reachable; skipped client dry-run."
+            $global:LASTEXITCODE = 0
+        }
     } else {
         Write-Host "kubectl config is not readable; skipped client dry-run."
+        $global:LASTEXITCODE = 0
     }
 } else {
     Write-Host "kubectl not found; skipped client dry-run."

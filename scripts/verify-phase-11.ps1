@@ -57,7 +57,7 @@ Require-Contains $readme "Phase 11" "README.md"
 Require-Contains $readme "documented HA deferral" "README.md"
 Require-Contains $readme "Verify High Availability Decision" "README.md"
 Require-Contains $readme "Not yet allowed" "README.md"
-Require-Contains $readme "Highly available Kubernetes deployment" "README.md"
+Require-Contains $readme "highly available Kubernetes deployment" "README.md"
 
 Require-Contains $deployReadme "They do not prove high availability" "deploy/kubernetes/README.md"
 Require-Contains $deployReadme "high-availability-decision.md" "deploy/kubernetes/README.md"

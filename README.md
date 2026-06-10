@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 11: high-availability decision and claim boundary. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, and a documented HA deferral.
+The current branch is in Phase 12: final evidence audit and resume framing. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, a documented HA deferral, and resume-safe claim guidance.
 
 ## Architecture Direction
 
@@ -31,6 +31,8 @@ Services emit correlation IDs, structured request logs, and basic Prometheus-sty
 Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, and resource limits. They do not prove high availability.
 
 High availability is intentionally documented as a later stage in `docs/architecture/high-availability-decision.md`.
+
+Final evidence and resume wording are documented in `docs/architecture/final-evidence-audit.md` and `docs/resume/resume-claims.md`.
 
 ## Local Requirements
 
@@ -209,6 +211,20 @@ Phase 11 verification keeps the project honest: it verifies the Kubernetes readi
 .\scripts\verify-phase-11.ps1
 ```
 
+## Verify Final Evidence Audit
+
+Phase 12 verification reruns the Kubernetes/HA claim gates and checks final resume evidence documents.
+
+```powershell
+.\scripts\verify-phase-12.ps1
+```
+
+For the strongest local evidence run, include full Docker-backed integration tests:
+
+```powershell
+.\scripts\verify-phase-12.ps1 -RunFullIntegration
+```
+
 ## Run Local Infrastructure
 
 ```powershell
@@ -274,16 +290,16 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 11 Claim Boundary
+## Phase 12 Claim Boundary
 
 Allowed claim:
 
 ```text
-Prepared Go microservices for Kubernetes deployment with health probes, configuration separation, resource limits, manifest validation, and documented high-availability requirements.
+Built a portfolio-grade Go microservices event platform with PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis feed caching, idempotent consumers, observability hooks, Kubernetes-ready manifests, and documented production/HA limitations.
 ```
 
 Not yet allowed:
 
 ```text
-Highly available Kubernetes deployment, autoscaling under load, production cluster deployment, HA RabbitMQ/Postgres/Redis, or failure-tested recovery.
+Exactly-once RabbitMQ consumption, guaranteed no message loss, highly available Kubernetes deployment, autoscaling under load, production cluster deployment, HA RabbitMQ/Postgres/Redis, or failure-tested recovery.
 ```
