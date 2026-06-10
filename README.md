@@ -54,10 +54,24 @@ Then open:
 http://127.0.0.1:18088
 ```
 
-The launcher starts Docker dependencies, builds and runs all Go services, starts the RabbitMQ workers, and serves the static frontend. Press `Ctrl-C` to stop the Go services and frontend. Docker dependencies are intentionally left running; stop them with:
+The launcher starts Docker dependencies, builds and runs all Go services, starts the RabbitMQ workers, and serves the static frontend. Press `Ctrl-C` to stop the Go services and frontend.
+
+From another terminal, stop the local app processes with:
 
 ```bash
-docker compose down
+./scripts/stop-local.sh
+```
+
+To also stop Docker Compose dependencies:
+
+```bash
+./scripts/stop-local.sh --with-infrastructure
+```
+
+To remove local Docker data too, including Postgres, RabbitMQ, Redis, and MinIO volumes:
+
+```bash
+./scripts/stop-local.sh --volumes
 ```
 
 For a non-interactive startup check:

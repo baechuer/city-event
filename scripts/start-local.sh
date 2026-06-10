@@ -55,7 +55,10 @@ setup_go_cache
 
 bin_dir="$REPO_ROOT/tmp/local-bin"
 logs_dir="$REPO_ROOT/tmp/local-logs"
-mkdir -p "$bin_dir" "$logs_dir"
+run_dir="$REPO_ROOT/tmp/local-run"
+pid_file="$run_dir/pids.tsv"
+mkdir -p "$bin_dir" "$logs_dir" "$run_dir"
+: >"$pid_file"
 
 postgres_url="postgres://cityevents:cityevents@localhost:5432/cityevents?sslmode=disable"
 rabbitmq_url="amqp://cityevents:cityevents@localhost:5672/"
@@ -146,6 +149,7 @@ cleanup() {
     fi
     cleanup_pid "${pids[$i]}"
   done
+  rm -f "$pid_file"
 }
 
 shutdown() {
@@ -164,6 +168,7 @@ record_pid() {
   pids+=("$pid")
   names+=("$name")
   log_files+=("$log_file")
+  printf '%s\t%s\t%s\n' "$name" "$pid" "$log_file" >>"$pid_file"
 }
 
 assert_process_running() {
@@ -317,7 +322,8 @@ Logs:
   $logs_dir
 
 Press Ctrl-C to stop the Go services and frontend.
-Docker dependencies are left running; stop them with: docker compose down
+From another terminal, stop the local app with: ./scripts/stop-local.sh
+Docker dependencies are left running; stop them too with: ./scripts/stop-local.sh --with-infrastructure
 EOF
 
 if [[ "$startup_check" == true ]]; then
