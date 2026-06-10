@@ -57,8 +57,10 @@ bin_dir="$REPO_ROOT/tmp/local-bin"
 logs_dir="$REPO_ROOT/tmp/local-logs"
 run_dir="$REPO_ROOT/tmp/local-run"
 pid_file="$run_dir/pids.tsv"
+launcher_pid_file="$run_dir/launcher.pid"
 mkdir -p "$bin_dir" "$logs_dir" "$run_dir"
 : >"$pid_file"
+printf '%s\n' "$$" >"$launcher_pid_file"
 
 postgres_url="postgres://cityevents:cityevents@localhost:5432/cityevents?sslmode=disable"
 rabbitmq_url="amqp://cityevents:cityevents@localhost:5672/"
@@ -134,6 +136,20 @@ wait_for_backend_http() {
   wait_for_http "$url" "$timeout_seconds"
 }
 
+is_git_bash() {
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+  esac
+  [[ -n "${MSYSTEM:-}" ]]
+}
+
+has_node_runtime() {
+  if command -v node >/dev/null 2>&1; then
+    return 0
+  fi
+  [[ -x "/mnt/c/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe" ]]
+}
+
 show_log_tail() {
   local name="$1"
   local file="$2"
@@ -149,7 +165,8 @@ cleanup() {
     fi
     cleanup_pid "${pids[$i]}"
   done
-  rm -f "$pid_file"
+  stop_frontend_servers_on_port "$frontend_port"
+  rm -f "$pid_file" "$launcher_pid_file"
 }
 
 shutdown() {
@@ -236,27 +253,80 @@ start_frontend() {
   : >"$log_file"
 
   log "Start frontend"
-  if command -v python3 >/dev/null 2>&1; then
-    (
-      cd "$REPO_ROOT/frontend"
-      python3 -m http.server "$frontend_port" --bind 127.0.0.1
-    ) >"$log_file" 2>&1 &
-  elif command -v python >/dev/null 2>&1; then
-    (
-      cd "$REPO_ROOT/frontend"
-      python -m http.server "$frontend_port" --bind 127.0.0.1
-    ) >"$log_file" 2>&1 &
-  else
-    (
-      cd "$REPO_ROOT"
-      run_node frontend/server.mjs "$frontend_port"
-    ) >"$log_file" 2>&1 &
+  if is_git_bash && has_node_runtime; then
+    if start_frontend_node "$log_file"; then
+      return 0
+    fi
   fi
-  local pid=$!
-  record_pid "frontend" "$pid" "$log_file"
-  sleep 0.4
-  assert_process_running "$((${#pids[@]} - 1))"
+
+  if command -v python3 >/dev/null 2>&1; then
+    if start_frontend_python "$log_file" python3; then
+      return 0
+    fi
+  fi
+
+  if command -v python >/dev/null 2>&1; then
+    if start_frontend_python "$log_file" python; then
+      return 0
+    fi
+  fi
+
+  if has_node_runtime; then
+    if start_frontend_node "$log_file"; then
+      return 0
+    fi
+  fi
+
+  show_log_tail "frontend" "$log_file"
+  die "frontend exited unexpectedly. If port $frontend_port is occupied, run ./scripts/stop-local.sh or choose another port with --frontend-port."
 }
+
+start_frontend_node() {
+  local log_file="$1"
+  echo "Starting frontend with Node: frontend/server.mjs $frontend_port" >>"$log_file"
+  (
+    cd "$REPO_ROOT"
+    run_node frontend/server.mjs "$frontend_port"
+  ) >>"$log_file" 2>&1 &
+  local pid=$!
+  if frontend_started "$pid" "$log_file"; then
+    return 0
+  fi
+  echo "Node frontend server exited during startup." >>"$log_file"
+  return 1
+}
+
+start_frontend_python() {
+  local log_file="$1"
+  local python_bin="$2"
+  echo "Starting frontend with $python_bin: -m http.server $frontend_port --bind 127.0.0.1" >>"$log_file"
+  (
+    cd "$REPO_ROOT/frontend"
+    "$python_bin" -m http.server "$frontend_port" --bind 127.0.0.1
+  ) >>"$log_file" 2>&1 &
+  local pid=$!
+  if frontend_started "$pid" "$log_file"; then
+    return 0
+  fi
+  echo "$python_bin frontend server exited during startup." >>"$log_file"
+  return 1
+}
+
+frontend_started() {
+  local pid="$1"
+  local log_file="$2"
+  sleep 0.8
+  if ! kill -0 "$pid" >/dev/null 2>&1; then
+    wait "$pid" >/dev/null 2>&1 || true
+    return 1
+  fi
+  record_pid "frontend" "$pid" "$log_file"
+  return 0
+}
+
+if wait_for_http "http://127.0.0.1:$frontend_port/" 1; then
+  die "frontend port $frontend_port is already serving HTTP. Run ./scripts/stop-local.sh or choose another port with --frontend-port."
+fi
 
 log "Start local infrastructure"
 run_docker compose up -d postgres rabbitmq redis minio mailpit

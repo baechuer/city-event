@@ -5,6 +5,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 stop_infrastructure=false
 remove_volumes=false
+frontend_port=18088
 
 usage() {
   cat <<'EOF'
@@ -13,6 +14,7 @@ Usage: ./scripts/stop-local.sh [options]
 Stops local CityEvents processes started by scripts/start-local.sh.
 
 Options:
+  --frontend-port PORT  Frontend port to clean stale local servers for. Default: 18088
   --with-infrastructure  Also run docker compose down
   --volumes              Also remove Docker Compose volumes; implies --with-infrastructure
   -h, --help             Show this help
@@ -24,6 +26,11 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --frontend-port)
+      [[ $# -ge 2 ]] || die "--frontend-port requires a value"
+      frontend_port="$2"
+      shift 2
+      ;;
     --with-infrastructure)
       stop_infrastructure=true
       shift
@@ -47,6 +54,7 @@ cd "$REPO_ROOT"
 
 run_dir="$REPO_ROOT/tmp/local-run"
 pid_file="$run_dir/pids.tsv"
+launcher_pid_file="$run_dir/launcher.pid"
 
 service_names=(
   "api-gateway"
@@ -93,6 +101,12 @@ stop_local_binary_by_path() {
   fi
 }
 
+if [[ -f "$launcher_pid_file" ]]; then
+  launcher_pid="$(tr -d '[:space:]' <"$launcher_pid_file")"
+  stop_pid "$launcher_pid" "launcher"
+  sleep 1
+fi
+
 if [[ -f "$pid_file" ]]; then
   mapfile -t tracked <"$pid_file"
   for (( i=${#tracked[@]} - 1; i >= 0; i-- )); do
@@ -102,13 +116,15 @@ if [[ -f "$pid_file" ]]; then
   done
   rm -f "$pid_file"
 else
-  echo "No launcher pid file found at $pid_file"
+  echo "No service pid file found at $pid_file"
 fi
 
 for service in "${service_names[@]}"; do
   stop_windows_service_image "$service"
   stop_local_binary_by_path "$service"
 done
+
+stop_frontend_servers_on_port "$frontend_port"
 
 if [[ "$stop_infrastructure" == true ]]; then
   if [[ "$remove_volumes" == true ]]; then

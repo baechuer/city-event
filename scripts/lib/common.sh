@@ -165,3 +165,10 @@ cleanup_pid() {
     wait "$pid" >/dev/null 2>&1 || true
   fi
 }
+
+stop_frontend_servers_on_port() {
+  local frontend_port="$1"
+  if command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command "\$port = '$frontend_port'; Get-CimInstance Win32_Process -Filter \"Name = 'node.exe' OR Name = 'python.exe' OR Name = 'python3.exe'\" | Where-Object { \$_.CommandLine -and ((\$_.CommandLine -match 'frontend[/\\\\]server\.mjs' -and \$_.CommandLine -match ('\\s' + \$port + '(\\s|\$)')) -or (\$_.CommandLine -match 'http\.server' -and \$_.CommandLine -match ('\\s' + \$port + '(\\s|\$)'))) } | ForEach-Object { Write-Output ('Stopping stale frontend server pid ' + \$_.ProcessId); Stop-Process -Id \$_.ProcessId -Force }" || true
+  fi
+}
