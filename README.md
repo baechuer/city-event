@@ -63,7 +63,15 @@ Then open:
 http://127.0.0.1:18088
 ```
 
-The launcher starts Docker dependencies, builds and runs all Go services, starts the RabbitMQ workers, and serves the static frontend. Press `Ctrl-C` to stop the Go services and frontend.
+The launcher starts Docker dependencies, builds and runs all Go services, starts the RabbitMQ workers, and serves the static frontend. The frontend receives runtime API configuration from `/config.js` and defaults to the local API gateway at `http://127.0.0.1:8080`. Press `Ctrl-C` to stop the Go services and frontend.
+
+To point the local frontend at a Kubernetes ingress or another gateway host:
+
+```bash
+CITYEVENTS_API_BASE=http://cityevents.local ./scripts/serve-frontend.sh
+```
+
+The frontend API methods append `/v1/...`, so the base should be the gateway or ingress origin, not a service-specific path.
 
 From another terminal, stop the local app processes with:
 

@@ -315,6 +315,7 @@ start_frontend_node() {
   echo "Starting frontend with Node: frontend/server.mjs $frontend_port" >>"$log_file"
   (
     cd "$REPO_ROOT"
+    export CITYEVENTS_API_BASE="${CITYEVENTS_API_BASE:-http://127.0.0.1:8080}"
     run_node frontend/server.mjs "$frontend_port"
   ) >>"$log_file" 2>&1 &
   local pid=$!

@@ -27,6 +27,31 @@ test('register stores auth result', async () => {
   assert.equal(calls[0].url, 'http://auth/v1/auth/register');
 });
 
+test('api base config fans out to gateway routes', async () => {
+  const calls = [];
+  const client = createApiClient({ apiBase: 'http://cityevents.local/' }, async (url, options) => {
+    calls.push({ url, options });
+    return response(200, { events: [] });
+  }, memoryStorage());
+  await client.listFeed('');
+  assert.equal(client.bases.feedBase, 'http://cityevents.local');
+  assert.equal(calls[0].url, 'http://cityevents.local/v1/feed/events?limit=20&offset=0');
+});
+
+test('service base override takes priority over api base', async () => {
+  const calls = [];
+  const client = createApiClient({
+    apiBase: 'http://gateway',
+    feedBase: 'http://feed-service/',
+  }, async (url, options) => {
+    calls.push({ url, options });
+    return response(200, { events: [] });
+  }, memoryStorage());
+  await client.listFeed('');
+  assert.equal(client.bases.feedBase, 'http://feed-service');
+  assert.equal(calls[0].url, 'http://feed-service/v1/feed/events?limit=20&offset=0');
+});
+
 test('event mutations use bearer token through gateway', async () => {
   const storage = memoryStorage();
   storage.setItem('cityevents.auth', JSON.stringify({ user: { id: 'user-1' }, accessToken: 'token-1' }));

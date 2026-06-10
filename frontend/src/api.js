@@ -5,7 +5,7 @@ const storageKeys = {
 };
 
 export function createApiClient(config = {}, fetchImpl = globalThis.fetch, storage = globalThis.localStorage) {
-  const bases = { ...defaultConfig, ...config };
+  const bases = resolveBases(config);
 
   async function request(base, path, options = {}) {
     const headers = { ...(options.headers || {}) };
@@ -125,4 +125,19 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
       });
     },
   };
+}
+
+function resolveBases(config = {}) {
+  const merged = { ...defaultConfig, ...config };
+  const apiBase = cleanBase(merged.apiBase);
+  return {
+    authBase: cleanBase(merged.authBase || apiBase),
+    eventBase: cleanBase(merged.eventBase || apiBase),
+    feedBase: cleanBase(merged.feedBase || apiBase),
+    mediaBase: cleanBase(merged.mediaBase || apiBase),
+  };
+}
+
+function cleanBase(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
 }

@@ -1,8 +1,9 @@
 export const defaultConfig = {
-  authBase: 'http://127.0.0.1:8080',
-  eventBase: 'http://127.0.0.1:8080',
-  feedBase: 'http://127.0.0.1:8080',
-  mediaBase: 'http://127.0.0.1:8080',
+  apiBase: '',
+  authBase: '',
+  eventBase: '',
+  feedBase: '',
+  mediaBase: '',
 };
 
 export const statusTone = {

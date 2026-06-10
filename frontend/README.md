@@ -1,6 +1,6 @@
 # CityEvents Frontend
 
-Phase 8 uses a dependency-free browser app because this workspace has Node available but no npm package manager.
+Phase 8 uses a dependency-free browser app.
 
 Run locally:
 
@@ -14,14 +14,21 @@ Then open:
 http://127.0.0.1:18088
 ```
 
-The app calls local services directly:
+The app calls the API gateway by default:
 
-- auth: `http://127.0.0.1:8081`
-- event registration: `http://127.0.0.1:8082`
-- feed: `http://127.0.0.1:8083`
-- media: `http://127.0.0.1:8085`
+```text
+http://127.0.0.1:18088 frontend
+  -> http://127.0.0.1:8080 api-gateway
+  -> internal services
+```
 
-The gateway/BFF remains a later hardening step.
+The frontend server emits `/config.js` at runtime. By default it sets all API bases to the local gateway. Override the target when serving the frontend:
+
+```bash
+CITYEVENTS_API_BASE=http://cityevents.local ./scripts/serve-frontend.sh
+```
+
+The app already appends `/v1/...`, so `CITYEVENTS_API_BASE` should be the gateway or ingress origin.
 
 For frontend-only static serving, after separately starting backend services:
 
