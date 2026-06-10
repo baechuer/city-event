@@ -2,6 +2,8 @@
 
 These manifests prepare CityEvents for Kubernetes deployment. They do not prove high availability.
 
+The current HA decision is documented in `../../docs/architecture/high-availability-decision.md`.
+
 ## Build Images
 
 Build one image per command using the shared Dockerfile:

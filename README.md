@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 10: Kubernetes readiness. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, and Kubernetes-ready manifests.
+The current branch is in Phase 11: high-availability decision and claim boundary. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, and a documented HA deferral.
 
 ## Architecture Direction
 
@@ -29,6 +29,8 @@ The frontend is a dependency-free browser app because this workspace has Node bu
 Services emit correlation IDs, structured request logs, and basic Prometheus-style metrics. This is not a full OpenTelemetry/Grafana stack yet.
 
 Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, and resource limits. They do not prove high availability.
+
+High availability is intentionally documented as a later stage in `docs/architecture/high-availability-decision.md`.
 
 ## Local Requirements
 
@@ -199,6 +201,14 @@ Phase 10 verification validates the local test suite, Docker Compose config, Kub
 .\scripts\verify-phase-10.ps1
 ```
 
+## Verify High Availability Decision
+
+Phase 11 verification keeps the project honest: it verifies the Kubernetes readiness evidence still passes and confirms the repository does not overclaim high availability.
+
+```powershell
+.\scripts\verify-phase-11.ps1
+```
+
 ## Run Local Infrastructure
 
 ```powershell
@@ -264,12 +274,12 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 10 Claim Boundary
+## Phase 11 Claim Boundary
 
 Allowed claim:
 
 ```text
-Containerized and prepared Go microservices for Kubernetes deployment with health probes, configuration separation, Secret templates, resource limits, and manifest validation.
+Prepared Go microservices for Kubernetes deployment with health probes, configuration separation, resource limits, manifest validation, and documented high-availability requirements.
 ```
 
 Not yet allowed:
