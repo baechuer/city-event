@@ -17,28 +17,31 @@ type ServiceDefinition struct {
 }
 
 type Config struct {
-	Service         ServiceDefinition
-	Environment     string
-	HTTPAddr        string
-	ShutdownTimeout time.Duration
-	PostgresURL     string
-	RabbitMQURL     string
-	RedisURL        string
-	MinIOEndpoint   string
-	MinIOAccessKey  string
-	MinIOSecretKey  string
-	MinIOBucket     string
-	SMTPAddr        string
-	JWTSecret       string
-	JWTIssuer       string
-	AccessTokenTTL  time.Duration
-	SeedAdminEmail  string
-	SeedAdminPass   string
-	SeedAdminName   string
-	AuthServiceURL  string
-	EventServiceURL string
-	FeedServiceURL  string
-	MediaServiceURL string
+	Service             ServiceDefinition
+	Environment         string
+	HTTPAddr            string
+	ShutdownTimeout     time.Duration
+	PostgresURL         string
+	RabbitMQURL         string
+	RedisURL            string
+	MinIOEndpoint       string
+	MinIOAccessKey      string
+	MinIOSecretKey      string
+	MinIOBucket         string
+	SMTPAddr            string
+	JWTSecret           string
+	JWTIssuer           string
+	AccessTokenTTL      time.Duration
+	RefreshTokenTTL     time.Duration
+	RefreshCookieSecure bool
+	AllowedOrigins      []string
+	SeedAdminEmail      string
+	SeedAdminPass       string
+	SeedAdminName       string
+	AuthServiceURL      string
+	EventServiceURL     string
+	FeedServiceURL      string
+	MediaServiceURL     string
 }
 
 var serviceDefinitions = []ServiceDefinition{
@@ -83,34 +86,45 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid SHUTDOWN_TIMEOUT: %w", err)
 	}
-	accessTokenTTL, err := parseDuration(env(getenv, "ACCESS_TOKEN_TTL", "1h"))
+	accessTokenTTL, err := parseDuration(env(getenv, "ACCESS_TOKEN_TTL", "15m"))
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid ACCESS_TOKEN_TTL: %w", err)
 	}
+	refreshTokenTTL, err := parseDuration(env(getenv, "REFRESH_TOKEN_TTL", "720h"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid REFRESH_TOKEN_TTL: %w", err)
+	}
+	refreshCookieSecure, err := parseBool(env(getenv, "REFRESH_COOKIE_SECURE", "false"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid REFRESH_COOKIE_SECURE: %w", err)
+	}
 
 	cfg := Config{
-		Service:         service,
-		Environment:     env(getenv, "CITYEVENTS_ENV", "local"),
-		HTTPAddr:        serviceEnv(getenv, service.Name, "HTTP_ADDR", env(getenv, "HTTP_ADDR", service.DefaultHTTPAddr)),
-		ShutdownTimeout: shutdownTimeout,
-		PostgresURL:     serviceEnv(getenv, service.Name, "POSTGRES_URL", env(getenv, "POSTGRES_URL", "postgres://cityevents:cityevents@localhost:5432/cityevents?sslmode=disable")),
-		RabbitMQURL:     env(getenv, "RABBITMQ_URL", "amqp://cityevents:cityevents@localhost:5672/"),
-		RedisURL:        env(getenv, "REDIS_URL", "redis://localhost:6379/0"),
-		MinIOEndpoint:   env(getenv, "MINIO_ENDPOINT", "http://localhost:9000"),
-		MinIOAccessKey:  env(getenv, "MINIO_ACCESS_KEY", "cityevents"),
-		MinIOSecretKey:  env(getenv, "MINIO_SECRET_KEY", "cityevents-password"),
-		MinIOBucket:     env(getenv, "MINIO_BUCKET", "cityevents-media"),
-		SMTPAddr:        env(getenv, "SMTP_ADDR", "localhost:1025"),
-		JWTSecret:       serviceEnv(getenv, service.Name, "JWT_SECRET", env(getenv, "JWT_SECRET", "dev-secret-change-me")),
-		JWTIssuer:       env(getenv, "JWT_ISSUER", "cityevents"),
-		AccessTokenTTL:  accessTokenTTL,
-		SeedAdminEmail:  env(getenv, "SEED_ADMIN_EMAIL", ""),
-		SeedAdminPass:   env(getenv, "SEED_ADMIN_PASSWORD", ""),
-		SeedAdminName:   env(getenv, "SEED_ADMIN_DISPLAY_NAME", "CityEvents Admin"),
-		AuthServiceURL:  env(getenv, "AUTH_SERVICE_URL", "http://127.0.0.1:8081"),
-		EventServiceURL: env(getenv, "EVENT_SERVICE_URL", "http://127.0.0.1:8082"),
-		FeedServiceURL:  env(getenv, "FEED_SERVICE_URL", "http://127.0.0.1:8083"),
-		MediaServiceURL: env(getenv, "MEDIA_SERVICE_URL", "http://127.0.0.1:8085"),
+		Service:             service,
+		Environment:         env(getenv, "CITYEVENTS_ENV", "local"),
+		HTTPAddr:            serviceEnv(getenv, service.Name, "HTTP_ADDR", env(getenv, "HTTP_ADDR", service.DefaultHTTPAddr)),
+		ShutdownTimeout:     shutdownTimeout,
+		PostgresURL:         serviceEnv(getenv, service.Name, "POSTGRES_URL", env(getenv, "POSTGRES_URL", "postgres://cityevents:cityevents@localhost:5432/cityevents?sslmode=disable")),
+		RabbitMQURL:         env(getenv, "RABBITMQ_URL", "amqp://cityevents:cityevents@localhost:5672/"),
+		RedisURL:            env(getenv, "REDIS_URL", "redis://localhost:6379/0"),
+		MinIOEndpoint:       env(getenv, "MINIO_ENDPOINT", "http://localhost:9000"),
+		MinIOAccessKey:      env(getenv, "MINIO_ACCESS_KEY", "cityevents"),
+		MinIOSecretKey:      env(getenv, "MINIO_SECRET_KEY", "cityevents-password"),
+		MinIOBucket:         env(getenv, "MINIO_BUCKET", "cityevents-media"),
+		SMTPAddr:            env(getenv, "SMTP_ADDR", "localhost:1025"),
+		JWTSecret:           serviceEnv(getenv, service.Name, "JWT_SECRET", env(getenv, "JWT_SECRET", "dev-secret-change-me")),
+		JWTIssuer:           env(getenv, "JWT_ISSUER", "cityevents"),
+		AccessTokenTTL:      accessTokenTTL,
+		RefreshTokenTTL:     refreshTokenTTL,
+		RefreshCookieSecure: refreshCookieSecure,
+		AllowedOrigins:      parseCSV(env(getenv, "CORS_ALLOWED_ORIGINS", "http://127.0.0.1:18088,http://localhost:18088,http://cityevents.local,https://cityevents.local")),
+		SeedAdminEmail:      env(getenv, "SEED_ADMIN_EMAIL", ""),
+		SeedAdminPass:       env(getenv, "SEED_ADMIN_PASSWORD", ""),
+		SeedAdminName:       env(getenv, "SEED_ADMIN_DISPLAY_NAME", "CityEvents Admin"),
+		AuthServiceURL:      env(getenv, "AUTH_SERVICE_URL", "http://127.0.0.1:8081"),
+		EventServiceURL:     env(getenv, "EVENT_SERVICE_URL", "http://127.0.0.1:8082"),
+		FeedServiceURL:      env(getenv, "FEED_SERVICE_URL", "http://127.0.0.1:8083"),
+		MediaServiceURL:     env(getenv, "MEDIA_SERVICE_URL", "http://127.0.0.1:8085"),
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -143,6 +157,9 @@ func (c Config) Validate() error {
 	}
 	if c.AccessTokenTTL <= 0 {
 		return fmt.Errorf("access token ttl must be positive")
+	}
+	if c.RefreshTokenTTL <= 0 {
+		return fmt.Errorf("refresh token ttl must be positive")
 	}
 	if c.MinIOEndpoint == "" {
 		return fmt.Errorf("minio endpoint is required")
@@ -195,6 +212,22 @@ func parseDuration(value string) (time.Duration, error) {
 		return time.Duration(seconds) * time.Second, nil
 	}
 	return time.ParseDuration(value)
+}
+
+func parseBool(value string) (bool, error) {
+	return strconv.ParseBool(strings.TrimSpace(value))
+}
+
+func parseCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func normalizeAddr(addr string) string {

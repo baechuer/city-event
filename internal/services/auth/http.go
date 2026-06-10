@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/health"
@@ -18,7 +19,10 @@ import (
 
 type Handler struct {
 	service *Service
+	cfg     config.Config
 }
+
+const refreshCookieName = "cityevents_refresh"
 
 func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (http.Handler, func(context.Context) error, error) {
 	pool, err := pgxpool.New(ctx, cfg.PostgresURL)
@@ -31,7 +35,7 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 	}
 
 	repo := NewPostgresRepository(pool)
-	service := NewDefaultService(repo, cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
+	service := NewDefaultServiceWithRefreshTTL(repo, cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
 	if cfg.SeedAdminEmail != "" || cfg.SeedAdminPass != "" {
 		admin, err := service.EnsureSeedAdmin(ctx, SeedAdminCommand{
 			Email:       cfg.SeedAdminEmail,
@@ -57,11 +61,12 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 
 func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) http.Handler {
 	r := httpapi.NewBaseRouter(cfg, logger)
-	handler := &Handler{service: service}
+	handler := &Handler{service: service, cfg: cfg}
 
 	r.Route("/v1/auth", func(r chi.Router) {
 		r.Post("/register", handler.register)
 		r.Post("/login", handler.login)
+		r.Post("/refresh", handler.refresh)
 		r.Get("/me", handler.me)
 		r.Post("/logout", handler.logout)
 		r.Patch("/users/{userID}/role", handler.updateRole)
@@ -86,6 +91,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, err)
 		return
 	}
+	h.setRefreshCookie(w, result)
 	health.WriteJSON(w, http.StatusCreated, result)
 }
 
@@ -101,6 +107,23 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, err)
 		return
 	}
+	h.setRefreshCookie(w, result)
+	health.WriteJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
+	refreshToken, ok := refreshTokenFromCookie(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	result, err := h.service.Refresh(r.Context(), refreshToken)
+	if err != nil {
+		h.clearRefreshCookie(w)
+		writeAuthError(w, err)
+		return
+	}
+	h.setRefreshCookie(w, result)
 	health.WriteJSON(w, http.StatusOK, result)
 }
 
@@ -120,16 +143,27 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
-	token, ok := bearerToken(r)
-	if !ok {
+	token, hasBearer := bearerToken(r)
+	refreshToken, hasRefresh := refreshTokenFromCookie(r)
+	if !hasBearer && !hasRefresh {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 		return
 	}
 
-	if err := h.service.Logout(r.Context(), token); err != nil {
+	var err error
+	if hasBearer {
+		err = h.service.Logout(r.Context(), token, refreshToken)
+		if errors.Is(err, ErrUnauthorized) && hasRefresh {
+			err = h.service.LogoutRefresh(r.Context(), refreshToken)
+		}
+	} else {
+		err = h.service.LogoutRefresh(r.Context(), refreshToken)
+	}
+	if err != nil {
 		writeAuthError(w, err)
 		return
 	}
+	h.clearRefreshCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -199,6 +233,47 @@ func bearerToken(r *http.Request) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSpace(token), true
+}
+
+func refreshTokenFromCookie(r *http.Request) (string, bool) {
+	cookie, err := r.Cookie(refreshCookieName)
+	if err != nil || strings.TrimSpace(cookie.Value) == "" {
+		return "", false
+	}
+	return strings.TrimSpace(cookie.Value), true
+}
+
+func (h *Handler) setRefreshCookie(w http.ResponseWriter, result AuthResult) {
+	if strings.TrimSpace(result.RefreshToken) == "" || result.RefreshExpiresAt.IsZero() {
+		return
+	}
+	maxAge := int(time.Until(result.RefreshExpiresAt).Seconds())
+	if maxAge < 0 {
+		maxAge = 0
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     refreshCookieName,
+		Value:    result.RefreshToken,
+		Path:     "/v1/auth",
+		HttpOnly: true,
+		Secure:   h.cfg.RefreshCookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  result.RefreshExpiresAt,
+		MaxAge:   maxAge,
+	})
+}
+
+func (h *Handler) clearRefreshCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     refreshCookieName,
+		Value:    "",
+		Path:     "/v1/auth",
+		HttpOnly: true,
+		Secure:   h.cfg.RefreshCookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
 }
 
 func writeAuthError(w http.ResponseWriter, err error) {

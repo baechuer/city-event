@@ -51,3 +51,19 @@ func TestValidateRole(t *testing.T) {
 		t.Fatalf("expected invalid role, got %v", err)
 	}
 }
+
+func TestRefreshTokenGenerationAndHashing(t *testing.T) {
+	token, hash, err := NewRefreshToken()
+	if err != nil {
+		t.Fatalf("new refresh token: %v", err)
+	}
+	if token == "" || hash == "" {
+		t.Fatalf("expected token and hash")
+	}
+	if token == hash {
+		t.Fatalf("raw refresh token should not equal stored hash")
+	}
+	if HashRefreshToken(token) != hash {
+		t.Fatalf("refresh token hash is not deterministic")
+	}
+}

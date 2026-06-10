@@ -8,8 +8,14 @@ metadata:
     app.kubernetes.io/component: api-gateway
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - cityevents.local
+      secretName: cityevents-tls
   rules:
     - host: cityevents.local
       http:

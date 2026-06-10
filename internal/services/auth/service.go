@@ -19,16 +19,19 @@ var (
 )
 
 type Service struct {
-	repo   Repository
-	hasher PasswordHasher
-	tokens TokenManager
-	guard  *LoginGuard
-	now    func() time.Time
+	repo            Repository
+	hasher          PasswordHasher
+	tokens          TokenManager
+	refreshTokenTTL time.Duration
+	guard           *LoginGuard
+	now             func() time.Time
 }
 
 type AuthResult struct {
-	User        PublicUser `json:"user"`
-	AccessToken string     `json:"accessToken"`
+	User             PublicUser `json:"user"`
+	AccessToken      string     `json:"accessToken"`
+	RefreshToken     string     `json:"-"`
+	RefreshExpiresAt time.Time  `json:"-"`
 }
 
 func NewService(repo Repository, hasher PasswordHasher, tokens TokenManager, guard *LoginGuard) *Service {
@@ -36,21 +39,28 @@ func NewService(repo Repository, hasher PasswordHasher, tokens TokenManager, gua
 		guard = NewLoginGuard(5, time.Minute)
 	}
 	return &Service{
-		repo:   repo,
-		hasher: hasher,
-		tokens: tokens,
-		guard:  guard,
-		now:    time.Now,
+		repo:            repo,
+		hasher:          hasher,
+		tokens:          tokens,
+		refreshTokenTTL: 30 * 24 * time.Hour,
+		guard:           guard,
+		now:             time.Now,
 	}
 }
 
 func NewDefaultService(repo Repository, jwtSecret, jwtIssuer string, accessTokenTTL time.Duration) *Service {
-	return NewService(
+	return NewDefaultServiceWithRefreshTTL(repo, jwtSecret, jwtIssuer, accessTokenTTL, 30*24*time.Hour)
+}
+
+func NewDefaultServiceWithRefreshTTL(repo Repository, jwtSecret, jwtIssuer string, accessTokenTTL, refreshTokenTTL time.Duration) *Service {
+	svc := NewService(
 		repo,
 		NewPasswordHasher(bcrypt.DefaultCost),
 		NewTokenManager(jwtSecret, jwtIssuer, accessTokenTTL),
 		NewLoginGuard(5, time.Minute),
 	)
+	svc.refreshTokenTTL = refreshTokenTTL
+	return svc
 }
 
 func (s *Service) Register(ctx context.Context, cmd RegisterCommand) (AuthResult, error) {
@@ -78,7 +88,7 @@ func (s *Service) Register(ctx context.Context, cmd RegisterCommand) (AuthResult
 	if err := s.repo.CreateUser(ctx, user); err != nil {
 		return AuthResult{}, err
 	}
-	return s.issue(user)
+	return s.issue(ctx, user)
 }
 
 func (s *Service) EnsureSeedAdmin(ctx context.Context, cmd SeedAdminCommand) (PublicUser, error) {
@@ -171,7 +181,7 @@ func (s *Service) Login(ctx context.Context, cmd LoginCommand) (AuthResult, erro
 	}
 
 	s.guard.Reset(email)
-	return s.issue(user)
+	return s.issue(ctx, user)
 }
 
 func (s *Service) CurrentUser(ctx context.Context, accessToken string) (PublicUser, error) {
@@ -197,20 +207,83 @@ func (s *Service) CurrentUser(ctx context.Context, accessToken string) (PublicUs
 	return user.Public(), nil
 }
 
-func (s *Service) Logout(ctx context.Context, accessToken string) error {
-	claims, err := s.tokens.Verify(accessToken)
-	if err != nil {
-		return ErrUnauthorized
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (AuthResult, error) {
+	refreshToken = strings.TrimSpace(refreshToken)
+	if refreshToken == "" {
+		return AuthResult{}, ErrUnauthorized
 	}
-	return s.repo.RevokeToken(ctx, claims.TokenID, claims.UserID, claims.ExpiresAt)
+	now := s.now().UTC()
+	nextRaw, nextHash, err := NewRefreshToken()
+	if err != nil {
+		return AuthResult{}, err
+	}
+	user, session, err := s.repo.RotateRefreshSession(ctx, HashRefreshToken(refreshToken), nextHash, now.Add(s.refreshTokenTTL), now)
+	if err != nil {
+		if errors.Is(err, ErrRefreshReuse) {
+			return AuthResult{}, ErrUnauthorized
+		}
+		return AuthResult{}, err
+	}
+	accessToken, _, err := s.tokens.Sign(user)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	return AuthResult{
+		User:             user.Public(),
+		AccessToken:      accessToken,
+		RefreshToken:     nextRaw,
+		RefreshExpiresAt: session.ExpiresAt,
+	}, nil
 }
 
-func (s *Service) issue(user User) (AuthResult, error) {
+func (s *Service) Logout(ctx context.Context, accessToken, refreshToken string) error {
+	if strings.TrimSpace(accessToken) != "" {
+		claims, err := s.tokens.Verify(accessToken)
+		if err != nil {
+			return ErrUnauthorized
+		}
+		if err := s.repo.RevokeToken(ctx, claims.TokenID, claims.UserID, claims.ExpiresAt); err != nil {
+			return err
+		}
+	}
+	return s.LogoutRefresh(ctx, refreshToken)
+}
+
+func (s *Service) LogoutRefresh(ctx context.Context, refreshToken string) error {
+	refreshToken = strings.TrimSpace(refreshToken)
+	if refreshToken == "" {
+		return nil
+	}
+	return s.repo.RevokeRefreshSession(ctx, HashRefreshToken(refreshToken), s.now().UTC())
+}
+
+func (s *Service) issue(ctx context.Context, user User) (AuthResult, error) {
 	token, _, err := s.tokens.Sign(user)
 	if err != nil {
 		return AuthResult{}, err
 	}
-	return AuthResult{User: user.Public(), AccessToken: token}, nil
+	refreshToken, refreshHash, err := NewRefreshToken()
+	if err != nil {
+		return AuthResult{}, err
+	}
+	now := s.now().UTC()
+	session := RefreshSession{
+		TokenHash: refreshHash,
+		UserID:    user.ID,
+		FamilyID:  NewID(),
+		ExpiresAt: now.Add(s.refreshTokenTTL),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.repo.CreateRefreshSession(ctx, session); err != nil {
+		return AuthResult{}, err
+	}
+	return AuthResult{
+		User:             user.Public(),
+		AccessToken:      token,
+		RefreshToken:     refreshToken,
+		RefreshExpiresAt: session.ExpiresAt,
+	}, nil
 }
 
 type LoginGuard struct {

@@ -3,7 +3,6 @@ import { canCancel, canJoin, canPublish, createInitialState, formatDateTime, sta
 
 const api = createApiClient(window.CITYEVENTS_CONFIG || {});
 const state = createInitialState();
-state.auth = api.loadAuth();
 state.feed.city = state.feed.city || 'Sydney';
 state.filters = { keyword: '', city: 'Sydney', category: '', date: 'any' };
 state.returnTo = '';
@@ -1193,7 +1192,17 @@ window.addEventListener('popstate', () => {
 });
 
 render();
-refreshFeed({ renderAfter: false }).finally(() => {
+bootstrap().finally(() => {
   render();
   syncRoute();
 });
+
+async function bootstrap() {
+  try {
+    state.auth = await api.refresh();
+  } catch {
+    api.clearAuth();
+    state.auth = api.loadAuth();
+  }
+  await refreshFeed({ renderAfter: false });
+}

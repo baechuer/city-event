@@ -31,6 +31,9 @@ func TestAuthHandlersWorkflow(t *testing.T) {
 		t.Fatalf("login status = %d body=%s", loginResp.Code, loginResp.Body.String())
 	}
 	loginToken := accessTokenFromBody(t, loginResp.Body.Bytes())
+	if cookie := refreshCookieFromRecorder(t, loginResp); !cookie.HttpOnly {
+		t.Fatalf("refresh cookie should be HttpOnly")
+	}
 
 	meResp := doJSON(router, http.MethodGet, "/v1/auth/me", "", loginToken)
 	if meResp.Code != http.StatusOK {
@@ -56,6 +59,37 @@ func TestAuthHandlersWorkflow(t *testing.T) {
 	revokedResp := doJSON(router, http.MethodGet, "/v1/auth/me", "", loginToken)
 	if revokedResp.Code != http.StatusUnauthorized {
 		t.Fatalf("revoked me status = %d body=%s token=%s", revokedResp.Code, revokedResp.Body.String(), token)
+	}
+}
+
+func TestAuthHandlersRefreshRotatesCookieAndRejectsReuse(t *testing.T) {
+	router, _ := testAuthRouter(t)
+
+	registerResp := doJSON(router, http.MethodPost, "/v1/auth/register", `{"email":"refresh@example.com","password":"StrongerPass123","displayName":"Refresh"}`, "")
+	if registerResp.Code != http.StatusCreated {
+		t.Fatalf("register status = %d body=%s", registerResp.Code, registerResp.Body.String())
+	}
+	firstCookie := refreshCookieFromRecorder(t, registerResp)
+
+	refreshResp := doJSONWithCookies(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{firstCookie})
+	if refreshResp.Code != http.StatusOK {
+		t.Fatalf("refresh status = %d body=%s", refreshResp.Code, refreshResp.Body.String())
+	}
+	rotatedCookie := refreshCookieFromRecorder(t, refreshResp)
+	if rotatedCookie.Value == firstCookie.Value {
+		t.Fatalf("refresh cookie was not rotated")
+	}
+	if token := accessTokenFromBody(t, refreshResp.Body.Bytes()); token == "" {
+		t.Fatalf("refresh did not return access token")
+	}
+
+	reuseResp := doJSONWithCookies(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{firstCookie})
+	if reuseResp.Code != http.StatusUnauthorized {
+		t.Fatalf("reused refresh status = %d body=%s", reuseResp.Code, reuseResp.Body.String())
+	}
+	afterReuseResp := doJSONWithCookies(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{rotatedCookie})
+	if afterReuseResp.Code != http.StatusUnauthorized {
+		t.Fatalf("rotated token after reuse status = %d body=%s", afterReuseResp.Code, afterReuseResp.Body.String())
 	}
 }
 
@@ -172,6 +206,10 @@ func testAuthRouterWithService(t *testing.T) (http.Handler, *MemoryRepository, *
 }
 
 func doJSON(handler http.Handler, method, path, body, token string) *httptest.ResponseRecorder {
+	return doJSONWithCookies(handler, method, path, body, token, nil)
+}
+
+func doJSONWithCookies(handler http.Handler, method, path, body, token string, cookies []*http.Cookie) *httptest.ResponseRecorder {
 	var requestBody *bytes.Reader
 	if body == "" {
 		requestBody = bytes.NewReader(nil)
@@ -184,6 +222,9 @@ func doJSON(handler http.Handler, method, path, body, token string) *httptest.Re
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
 	}
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -211,4 +252,15 @@ func decodeJSONBody(t *testing.T, body []byte, target any) {
 	if err := json.Unmarshal(body, target); err != nil {
 		t.Fatalf("decode JSON body %s: %v", string(body), err)
 	}
+}
+
+func refreshCookieFromRecorder(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
+	t.Helper()
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.Name == refreshCookieName {
+			return cookie
+		}
+	}
+	t.Fatalf("missing refresh cookie in response headers: %v", rec.Header().Values("Set-Cookie"))
+	return nil
 }

@@ -26,6 +26,7 @@ func TestPostgresRepositoryUserAndRevocation(t *testing.T) {
 		ID:           NewID(),
 		Email:        "repo@example.com",
 		DisplayName:  "Repo User",
+		Role:         identity.RoleUser,
 		PasswordHash: "hash",
 		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now().UTC(),
@@ -73,6 +74,36 @@ func TestPostgresRepositoryUserAndRevocation(t *testing.T) {
 	}
 	if !revoked {
 		t.Fatalf("expected token to be revoked")
+	}
+
+	rawRefresh, refreshHash, err := NewRefreshToken()
+	if err != nil {
+		t.Fatalf("new refresh token: %v", err)
+	}
+	session := RefreshSession{
+		TokenHash: refreshHash,
+		UserID:    user.ID,
+		FamilyID:  NewID(),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	if err := repo.CreateRefreshSession(ctx, session); err != nil {
+		t.Fatalf("create refresh session: %v", err)
+	}
+	nextRaw, nextHash, err := NewRefreshToken()
+	if err != nil {
+		t.Fatalf("new next refresh token: %v", err)
+	}
+	_, rotated, err := repo.RotateRefreshSession(ctx, HashRefreshToken(rawRefresh), nextHash, time.Now().Add(24*time.Hour), time.Now())
+	if err != nil {
+		t.Fatalf("rotate refresh session: %v", err)
+	}
+	if rotated.TokenHash != nextHash || nextRaw == rawRefresh {
+		t.Fatalf("unexpected rotated session: %+v", rotated)
+	}
+	if _, _, err := repo.RotateRefreshSession(ctx, HashRefreshToken(rawRefresh), "new-hash", time.Now().Add(24*time.Hour), time.Now()); !errors.Is(err, ErrRefreshReuse) {
+		t.Fatalf("expected refresh reuse detection, got %v", err)
 	}
 }
 
@@ -132,7 +163,7 @@ func setupAuthPostgres(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		t.Fatalf("ping postgres: %v", err)
 	}
 
-	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS revoked_tokens; DROP TABLE IF EXISTS auth_users;`); err != nil {
+	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS refresh_tokens; DROP TABLE IF EXISTS revoked_tokens; DROP TABLE IF EXISTS auth_users;`); err != nil {
 		t.Fatalf("reset auth tables: %v", err)
 	}
 

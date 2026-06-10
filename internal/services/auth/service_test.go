@@ -46,14 +46,48 @@ func TestServiceRegisterLoginCurrentLogoutWorkflow(t *testing.T) {
 		t.Fatalf("current user role = %q, want USER", current.Role)
 	}
 
-	if err := svc.Logout(ctx, loggedIn.AccessToken); err != nil {
+	if err := svc.Logout(ctx, loggedIn.AccessToken, loggedIn.RefreshToken); err != nil {
 		t.Fatalf("logout: %v", err)
 	}
-	if err := svc.Logout(ctx, loggedIn.AccessToken); err != nil {
+	if err := svc.Logout(ctx, loggedIn.AccessToken, ""); err != nil {
 		t.Fatalf("second logout should be safe: %v", err)
 	}
 	if _, err := svc.CurrentUser(ctx, loggedIn.AccessToken); !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("expected revoked token to be unauthorized, got %v", err)
+	}
+}
+
+func TestServiceRefreshRotatesTokenAndDetectsReuse(t *testing.T) {
+	svc, _ := testService()
+	ctx := context.Background()
+
+	registered, err := svc.Register(ctx, RegisterCommand{
+		Email:       "refresh@example.com",
+		Password:    "StrongerPass123",
+		DisplayName: "Refresh User",
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if registered.RefreshToken == "" {
+		t.Fatalf("expected refresh token")
+	}
+
+	refreshed, err := svc.Refresh(ctx, registered.RefreshToken)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if refreshed.AccessToken == "" || refreshed.RefreshToken == "" {
+		t.Fatalf("expected rotated access and refresh tokens")
+	}
+	if refreshed.RefreshToken == registered.RefreshToken {
+		t.Fatalf("refresh token was not rotated")
+	}
+	if _, err := svc.Refresh(ctx, registered.RefreshToken); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expected reused refresh token to be unauthorized, got %v", err)
+	}
+	if _, err := svc.Refresh(ctx, refreshed.RefreshToken); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expected token family to be revoked after reuse, got %v", err)
 	}
 }
 

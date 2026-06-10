@@ -25,6 +25,15 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.PostgresURL == "" || cfg.RabbitMQURL == "" || cfg.RedisURL == "" {
 		t.Fatalf("expected dependency defaults to be set")
 	}
+	if cfg.AccessTokenTTL != 15*time.Minute {
+		t.Fatalf("access token ttl = %s, want 15m", cfg.AccessTokenTTL)
+	}
+	if cfg.RefreshTokenTTL != 720*time.Hour {
+		t.Fatalf("refresh token ttl = %s, want 720h", cfg.RefreshTokenTTL)
+	}
+	if cfg.RefreshCookieSecure {
+		t.Fatalf("refresh cookie should not be secure by default for local HTTP")
+	}
 	if cfg.AuthServiceURL != "http://127.0.0.1:8081" || cfg.EventServiceURL != "http://127.0.0.1:8082" {
 		t.Fatalf("expected local service URL defaults, got auth=%q event=%q", cfg.AuthServiceURL, cfg.EventServiceURL)
 	}
@@ -41,6 +50,10 @@ func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 		"MINIO_ENDPOINT":              "http://localhost:9000",
 		"SMTP_ADDR":                   "localhost:1025",
 		"SHUTDOWN_TIMEOUT":            "5s",
+		"ACCESS_TOKEN_TTL":            "10m",
+		"REFRESH_TOKEN_TTL":           "168h",
+		"REFRESH_COOKIE_SECURE":       "true",
+		"CORS_ALLOWED_ORIGINS":        "https://cityevents.example,http://localhost:18088",
 		"UNRELATED_SERVICE_HTTP_ADDR": ":9200",
 	}
 
@@ -54,6 +67,12 @@ func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 	}
 	if cfg.Environment != "test" {
 		t.Fatalf("expected test environment, got %q", cfg.Environment)
+	}
+	if cfg.AccessTokenTTL != 10*time.Minute || cfg.RefreshTokenTTL != 168*time.Hour || !cfg.RefreshCookieSecure {
+		t.Fatalf("unexpected token config: access=%s refresh=%s secure=%v", cfg.AccessTokenTTL, cfg.RefreshTokenTTL, cfg.RefreshCookieSecure)
+	}
+	if len(cfg.AllowedOrigins) != 2 || cfg.AllowedOrigins[0] != "https://cityevents.example" {
+		t.Fatalf("unexpected allowed origins: %+v", cfg.AllowedOrigins)
 	}
 }
 
@@ -70,6 +89,19 @@ func TestLoadRejectsInvalidTimeout(t *testing.T) {
 	}))
 	if err == nil {
 		t.Fatalf("expected invalid timeout error")
+	}
+}
+
+func TestLoadRejectsInvalidRefreshConfig(t *testing.T) {
+	if _, err := Load("auth-service", mapGetenv(map[string]string{
+		"REFRESH_TOKEN_TTL": "not-a-duration",
+	})); err == nil {
+		t.Fatalf("expected invalid refresh ttl error")
+	}
+	if _, err := Load("auth-service", mapGetenv(map[string]string{
+		"REFRESH_COOKIE_SECURE": "not-a-bool",
+	})); err == nil {
+		t.Fatalf("expected invalid refresh cookie secure error")
 	}
 }
 

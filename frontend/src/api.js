@@ -6,13 +6,23 @@ const storageKeys = {
 
 export function createApiClient(config = {}, fetchImpl = globalThis.fetch, storage = globalThis.localStorage) {
   const bases = resolveBases(config);
+  let memoryAuth = { user: null, accessToken: '' };
 
   async function request(base, path, options = {}) {
+    const { retryOnUnauthorized = false, ...fetchOptions } = options;
     const headers = { ...(options.headers || {}) };
     if (options.body && !headers['Content-Type']) {
       headers['Content-Type'] = 'application/json';
     }
-    const response = await fetchImpl(base + path, { ...options, headers });
+    const response = await fetchImpl(base + path, { ...fetchOptions, credentials: 'include', headers });
+    if (response.status === 401 && retryOnUnauthorized) {
+      await refresh();
+      return request(base, path, {
+        ...options,
+        headers: { ...(options.headers || {}), ...authHeaders() },
+        retryOnUnauthorized: false,
+      });
+    }
     if (response.status === 204) {
       return null;
     }
@@ -26,21 +36,17 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
 
   function saveAuth(result) {
     const auth = normalizeAuthResult(result);
-    storage?.setItem?.(storageKeys.auth, JSON.stringify(auth));
+    memoryAuth = auth;
+    storage?.removeItem?.(storageKeys.auth);
     return auth;
   }
 
   function loadAuth() {
-    const raw = storage?.getItem?.(storageKeys.auth);
-    if (!raw) return { user: null, accessToken: '' };
-    try {
-      return normalizeAuthResult(JSON.parse(raw));
-    } catch {
-      return { user: null, accessToken: '' };
-    }
+    return memoryAuth;
   }
 
   function clearAuth() {
+    memoryAuth = { user: null, accessToken: '' };
     storage?.removeItem?.(storageKeys.auth);
   }
 
@@ -64,8 +70,11 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
         body: JSON.stringify(data),
       }));
     },
+    async refresh() {
+      return refresh();
+    },
     async me() {
-      const payload = await request(bases.authBase, '/v1/auth/me', { headers: authHeaders() });
+      const payload = await request(bases.authBase, '/v1/auth/me', { headers: authHeaders(), retryOnUnauthorized: true });
       return payload.user;
     },
     async logout() {
@@ -80,6 +89,7 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ role }),
+        retryOnUnauthorized: true,
       });
     },
     listFeed(city = '') {
@@ -90,6 +100,7 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
     getEvent(eventID) {
       return request(bases.eventBase, `/v1/events/${encodeURIComponent(eventID)}`, {
         headers: authHeaders(),
+        retryOnUnauthorized: true,
       });
     },
     createEvent(data) {
@@ -97,24 +108,28 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify(data),
+        retryOnUnauthorized: true,
       });
     },
     joinEvent(eventID) {
       return request(bases.eventBase, `/v1/events/${encodeURIComponent(eventID)}/join`, {
         method: 'POST',
         headers: authHeaders(),
+        retryOnUnauthorized: true,
       });
     },
     cancelJoin(eventID) {
       return request(bases.eventBase, `/v1/events/${encodeURIComponent(eventID)}/join`, {
         method: 'DELETE',
         headers: authHeaders(),
+        retryOnUnauthorized: true,
       });
     },
     cancelRegistration(eventID, userID) {
       return request(bases.eventBase, `/v1/events/${encodeURIComponent(eventID)}/registrations/${encodeURIComponent(userID)}`, {
         method: 'DELETE',
         headers: authHeaders(),
+        retryOnUnauthorized: true,
       });
     },
     createUpload(data) {
@@ -122,9 +137,17 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify(data),
+        retryOnUnauthorized: true,
       });
     },
   };
+
+  async function refresh() {
+    return saveAuth(await request(bases.authBase, '/v1/auth/refresh', {
+      method: 'POST',
+      retryOnUnauthorized: false,
+    }));
+  }
 }
 
 function resolveBases(config = {}) {

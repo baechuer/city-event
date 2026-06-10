@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 12: final evidence audit and resume framing. It contains the Go service foundation, auth service, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, a documented HA deferral, and resume-safe claim guidance.
+The current branch is in Phase 12: final evidence audit and resume framing. It contains the Go service foundation, auth service with short-lived JWT access tokens and rotating HttpOnly refresh tokens, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, a documented HA deferral, and resume-safe claim guidance.
 
 ## Architecture Direction
 
@@ -64,6 +64,8 @@ http://127.0.0.1:18088
 ```
 
 The launcher starts Docker dependencies, builds and runs all Go services, starts the RabbitMQ workers, and serves the static frontend. The frontend receives runtime API configuration from `/config.js` and defaults to the local API gateway at `http://127.0.0.1:8080`. Press `Ctrl-C` to stop the Go services and frontend.
+
+Auth uses a 15-minute JWT access token kept in browser memory and a rotating opaque refresh token stored as an HttpOnly cookie. The refresh-token hash and token-family state are stored in Postgres.
 
 To point the local frontend at a Kubernetes ingress or another gateway host:
 
@@ -356,7 +358,7 @@ unset CITYEVENTS_STARTUP_CHECK_ONLY
 Allowed claim:
 
 ```text
-Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis feed caching, idempotent consumers, observability hooks, Kubernetes-ready manifests, and documented production/HA limitations.
+Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis feed caching, idempotent consumers, observability hooks, Kubernetes-ready manifests, and documented production/HA limitations.
 ```
 
 Not yet allowed:

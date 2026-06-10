@@ -63,6 +63,10 @@ require_contains deploy/kubernetes/secret.example.yaml "JWT_SECRET"
 require_contains deploy/kubernetes/secret.example.yaml "SEED_ADMIN_EMAIL"
 require_contains deploy/kubernetes/ingress.yaml "name: cityevents-api"
 require_contains deploy/kubernetes/ingress.yaml "name: api-gateway"
+require_contains deploy/kubernetes/ingress.yaml "secretName: cityevents-tls"
+require_contains deploy/kubernetes/ingress.yaml "nginx.ingress.kubernetes.io/ssl-redirect"
+require_contains deploy/kubernetes/configmap.yaml "ACCESS_TOKEN_TTL: 15m"
+require_contains deploy/kubernetes/configmap.yaml "REFRESH_COOKIE_SECURE"
 
 if command -v kubectl >/dev/null 2>&1; then
   log "kubectl kustomize"

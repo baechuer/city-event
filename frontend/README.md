@@ -30,6 +30,8 @@ CITYEVENTS_API_BASE=http://cityevents.local ./scripts/serve-frontend.sh
 
 The app already appends `/v1/...`, so `CITYEVENTS_API_BASE` should be the gateway or ingress origin.
 
+Access tokens are kept in browser memory only. Page reload calls `/v1/auth/refresh`; the refresh token is an HttpOnly cookie set by the auth service.
+
 For frontend-only static serving, after separately starting backend services:
 
 ```bash

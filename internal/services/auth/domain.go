@@ -2,6 +2,8 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"net/mail"
@@ -33,6 +35,17 @@ type PublicUser struct {
 	Email       string `json:"email"`
 	DisplayName string `json:"displayName"`
 	Role        string `json:"role"`
+}
+
+type RefreshSession struct {
+	TokenHash      string
+	UserID         string
+	FamilyID       string
+	ReplacedByHash string
+	ExpiresAt      time.Time
+	RevokedAt      *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type RegisterCommand struct {
@@ -156,4 +169,18 @@ func NewID() string {
 
 	encoded := hex.EncodeToString(bytes[:])
 	return encoded[0:8] + "-" + encoded[8:12] + "-" + encoded[12:16] + "-" + encoded[16:20] + "-" + encoded[20:32]
+}
+
+func NewRefreshToken() (string, string, error) {
+	var bytes [32]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		return "", "", err
+	}
+	token := base64.RawURLEncoding.EncodeToString(bytes[:])
+	return token, HashRefreshToken(token), nil
+}
+
+func HashRefreshToken(token string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
 }

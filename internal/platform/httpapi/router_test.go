@@ -74,14 +74,18 @@ func TestCORSPreflight(t *testing.T) {
 	router := NewRouter(cfg, nil)
 
 	req := httptest.NewRequest(http.MethodOptions, "/v1/events", nil)
+	req.Header.Set("Origin", "http://127.0.0.1:18088")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("preflight returned %d, want 204", rec.Code)
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://127.0.0.1:18088" {
 		t.Fatalf("allow origin = %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("allow credentials = %q", got)
 	}
 	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-User-ID") {
 		t.Fatalf("allow headers = %q", got)
