@@ -8,7 +8,7 @@ The current HA decision is documented in `../../docs/architecture/high-availabil
 
 Build one image per command using the shared Dockerfile:
 
-```powershell
+```bash
 docker build --build-arg SERVICE=api-gateway -t cityevents/api-gateway:dev .
 docker build --build-arg SERVICE=auth-service -t cityevents/auth-service:dev .
 docker build --build-arg SERVICE=event-registration-service -t cityevents/event-registration-service:dev .
@@ -25,7 +25,7 @@ docker build --build-arg SERVICE=outbox-relay -t cityevents/outbox-relay:dev .
 
 Replace `secret.example.yaml` values before any real deployment.
 
-```powershell
+```bash
 kubectl apply -k deploy/kubernetes
 ```
 

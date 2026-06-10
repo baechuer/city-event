@@ -38,32 +38,33 @@ Final evidence and resume wording are documented in `docs/architecture/final-evi
 
 - Go 1.25.5
 - Docker Desktop with Docker Compose v2
+- Bash, such as Git Bash or WSL on Windows
 
 ## Verify Foundation
 
-```powershell
+```bash
 go test ./...
 docker compose config --quiet
 ```
 
 Or run the Phase 1 verification script:
 
-```powershell
-.\scripts\verify-phase-1.ps1
+```bash
+./scripts/verify-phase-1.sh
 ```
 
 To also start local infrastructure when Docker Desktop is running:
 
-```powershell
-.\scripts\verify-phase-1.ps1 -StartInfrastructure
+```bash
+./scripts/verify-phase-1.sh --start-infrastructure
 ```
 
 ## Verify Auth Service
 
 Phase 2 auth verification requires Postgres from Docker Compose.
 
-```powershell
-.\scripts\verify-phase-2.ps1
+```bash
+./scripts/verify-phase-2.sh
 ```
 
 This runs:
@@ -76,8 +77,8 @@ This runs:
 
 Phase 3 event-registration verification requires Postgres from Docker Compose.
 
-```powershell
-.\scripts\verify-phase-3.ps1
+```bash
+./scripts/verify-phase-3.sh
 ```
 
 This runs:
@@ -90,8 +91,8 @@ This runs:
 
 Phase 4 verification requires Postgres and RabbitMQ from Docker Compose.
 
-```powershell
-.\scripts\verify-phase-4.ps1
+```bash
+./scripts/verify-phase-4.sh
 ```
 
 This runs:
@@ -106,8 +107,8 @@ This runs:
 
 Phase 5 verification requires Postgres, RabbitMQ, and Redis from Docker Compose because the full integration suite includes earlier async tests too.
 
-```powershell
-.\scripts\verify-phase-5.ps1
+```bash
+./scripts/verify-phase-5.sh
 ```
 
 This runs:
@@ -122,8 +123,8 @@ This runs:
 
 Phase 6 verification requires Postgres, RabbitMQ, Redis, and Mailpit from Docker Compose because the full integration suite includes earlier phases and local SMTP delivery.
 
-```powershell
-.\scripts\verify-phase-6.ps1
+```bash
+./scripts/verify-phase-6.sh
 ```
 
 This runs:
@@ -140,8 +141,8 @@ This runs:
 
 Phase 7 verification requires Postgres, RabbitMQ, Redis, MinIO, and Mailpit from Docker Compose because the full integration suite includes earlier phases too.
 
-```powershell
-.\scripts\verify-phase-7.ps1
+```bash
+./scripts/verify-phase-7.sh
 ```
 
 This runs:
@@ -157,8 +158,8 @@ This runs:
 
 ## Verify Frontend Product Demo
 
-```powershell
-.\scripts\verify-phase-8.ps1
+```bash
+./scripts/verify-phase-8.sh
 ```
 
 This runs:
@@ -169,8 +170,8 @@ This runs:
 
 To run the browser demo:
 
-```powershell
-.\scripts\serve-frontend.ps1
+```bash
+./scripts/serve-frontend.sh
 ```
 
 Then open:
@@ -183,8 +184,8 @@ http://127.0.0.1:18088
 
 Phase 9 verification requires the full local dependency stack because it reruns the integration suite and checks the debugging walkthrough.
 
-```powershell
-.\scripts\verify-phase-9.ps1
+```bash
+./scripts/verify-phase-9.sh
 ```
 
 This runs:
@@ -199,35 +200,35 @@ This runs:
 
 Phase 10 verification validates the local test suite, Docker Compose config, Kubernetes manifest coverage, probes, resource limits, and optional `kubectl` dry-run when `kubectl` is available.
 
-```powershell
-.\scripts\verify-phase-10.ps1
+```bash
+./scripts/verify-phase-10.sh
 ```
 
 ## Verify High Availability Decision
 
 Phase 11 verification keeps the project honest: it verifies the Kubernetes readiness evidence still passes and confirms the repository does not overclaim high availability.
 
-```powershell
-.\scripts\verify-phase-11.ps1
+```bash
+./scripts/verify-phase-11.sh
 ```
 
 ## Verify Final Evidence Audit
 
 Phase 12 verification reruns the Kubernetes/HA claim gates and checks final resume evidence documents.
 
-```powershell
-.\scripts\verify-phase-12.ps1
+```bash
+./scripts/verify-phase-12.sh
 ```
 
 For the strongest local evidence run, include full Docker-backed integration tests:
 
-```powershell
-.\scripts\verify-phase-12.ps1 -RunFullIntegration
+```bash
+./scripts/verify-phase-12.sh --run-full-integration
 ```
 
 ## Run Local Infrastructure
 
-```powershell
+```bash
 docker compose up -d
 docker compose ps
 ```
@@ -254,7 +255,7 @@ Default local credentials are for development only:
 
 Each service exposes `/livez` and `/readyz`.
 
-```powershell
+```bash
 go run ./cmd/api-gateway
 go run ./cmd/auth-service
 go run ./cmd/event-registration-service
@@ -278,8 +279,8 @@ Default service ports:
 
 For startup wiring checks that exit immediately:
 
-```powershell
-$env:CITYEVENTS_STARTUP_CHECK_ONLY='true'
+```bash
+export CITYEVENTS_STARTUP_CHECK_ONLY=true
 go run ./cmd/api-gateway
 go run ./cmd/auth-service
 go run ./cmd/event-registration-service
@@ -287,7 +288,7 @@ go run ./cmd/feed-service
 go run ./cmd/notification-service
 go run ./cmd/media-service
 go run ./cmd/media-worker
-Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
+unset CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
 ## Phase 12 Claim Boundary

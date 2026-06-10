@@ -19,7 +19,7 @@ Implemented and verified today:
 - HTTP services expose `/livez` and `/readyz`.
 - Kubernetes Deployments define liveness probes, readiness probes, and resource requests/limits.
 - ConfigMaps and Secret templates separate configuration from code.
-- Phase 10 manifest validation passes through `scripts/verify-phase-10.ps1`.
+- Phase 10 manifest validation passes through `scripts/verify-phase-10.sh`.
 
 This evidence supports:
 

@@ -68,7 +68,7 @@ Do not say:
 | local notifications | Mailpit SMTP integration and provider failure tests |
 | media processing | MinIO integration and worker failure tests |
 | observability | correlation ID middleware, metrics endpoint, debugging walkthrough |
-| Kubernetes readiness | `deploy/kubernetes/`, `scripts/verify-phase-10.ps1`, `scripts/verify-phase-11.ps1` |
+| Kubernetes readiness | `deploy/kubernetes/`, `scripts/verify-phase-10.sh`, `scripts/verify-phase-11.sh` |
 
 ## Current Limitation Statement
 

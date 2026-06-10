@@ -36,7 +36,7 @@ The rebuilt architecture uses:
 | Notification side effects | Supported locally | notification decision tests, idempotent repository tests, provider failure tests, Mailpit SMTP integration |
 | Media worker | Supported locally | metadata repository tests, MinIO integration, worker state transition tests, failure-state tests |
 | Observability/debugging | Supported as basic observability | correlation IDs, structured request logs, `/metrics`, outbox correlation propagation, debugging walkthrough |
-| Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/probes/resource limits, `scripts/verify-phase-10.ps1` |
+| Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/probes/resource limits, `scripts/verify-phase-10.sh` |
 | High availability | Deferred | `docs/architecture/high-availability-decision.md`; manifests are single-replica and dependencies are not HA |
 | Production deployment | Not supported | no verified live cluster, ingress, TLS, managed secrets, production database, or failure-test evidence |
 
@@ -44,19 +44,19 @@ The rebuilt architecture uses:
 
 Minimum local verification:
 
-```powershell
+```bash
 go test ./...
 docker compose config --quiet
-.\scripts\verify-phase-10.ps1
-.\scripts\verify-phase-11.ps1
-.\scripts\verify-phase-12.ps1
+./scripts/verify-phase-10.sh
+./scripts/verify-phase-11.sh
+./scripts/verify-phase-12.sh
 ```
 
 Full local integration verification when Docker dependencies are available:
 
-```powershell
-.\scripts\verify-phase-9.ps1
-.\scripts\verify-phase-12.ps1 -RunFullIntegration
+```bash
+./scripts/verify-phase-9.sh
+./scripts/verify-phase-12.sh --run-full-integration
 ```
 
 ## Current Safe Claims

@@ -4,8 +4,8 @@ Phase 8 uses a dependency-free browser app because this workspace has Node avail
 
 Run locally:
 
-```powershell
-.\scripts\serve-frontend.ps1
+```bash
+./scripts/serve-frontend.sh
 ```
 
 Then open:

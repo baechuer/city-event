@@ -14,6 +14,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Validate Bash scripts
+        run: bash -n scripts/*.sh scripts/lib/*.sh
+
       - name: Test Go packages
         run: go test ./...
 
