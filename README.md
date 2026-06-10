@@ -286,6 +286,22 @@ For the strongest local evidence run, include full Docker-backed integration tes
 ./scripts/verify-phase-12.sh --run-full-integration
 ```
 
+## Run Local Load Test
+
+The local load test exercises the public gateway path for admin login, organizer promotion, event creation, attendee registration, concurrent joins, capacity/waitlist invariants, CSRF refresh smoke, and eventual feed projection.
+
+```bash
+./scripts/load-test-local.sh --start-stack --users 80 --capacity 25 --concurrency 20
+```
+
+For an already running stack:
+
+```bash
+./scripts/load-test-local.sh --users 80 --capacity 25 --concurrency 20
+```
+
+This is local correctness and regression evidence, not a production throughput benchmark. Details are in `docs/testing/load-testing.md`.
+
 ## Run Local Infrastructure
 
 ```bash

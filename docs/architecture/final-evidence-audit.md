@@ -38,6 +38,7 @@ The rebuilt architecture uses:
 | Notification side effects | Supported locally | notification decision tests, idempotent repository tests, provider failure tests, Mailpit SMTP integration |
 | Media worker | Supported locally | metadata repository tests, MinIO integration, worker state transition tests, failure-state tests |
 | Observability/debugging | Supported as basic observability | correlation IDs, structured request logs, `/metrics`, outbox correlation propagation, debugging walkthrough |
+| Local load/correctness smoke | Supported locally | `scripts/load-test-local.sh` verifies gateway-level auth, event creation, concurrent joins, capacity/waitlist invariant, and feed projection |
 | Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/Ingress/probes/resource limits, `scripts/verify-phase-10.sh` |
 | High availability | Deferred | `docs/architecture/high-availability-decision.md`; manifests are single-replica and dependencies are not HA |
 | Production deployment | Not supported | no verified live cluster run, managed secrets, production database, or failure-test evidence; TLS is manifest/example coverage only |
@@ -59,6 +60,7 @@ Full local integration verification when Docker dependencies are available:
 ```bash
 ./scripts/verify-phase-9.sh
 ./scripts/verify-phase-12.sh --run-full-integration
+./scripts/load-test-local.sh --start-stack --users 80 --capacity 25 --concurrency 20
 ```
 
 ## Current Safe Claims
@@ -97,6 +99,12 @@ Safe:
 
 ```text
 Added correlation IDs, structured request logging, basic Prometheus-style metrics, and a debugging walkthrough for tracing distributed workflows.
+```
+
+Safe:
+
+```text
+Added a repeatable local gateway-level load test that verifies concurrent event joins preserve capacity and waitlist invariants while feed projection catches up eventually.
 ```
 
 Safe:
@@ -151,6 +159,7 @@ Highest priority gaps before stronger claims:
 - add production-grade dependency HA: managed Postgres, RabbitMQ quorum queues or cluster, managed Redis or Redis Cluster
 - add failure tests for pod deletion, worker restart, RabbitMQ restart, Redis outage, and Postgres outage
 - run a real TLS ingress smoke test with a valid `cityevents-tls` secret or cert-manager-issued certificate
+- repeat load tests in a controlled environment with resource metrics before making throughput claims
 - add CI jobs for integration tests with service containers
 - add OpenTelemetry collector, trace backend, Prometheus scraping, and Grafana dashboard if claiming production observability
 - replace the dependency-free frontend with the intended React/TypeScript/Vite frontend if the frontend is meant to be a primary claim

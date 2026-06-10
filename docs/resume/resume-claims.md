@@ -71,6 +71,7 @@ Do not say:
 | media processing | MinIO integration and worker failure tests |
 | observability | correlation ID middleware, metrics endpoint, debugging walkthrough |
 | Kubernetes readiness | `deploy/kubernetes/`, including ingress, `scripts/verify-phase-10.sh`, `scripts/verify-phase-11.sh` |
+| local load evidence | `scripts/load-test-local.sh`, `docs/testing/load-testing.md`, `tmp/load-test-local/<run-id>/summary.md` after each run |
 
 ## Current Limitation Statement
 
@@ -78,4 +79,10 @@ Use this in interviews:
 
 ```text
 The project is not production deployed and does not claim high availability. I treated those as evidence-gated claims: the next step would be a real cluster smoke test, replicated stateless services, HA dependencies, and failure testing.
+```
+
+Local load-test wording:
+
+```text
+I added a repeatable local gateway-level load test that registers users, creates an event, performs concurrent joins, and verifies capacity/waitlist invariants plus eventual feed projection. I do not treat that as a production throughput benchmark.
 ```
