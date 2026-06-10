@@ -10,34 +10,45 @@ CityEvents serves local event attendees, lightweight event organizers, and revie
 
 ## Product Purpose
 
-CityEvents is a compact event discovery and registration product that demonstrates a reliable distributed backend through a usable browser workflow. Success means a reviewer can register or log in, discover events, publish an event, join or cancel, inspect their status, and create a media upload intent without reading backend documentation.
+CityEvents is a compact customer-facing event discovery product backed by the local distributed services. Success means a visitor can immediately see interesting events, browse category lanes, open a detail page, sign in only when ready to act, publish an event, join or cancel, and create a media upload intent without reading backend documentation.
 
 ## Brand Personality
 
-Casual, precise, city-smart. The interface should feel like a modern transit board for spontaneous plans: social and approachable, but still operational enough to prove the backend workflow.
+Casual, precise, city-smart. The interface should feel like a compressed city radar board: strong first impression, dense useful choices, clear category intent, and customer language instead of system language.
 
 ## Anti-references
 
-Avoid generic admin dashboards, oversized marketing heroes, purple-blue SaaS gradients, card-heavy template layouts, and UI text that explains the architecture instead of helping the user act. The previous flat sidebar-and-card frontend is itself an anti-reference for this redesign.
+Avoid generic admin dashboards, oversized marketing heroes, Meetup cloning, purple-blue SaaS gradients, card-heavy template layouts, and UI text that explains the architecture instead of helping the user act. The previous command-center frontend is itself an anti-reference for this redesign.
 
 ## Design Principles
 
-- Lead with the user journey: find an event, inspect the current status, act, then see the result.
+- Lead with discovery: the first viewport must show featured events, category lanes, search, and local activity without requiring scroll.
 - Make state impossible to miss: confirmed, waitlisted, canceled, loading, empty, and error states must have clear labels and affordances.
-- Keep the app task-first: use density, alignment, and predictable controls rather than decorative chrome.
+- Keep the app customer-first: browsing is open; sign-in appears only when joining, publishing, or managing media.
 - Use technical polish sparingly: modern AI-tech styling should appear through crisp surfaces, OKLCH color, precise motion, and useful status treatment.
 - Stay resume-honest: the UI demonstrates local workflows and should not imply production deployment, high availability, or exactly-once messaging.
 
+## Page Model
+
+- `/` is a compressed discovery board with hero search, major featured event, popular events, category lanes, and upcoming city events.
+- `/events` is the full browse/search page.
+- `/events/:id` is the event detail and RSVP page.
+- `/categories` lists major discovery lanes.
+- `/categories/:slug` focuses one lane: Networking, Meet New Friends, Sports, Hobbies, Learning & Tech, or Food & Nightlife.
+- `/publish` is the organizer create-event flow.
+- `/me` contains sign-in, profile state, selected event summary, and media upload intent.
+
 ## Reviewer Walkthrough
 
-1. Open the local app and sign in or register.
-2. Refresh the city feed or use a quick city filter.
-3. Select an event row to open event detail.
-4. Join the event and confirm the visible status change.
-5. Cancel the join and confirm the cancellation state.
-6. Publish a new event as an organizer.
-7. Refresh the feed and verify the new event appears after projection catches up.
-8. Create a media upload intent for the selected event.
+1. Open the local app and inspect the no-scroll discovery board.
+2. Browse a category lane or use the search form.
+3. Open an event detail page.
+4. Sign in only when attempting to join or publish.
+5. Publish a live event as an organizer.
+6. Open the live event detail page and join it.
+7. Cancel the RSVP and confirm the visible status change.
+8. Refresh the feed and verify the new event appears after projection catches up.
+9. Use `/me` to create a media upload intent for the selected live event.
 
 ## Accessibility & Inclusion
 

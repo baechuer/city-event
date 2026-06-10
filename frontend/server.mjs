@@ -24,6 +24,18 @@ http.createServer((req, res) => {
   }
   fs.readFile(file, (err, data) => {
     if (err) {
+      if (req.method === 'GET' && !path.extname(file)) {
+        fs.readFile(path.join(root, 'index.html'), (fallbackErr, fallbackData) => {
+          if (fallbackErr) {
+            res.writeHead(404);
+            res.end('not found');
+            return;
+          }
+          res.writeHead(200, { 'Content-Type': types['.html'] });
+          res.end(fallbackData);
+        });
+        return;
+      }
       res.writeHead(404);
       res.end('not found');
       return;

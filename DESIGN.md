@@ -2,11 +2,11 @@
 
 ## Visual Direction
 
-CityEvents uses a light product interface with a "neon transit board for city plans" mood. The physical scene is a student or young professional checking tonight's plans on a laptop or phone in bright indoor light: fast scanning, low anxiety, clear status.
+CityEvents uses a compact "city radar" interface. The first viewport should feel active and customer-facing: search, featured event, popular stack, categories, and upcoming events are all visible together on desktop. The design is not a Meetup clone; it is denser, more editorial, and built for fast plan selection.
 
 ## Color
 
-Use OKLCH tokens only. The surface stays near white so the app feels usable and fast. The brand anchor is sky-teal around hue 200, with coral used as a small energetic accent.
+Use OKLCH tokens only. The surface stays warm and light so the app feels usable and fast. The palette uses multiple accents by category: teal for social discovery, coral for networking, green for sports, amber for hobbies, blue for tech, and rose for food/nightlife.
 
 ```css
 --bg: oklch(1 0 0);
@@ -30,16 +30,17 @@ Use a native system sans stack for speed and product familiarity. Keep fixed rem
 
 ## Components
 
-- Top bar: compact brand, primary actions, and local demo status.
-- Workflow rail: numbered reviewer journey with current product actions.
-- Feed panel: dense event rows with date, city, venue, and status.
-- Detail panel: current event state, capacity, join/cancel actions, and status copy.
-- Action column: account/session, publish event form, media upload intent.
-- Notice strip: concise success/error feedback with `aria-live`.
+- Top bar: compact brand and page navigation.
+- Home board: search, hero copy, major spotlight event, popular event stack, category strip, and city row.
+- Event card: local image, category/status label, title, description, time, city, and spots left.
+- Category tile: image-led lane for Networking, Meet New Friends, Sports, Hobbies, Learning & Tech, and Food & Nightlife.
+- Event detail: large visual, facts, capacity meter, and RSVP actions.
+- Account pages: sign-in, profile, selected event, and media upload intent.
+- Notice toast: concise success/error feedback with `aria-live` without consuming first-viewport layout space.
 
 ## Layout
 
-Desktop uses a three-column product layout: feed, detail, action column. Tablet collapses to two columns. Mobile becomes a single-column task flow with sticky top navigation and full-width controls.
+Desktop home uses a compressed board designed to fit the primary discovery experience into the first viewport. Interior pages use focused two-column layouts where useful, then collapse to single-column mobile flows with full-width controls.
 
 ## Motion
 
