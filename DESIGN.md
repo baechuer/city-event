@@ -26,7 +26,7 @@ Use OKLCH tokens only. The surface stays warm and light so the app feels usable 
 
 ## Typography
 
-Use a native system sans stack for speed and product familiarity. Keep fixed rem sizes, not viewport-scaled type. Reserve heavier weights for panel headings, selected event titles, and primary status labels.
+Use Manrope for body, labels, controls, and dense product UI; use Space Grotesk for the brand mark and display headings. Both are loaded with `font-display=swap` and fall back to the native system sans stack when the font CDN is unavailable. Keep fixed rem sizes, not viewport-scaled type. Reserve heavier weights for panel headings, selected event titles, and primary status labels.
 
 ## Components
 
