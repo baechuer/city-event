@@ -19,6 +19,7 @@ type Repository interface {
 	GetEventDetail(context.Context, string, string) (EventDetail, error)
 	JoinEvent(context.Context, string, string, string, time.Time) (JoinResult, error)
 	CancelJoin(context.Context, string, string, time.Time) (CancelJoinResult, error)
+	CancelRegistration(context.Context, string, string, identity.Role, string, time.Time) (CancelJoinResult, error)
 	GetJoinStatus(context.Context, string, string) (RegistrationStatus, error)
 }
 
@@ -211,6 +212,24 @@ func (r *MemoryRepository) CancelJoin(_ context.Context, eventID, userID string,
 	if _, ok := r.events[eventID]; !ok {
 		return CancelJoinResult{}, ErrNotFound
 	}
+	return r.cancelRegistrationLocked(eventID, userID, now)
+}
+
+func (r *MemoryRepository) CancelRegistration(_ context.Context, eventID, actorID string, role identity.Role, targetUserID string, now time.Time) (CancelJoinResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	event, ok := r.events[eventID]
+	if !ok {
+		return CancelJoinResult{}, ErrNotFound
+	}
+	if event.OrganizerID != actorID && !identity.CanAdmin(role) {
+		return CancelJoinResult{}, ErrForbidden
+	}
+	return r.cancelRegistrationLocked(eventID, targetUserID, now)
+}
+
+func (r *MemoryRepository) cancelRegistrationLocked(eventID, userID string, now time.Time) (CancelJoinResult, error) {
 	reg, ok := r.activeRegistrationLocked(eventID, userID)
 	if !ok {
 		status := r.latestStatusLocked(eventID, userID)

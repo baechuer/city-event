@@ -138,6 +138,46 @@ func TestPostgresJoinWaitlistCancelPromoteOutbox(t *testing.T) {
 	}
 }
 
+func TestPostgresOrganizerCancelRegistrationPromotesWaitlist(t *testing.T) {
+	ctx := context.Background()
+	pool := setupEventPostgres(t, ctx)
+	repo := NewPostgresRepository(pool)
+	svc := NewService(repo)
+
+	event := createPostgresEvent(t, svc, "organizer-1", 1)
+	if _, err := svc.JoinEvent(ctx, event.Event.ID, "user-1", "join-1"); err != nil {
+		t.Fatalf("join user-1: %v", err)
+	}
+	if _, err := svc.JoinEvent(ctx, event.Event.ID, "user-2", "join-2"); err != nil {
+		t.Fatalf("join user-2: %v", err)
+	}
+	if _, err := svc.CancelRegistration(ctx, event.Event.ID, "organizer-2", identity.RoleOrganizer, "user-1"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("expected non-owner organizer moderation to fail, got %v", err)
+	}
+
+	result, err := svc.CancelRegistration(ctx, event.Event.ID, "organizer-1", identity.RoleOrganizer, "user-1")
+	if err != nil {
+		t.Fatalf("organizer cancel registration: %v", err)
+	}
+	if result.Promoted == nil || result.Promoted.UserID != "user-2" {
+		t.Fatalf("expected user-2 promotion, got %+v", result)
+	}
+	status, err := svc.GetJoinStatus(ctx, event.Event.ID, "user-1")
+	if err != nil {
+		t.Fatalf("user-1 status: %v", err)
+	}
+	if status != RegistrationStatusCanceled {
+		t.Fatalf("user-1 status = %s, want CANCELED", status)
+	}
+	status, err = svc.GetJoinStatus(ctx, event.Event.ID, "user-2")
+	if err != nil {
+		t.Fatalf("user-2 status: %v", err)
+	}
+	if status != RegistrationStatusConfirmed {
+		t.Fatalf("user-2 status = %s, want CONFIRMED", status)
+	}
+}
+
 func TestPostgresCapacityReductionBelowConfirmedRejected(t *testing.T) {
 	ctx := context.Background()
 	pool := setupEventPostgres(t, ctx)

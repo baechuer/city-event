@@ -278,6 +278,41 @@ func (r *PostgresRepository) CancelJoin(ctx context.Context, eventID, userID str
 	if _, err := selectEventForUpdate(ctx, tx, eventID); err != nil {
 		return CancelJoinResult{}, err
 	}
+	result, err := cancelRegistrationTx(ctx, tx, eventID, userID, now)
+	if err != nil {
+		return CancelJoinResult{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return CancelJoinResult{}, err
+	}
+	return result, nil
+}
+
+func (r *PostgresRepository) CancelRegistration(ctx context.Context, eventID, actorID string, role identity.Role, targetUserID string, now time.Time) (CancelJoinResult, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return CancelJoinResult{}, err
+	}
+	defer rollback(ctx, tx)
+
+	event, err := selectEventForUpdate(ctx, tx, eventID)
+	if err != nil {
+		return CancelJoinResult{}, err
+	}
+	if event.OrganizerID != actorID && !identity.CanAdmin(role) {
+		return CancelJoinResult{}, ErrForbidden
+	}
+	result, err := cancelRegistrationTx(ctx, tx, eventID, targetUserID, now)
+	if err != nil {
+		return CancelJoinResult{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return CancelJoinResult{}, err
+	}
+	return result, nil
+}
+
+func cancelRegistrationTx(ctx context.Context, tx pgx.Tx, eventID, userID string, now time.Time) (CancelJoinResult, error) {
 	reg, ok, err := activeRegistrationTx(ctx, tx, eventID, userID)
 	if err != nil {
 		return CancelJoinResult{}, err
@@ -285,9 +320,6 @@ func (r *PostgresRepository) CancelJoin(ctx context.Context, eventID, userID str
 	if !ok {
 		status, err := latestStatusTx(ctx, tx, eventID, userID)
 		if err != nil {
-			return CancelJoinResult{}, err
-		}
-		if err := tx.Commit(ctx); err != nil {
 			return CancelJoinResult{}, err
 		}
 		return CancelJoinResult{Status: status, AlreadyNoActiveReg: true}, nil
@@ -332,9 +364,6 @@ func (r *PostgresRepository) CancelJoin(ctx context.Context, eventID, userID str
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return CancelJoinResult{}, err
-	}
 	return result, nil
 }
 

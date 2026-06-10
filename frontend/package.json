@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test src/*.test.mjs",
-    "verify": "node --test src/*.test.mjs"
+    "test": "node --test src/api.test.mjs src/state.test.mjs",
+    "verify": "node --test src/api.test.mjs src/state.test.mjs"
   }
 }

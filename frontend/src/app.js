@@ -383,6 +383,7 @@ function renderEventDetailPage(eventID) {
             ${isPending('cancel') ? 'Canceling' : 'Cancel RSVP'}
           </button>
         </div>
+        ${renderRegistrationModerationPanel(event, isLive)}
         <a class="text-button" href="/events" data-route>Back to events</a>
       </aside>
     </section>
@@ -716,6 +717,25 @@ function renderAdminRolePanel() {
   `;
 }
 
+function renderRegistrationModerationPanel(event, isLive) {
+  if (!isLive || !canManageEvent(event)) return '';
+  return `
+    <section class="compact-panel moderation-panel">
+      <div class="section-heading">
+        <span><strong>Attendee moderation</strong></span>
+        <span class="label-pill soft">${escapeHTML(state.auth.user?.role || '')}</span>
+      </div>
+      <form id="cancel-registration-form" class="stacked-form">
+        <label>
+          <span>User ID</span>
+          <input name="userId" placeholder="Attendee user id" required />
+        </label>
+        <button type="submit" class="secondary-button" ${isPending('moderation') ? 'disabled' : ''}>${isPending('moderation') ? 'Canceling' : 'Cancel attendee RSVP'}</button>
+      </form>
+    </section>
+  `;
+}
+
 function renderMediaResult() {
   const asset = state.media.asset || {};
   return `
@@ -744,6 +764,7 @@ function bind() {
   document.querySelector('#auth-form')?.addEventListener('submit', handleAuth);
   document.querySelector('#create-event-form')?.addEventListener('submit', handleCreateEvent);
   document.querySelector('#admin-role-form')?.addEventListener('submit', handleAdminRoleUpdate);
+  document.querySelector('#cancel-registration-form')?.addEventListener('submit', handleCancelRegistration);
   document.querySelector('#media-form')?.addEventListener('submit', handleCreateUpload);
   document.querySelector('[data-action="logout"]')?.addEventListener('click', handleLogout);
   document.querySelector('[data-action="join"]')?.addEventListener('click', handleJoin);
@@ -962,6 +983,17 @@ async function handleCancelJoin() {
   });
 }
 
+async function handleCancelRegistration(event) {
+  event.preventDefault();
+  if (!state.selectedEvent) return;
+  const form = new FormData(event.currentTarget);
+  await withPending('moderation', async () => {
+    await api.cancelRegistration(state.selectedEvent, String(form.get('userId') || ''));
+    state.eventDetail = await api.getEvent(state.selectedEvent);
+    setNotice('Attendee RSVP canceled.', 'good');
+  });
+}
+
 async function handleCreateUpload(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -1030,6 +1062,7 @@ function normalizeEvent(item, source = 'live', rank = 0, confirmedOverride = und
   const confirmedCount = Number(confirmedOverride ?? item.confirmedCount ?? event.confirmedCount ?? estimateConfirmed(event, rank));
   return {
     id: event.id || event.eventId || '',
+    organizerID: event.organizerId || event.organizerID || '',
     source,
     category,
     rank,
@@ -1043,6 +1076,12 @@ function normalizeEvent(item, source = 'live', rank = 0, confirmedOverride = und
     status: event.status || 'PUBLISHED',
     label: event.label || (source === 'live' ? 'Live' : categoryName(category)),
   };
+}
+
+function canManageEvent(event) {
+  if (!state.auth.user?.id) return false;
+  if (state.auth.user.role === 'ADMIN') return true;
+  return state.auth.user.role === 'ORGANIZER' && event.organizerID === state.auth.user.id;
 }
 
 function inferCategory(event) {

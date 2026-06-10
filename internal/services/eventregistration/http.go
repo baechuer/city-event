@@ -52,6 +52,7 @@ func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) ht
 	r.Post("/v1/events/{eventID}/cancel", handler.cancelEvent)
 	r.Post("/v1/events/{eventID}/join", handler.joinEvent)
 	r.Delete("/v1/events/{eventID}/join", handler.cancelJoin)
+	r.Delete("/v1/events/{eventID}/registrations/{userID}", handler.cancelRegistration)
 	r.Get("/v1/events/{eventID}/join", handler.getJoinStatus)
 
 	return r
@@ -169,6 +170,20 @@ func (h *Handler) cancelJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := h.service.CancelJoin(r.Context(), chi.URLParam(r, "eventID"), userID)
+	if err != nil {
+		writeEventError(w, err)
+		return
+	}
+	health.WriteJSON(w, http.StatusOK, cancelJoinResponseFromDomain(result))
+}
+
+func (h *Handler) cancelRegistration(w http.ResponseWriter, r *http.Request) {
+	principal, ok := principalFromHeader(r)
+	if !ok {
+		writeEventError(w, ErrUnauthorized)
+		return
+	}
+	result, err := h.service.CancelRegistration(r.Context(), chi.URLParam(r, "eventID"), principal.UserID, principal.Role, chi.URLParam(r, "userID"))
 	if err != nil {
 		writeEventError(w, err)
 		return

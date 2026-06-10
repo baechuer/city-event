@@ -111,6 +111,12 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
         headers: authHeaders(),
       });
     },
+    cancelRegistration(eventID, userID) {
+      return request(bases.eventBase, `/v1/events/${encodeURIComponent(eventID)}/registrations/${encodeURIComponent(userID)}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+    },
     createUpload(data) {
       return request(bases.mediaBase, '/v1/media/uploads', {
         method: 'POST',

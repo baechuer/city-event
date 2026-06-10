@@ -124,6 +124,35 @@ func TestServiceCapacityReductionBelowConfirmedRejected(t *testing.T) {
 	}
 }
 
+func TestServiceOrganizerCancelRegistrationPromotesWaitlist(t *testing.T) {
+	svc, repo := testEventService()
+	ctx := context.Background()
+	event := createTestEvent(t, svc, "organizer-1", 1)
+	if _, err := svc.JoinEvent(ctx, event.Event.ID, "user-1", ""); err != nil {
+		t.Fatalf("join user-1: %v", err)
+	}
+	if _, err := svc.JoinEvent(ctx, event.Event.ID, "user-2", ""); err != nil {
+		t.Fatalf("join user-2: %v", err)
+	}
+	if _, err := svc.CancelRegistration(ctx, event.Event.ID, "user-3", identity.RoleUser, "user-1"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("expected plain user moderation to fail, got %v", err)
+	}
+	if _, err := svc.CancelRegistration(ctx, event.Event.ID, "organizer-2", identity.RoleOrganizer, "user-1"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("expected non-owner organizer moderation to fail, got %v", err)
+	}
+
+	result, err := svc.CancelRegistration(ctx, event.Event.ID, "organizer-1", identity.RoleOrganizer, "user-1")
+	if err != nil {
+		t.Fatalf("organizer cancel registration: %v", err)
+	}
+	if result.Promoted == nil || result.Promoted.UserID != "user-2" {
+		t.Fatalf("expected user-2 promotion, got %+v", result)
+	}
+	if confirmed := repo.ConfirmedCount(event.Event.ID); confirmed != 1 {
+		t.Fatalf("confirmed count = %d, want 1", confirmed)
+	}
+}
+
 func TestServiceConcurrentJoinCapacityInvariant(t *testing.T) {
 	svc, repo := testEventService()
 	ctx := context.Background()

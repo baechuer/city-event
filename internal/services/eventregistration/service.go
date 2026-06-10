@@ -90,6 +90,19 @@ func (s *Service) CancelJoin(ctx context.Context, eventID, userID string) (Cance
 	return s.repo.CancelJoin(ctx, strings.TrimSpace(eventID), strings.TrimSpace(userID), s.now())
 }
 
+func (s *Service) CancelRegistration(ctx context.Context, eventID, actorID string, role identity.Role, targetUserID string) (CancelJoinResult, error) {
+	if strings.TrimSpace(actorID) == "" {
+		return CancelJoinResult{}, ErrUnauthorized
+	}
+	if strings.TrimSpace(targetUserID) == "" {
+		return CancelJoinResult{}, ErrInvalidEvent
+	}
+	if !identity.CanPublishEvents(identity.NormalizeRole(string(role))) {
+		return CancelJoinResult{}, ErrForbidden
+	}
+	return s.repo.CancelRegistration(ctx, strings.TrimSpace(eventID), strings.TrimSpace(actorID), identity.NormalizeRole(string(role)), strings.TrimSpace(targetUserID), s.now())
+}
+
 func (s *Service) GetJoinStatus(ctx context.Context, eventID, userID string) (RegistrationStatus, error) {
 	if strings.TrimSpace(userID) == "" {
 		return "", ErrUnauthorized

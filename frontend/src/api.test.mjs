@@ -66,6 +66,21 @@ test('admin role update uses bearer token', async () => {
   assert.equal(calls[0].options.headers['Content-Type'], 'application/json');
 });
 
+test('cancel registration moderation uses bearer token', async () => {
+  const storage = memoryStorage();
+  storage.setItem('cityevents.auth', JSON.stringify({ user: { id: 'organizer-1', role: 'ORGANIZER' }, accessToken: 'token-1' }));
+  const calls = [];
+  const client = createApiClient({ eventBase: 'http://events' }, async (url, options) => {
+    calls.push({ url, options });
+    return response(200, { status: 'CANCELED' });
+  }, storage);
+  await client.cancelRegistration('event-1', 'user-1');
+  assert.equal(calls[0].url, 'http://events/v1/events/event-1/registrations/user-1');
+  assert.equal(calls[0].options.method, 'DELETE');
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer token-1');
+  assert.equal(calls[0].options.headers['X-User-ID'], undefined);
+});
+
 test('request errors expose backend message', async () => {
   const client = createApiClient({ authBase: 'http://auth' }, async () => response(400, {
     error: { message: 'invalid request' },

@@ -108,6 +108,48 @@ func TestEventHandlersValidationAndAuthorization(t *testing.T) {
 	}
 }
 
+func TestEventHandlersOrganizerAndAdminCanCancelAttendee(t *testing.T) {
+	router, _ := testEventRouter(t)
+	created := createEventViaHTTP(t, router, "organizer-1", 1)
+	eventID := created.Event.ID
+
+	joinOne := doEventJSON(router, http.MethodPost, "/v1/events/"+eventID+"/join", "", "user-1", nil)
+	if joinOne.Code != http.StatusOK {
+		t.Fatalf("join user-1 status = %d body=%s", joinOne.Code, joinOne.Body.String())
+	}
+	joinTwo := doEventJSON(router, http.MethodPost, "/v1/events/"+eventID+"/join", "", "user-2", nil)
+	if joinTwo.Code != http.StatusOK {
+		t.Fatalf("join user-2 status = %d body=%s", joinTwo.Code, joinTwo.Body.String())
+	}
+
+	plainUser := doEventJSON(router, http.MethodDelete, "/v1/events/"+eventID+"/registrations/user-1", "", "user-3", nil)
+	if plainUser.Code != http.StatusForbidden {
+		t.Fatalf("plain user moderation status = %d body=%s", plainUser.Code, plainUser.Body.String())
+	}
+
+	otherOrganizer := doEventJSON(router, http.MethodDelete, "/v1/events/"+eventID+"/registrations/user-1", "", "organizer-2", organizerHeaders())
+	if otherOrganizer.Code != http.StatusForbidden {
+		t.Fatalf("other organizer moderation status = %d body=%s", otherOrganizer.Code, otherOrganizer.Body.String())
+	}
+
+	organizerCancel := doEventJSON(router, http.MethodDelete, "/v1/events/"+eventID+"/registrations/user-1", "", "organizer-1", organizerHeaders())
+	if organizerCancel.Code != http.StatusOK {
+		t.Fatalf("organizer cancel attendee status = %d body=%s", organizerCancel.Code, organizerCancel.Body.String())
+	}
+	var cancelBody cancelJoinResponse
+	decodeBody(t, organizerCancel.Body.Bytes(), &cancelBody)
+	if cancelBody.Promoted == nil || cancelBody.Promoted.UserID != "user-2" {
+		t.Fatalf("expected user-2 promotion after organizer removal, got %+v", cancelBody)
+	}
+
+	adminCancel := doEventJSON(router, http.MethodDelete, "/v1/events/"+eventID+"/registrations/user-2", "", "admin-1", map[string]string{
+		identity.HeaderUserRole: string(identity.RoleAdmin),
+	})
+	if adminCancel.Code != http.StatusOK {
+		t.Fatalf("admin cancel attendee status = %d body=%s", adminCancel.Code, adminCancel.Body.String())
+	}
+}
+
 func TestEventHandlersListExcludesCanceledAndDetailIncludesViewerStatus(t *testing.T) {
 	router, _ := testEventRouter(t)
 	active := createEventViaHTTP(t, router, "organizer-1", 10)
