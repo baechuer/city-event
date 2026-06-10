@@ -33,7 +33,7 @@ Use a native system sans stack for speed and product familiarity. Keep fixed rem
 - Top bar: clear brand and page navigation.
 - Home page: search, hero copy, major spotlight event, popular event stack, category strip, and city row with enough spacing to scan.
 - Event card: local image, category/status label, title, description, time, city, and spots left.
-- Category tile: image-led lane for Networking, Meet New Friends, Sports, Hobbies, Learning & Tech, and Food & Nightlife.
+- Category tile: realistic editorial image-led lane for Networking, Meet New Friends, Sports, Hobbies, Learning & Tech, and Food & Nightlife.
 - Event detail: large visual, facts, capacity meter, and RSVP actions.
 - Account pages: sign-in, profile, selected event, and media upload intent.
 - Notice toast: concise success/error feedback with `aria-live` without consuming first-viewport layout space.

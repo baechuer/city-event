@@ -17,7 +17,7 @@ const categories = [
     name: 'Networking',
     short: 'Career rooms',
     line: 'Founder nights, industry mixers, job leads, and serious conversations.',
-    image: '/assets/categories/networking.png',
+    image: '/assets/categories/networking.jpg',
     accent: 'coral',
   },
   {
@@ -25,7 +25,7 @@ const categories = [
     name: 'Meet New Friends',
     short: 'Low-pressure socials',
     line: 'Brunch, board games, walking groups, and new-in-town tables.',
-    image: '/assets/categories/friends.png',
+    image: '/assets/categories/friends.jpg',
     accent: 'teal',
   },
   {
@@ -33,7 +33,7 @@ const categories = [
     name: 'Sports',
     short: 'Move together',
     line: 'Pickleball, running, hikes, social leagues, and weekend outdoors.',
-    image: '/assets/categories/sports.png',
+    image: '/assets/categories/sports.jpg',
     accent: 'green',
   },
   {
@@ -41,7 +41,7 @@ const categories = [
     name: 'Hobbies',
     short: 'Do the thing',
     line: 'Books, photography, games, crafts, anime, cooking, and music circles.',
-    image: '/assets/categories/hobbies.png',
+    image: '/assets/categories/hobbies.jpg',
     accent: 'amber',
   },
   {
@@ -49,7 +49,7 @@ const categories = [
     name: 'Learning & Tech',
     short: 'Build skills',
     line: 'AI workshops, coding nights, study rooms, product and design meetups.',
-    image: '/assets/categories/tech.png',
+    image: '/assets/categories/tech.jpg',
     accent: 'blue',
   },
   {
@@ -57,7 +57,7 @@ const categories = [
     name: 'Food & Nightlife',
     short: 'After-hours plans',
     line: 'Supper clubs, markets, tastings, music bars, and late city plans.',
-    image: '/assets/categories/food.png',
+    image: '/assets/categories/food.jpg',
     accent: 'rose',
   },
 ];
