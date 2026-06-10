@@ -40,6 +40,32 @@ Final evidence and resume wording are documented in `docs/architecture/final-evi
 - Docker Desktop with Docker Compose v2
 - Bash, such as Git Bash or WSL on Windows
 
+## Run Whole App
+
+The browser demo is the local entry point:
+
+```bash
+./scripts/start-local.sh
+```
+
+Then open:
+
+```text
+http://127.0.0.1:18088
+```
+
+The launcher starts Docker dependencies, builds and runs all Go services, starts the RabbitMQ workers, and serves the static frontend. Press `Ctrl-C` to stop the Go services and frontend. Docker dependencies are intentionally left running; stop them with:
+
+```bash
+docker compose down
+```
+
+For a non-interactive startup check:
+
+```bash
+./scripts/start-local.sh --check
+```
+
 ## Verify Foundation
 
 ```bash
@@ -171,7 +197,7 @@ This runs:
 To run the browser demo:
 
 ```bash
-./scripts/serve-frontend.sh
+./scripts/start-local.sh
 ```
 
 Then open:
@@ -262,6 +288,9 @@ go run ./cmd/event-registration-service
 go run ./cmd/feed-service
 go run ./cmd/notification-service
 go run ./cmd/media-service
+go run ./cmd/outbox-relay
+go run ./cmd/feed-worker
+go run ./cmd/notification-worker
 go run ./cmd/media-worker
 ```
 

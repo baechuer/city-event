@@ -5,7 +5,7 @@ Phase 8 uses a dependency-free browser app because this workspace has Node avail
 Run locally:
 
 ```bash
-./scripts/serve-frontend.sh
+./scripts/start-local.sh
 ```
 
 Then open:
@@ -22,3 +22,9 @@ The app calls local services directly:
 - media: `http://127.0.0.1:8085`
 
 The gateway/BFF remains a later hardening step.
+
+For frontend-only static serving, after separately starting backend services:
+
+```bash
+./scripts/serve-frontend.sh
+```
