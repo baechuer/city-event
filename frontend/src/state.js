@@ -26,6 +26,8 @@ export function createInitialState() {
     eventDetail: null,
     media: null,
     notice: '',
+    noticeTone: 'neutral',
+    pendingAction: '',
   };
 }
 

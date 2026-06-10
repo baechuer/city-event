@@ -13,6 +13,7 @@ Usage: ./scripts/start-local.sh [options]
 
 Starts the local CityEvents demo stack:
   - Docker Compose dependencies: Postgres, RabbitMQ, Redis, MinIO, Mailpit
+  - Idempotent Postgres migrations for all local service schemas
   - Go HTTP services: gateway, auth, event registration, feed, notification, media
   - Go async workers: outbox relay, feed worker, notification worker, media worker
   - Static frontend at http://127.0.0.1:18088
@@ -206,6 +207,27 @@ check_all_processes() {
   done
 }
 
+apply_postgres_migrations() {
+  local migrations=(
+    "migrations/auth/001_init.sql"
+    "migrations/eventregistration/001_init.sql"
+    "migrations/eventregistration/002_outbox_relay.sql"
+    "migrations/feed/001_init.sql"
+    "migrations/notification/001_init.sql"
+    "migrations/media/001_init.sql"
+  )
+
+  log "Apply Postgres migrations"
+  local migration
+  for migration in "${migrations[@]}"; do
+    require_file "$REPO_ROOT/$migration"
+    echo "Apply $migration"
+    run_docker compose exec -T postgres \
+      psql -U cityevents -d cityevents -v ON_ERROR_STOP=1 -f - \
+      <"$REPO_ROOT/$migration" >/dev/null
+  done
+}
+
 build_service() {
   local name="$1"
   log "Build $name"
@@ -335,6 +357,7 @@ wait_for_compose_health rabbitmq 120
 wait_for_compose_health redis 120
 wait_for_compose_health minio 120
 wait_for_tcp 127.0.0.1 1025 60
+apply_postgres_migrations
 
 if [[ "$skip_build" == false ]]; then
   for service in "${all_services[@]}"; do
