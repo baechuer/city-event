@@ -17,31 +17,32 @@ type ServiceDefinition struct {
 }
 
 type Config struct {
-	Service             ServiceDefinition
-	Environment         string
-	HTTPAddr            string
-	ShutdownTimeout     time.Duration
-	PostgresURL         string
-	RabbitMQURL         string
-	RedisURL            string
-	MinIOEndpoint       string
-	MinIOAccessKey      string
-	MinIOSecretKey      string
-	MinIOBucket         string
-	SMTPAddr            string
-	JWTSecret           string
-	JWTIssuer           string
-	AccessTokenTTL      time.Duration
-	RefreshTokenTTL     time.Duration
-	RefreshCookieSecure bool
-	AllowedOrigins      []string
-	SeedAdminEmail      string
-	SeedAdminPass       string
-	SeedAdminName       string
-	AuthServiceURL      string
-	EventServiceURL     string
-	FeedServiceURL      string
-	MediaServiceURL     string
+	Service                     ServiceDefinition
+	Environment                 string
+	HTTPAddr                    string
+	ShutdownTimeout             time.Duration
+	PostgresURL                 string
+	RabbitMQURL                 string
+	RedisURL                    string
+	MinIOEndpoint               string
+	MinIOAccessKey              string
+	MinIOSecretKey              string
+	MinIOBucket                 string
+	SMTPAddr                    string
+	JWTSecret                   string
+	JWTIssuer                   string
+	AccessTokenTTL              time.Duration
+	RefreshTokenTTL             time.Duration
+	RefreshCookieSecure         bool
+	TokenRevocationCacheEnabled bool
+	AllowedOrigins              []string
+	SeedAdminEmail              string
+	SeedAdminPass               string
+	SeedAdminName               string
+	AuthServiceURL              string
+	EventServiceURL             string
+	FeedServiceURL              string
+	MediaServiceURL             string
 }
 
 var serviceDefinitions = []ServiceDefinition{
@@ -98,33 +99,38 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid REFRESH_COOKIE_SECURE: %w", err)
 	}
+	tokenRevocationCacheEnabled, err := parseBool(env(getenv, "TOKEN_REVOCATION_CACHE_ENABLED", "true"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid TOKEN_REVOCATION_CACHE_ENABLED: %w", err)
+	}
 
 	cfg := Config{
-		Service:             service,
-		Environment:         env(getenv, "CITYEVENTS_ENV", "local"),
-		HTTPAddr:            serviceEnv(getenv, service.Name, "HTTP_ADDR", env(getenv, "HTTP_ADDR", service.DefaultHTTPAddr)),
-		ShutdownTimeout:     shutdownTimeout,
-		PostgresURL:         serviceEnv(getenv, service.Name, "POSTGRES_URL", env(getenv, "POSTGRES_URL", "postgres://cityevents:cityevents@localhost:5432/cityevents?sslmode=disable")),
-		RabbitMQURL:         env(getenv, "RABBITMQ_URL", "amqp://cityevents:cityevents@localhost:5672/"),
-		RedisURL:            env(getenv, "REDIS_URL", "redis://localhost:6379/0"),
-		MinIOEndpoint:       env(getenv, "MINIO_ENDPOINT", "http://localhost:9000"),
-		MinIOAccessKey:      env(getenv, "MINIO_ACCESS_KEY", "cityevents"),
-		MinIOSecretKey:      env(getenv, "MINIO_SECRET_KEY", "cityevents-password"),
-		MinIOBucket:         env(getenv, "MINIO_BUCKET", "cityevents-media"),
-		SMTPAddr:            env(getenv, "SMTP_ADDR", "localhost:1025"),
-		JWTSecret:           serviceEnv(getenv, service.Name, "JWT_SECRET", env(getenv, "JWT_SECRET", "dev-secret-change-me")),
-		JWTIssuer:           env(getenv, "JWT_ISSUER", "cityevents"),
-		AccessTokenTTL:      accessTokenTTL,
-		RefreshTokenTTL:     refreshTokenTTL,
-		RefreshCookieSecure: refreshCookieSecure,
-		AllowedOrigins:      parseCSV(env(getenv, "CORS_ALLOWED_ORIGINS", "http://127.0.0.1:18088,http://localhost:18088,http://cityevents.local,https://cityevents.local")),
-		SeedAdminEmail:      env(getenv, "SEED_ADMIN_EMAIL", ""),
-		SeedAdminPass:       env(getenv, "SEED_ADMIN_PASSWORD", ""),
-		SeedAdminName:       env(getenv, "SEED_ADMIN_DISPLAY_NAME", "CityEvents Admin"),
-		AuthServiceURL:      env(getenv, "AUTH_SERVICE_URL", "http://127.0.0.1:8081"),
-		EventServiceURL:     env(getenv, "EVENT_SERVICE_URL", "http://127.0.0.1:8082"),
-		FeedServiceURL:      env(getenv, "FEED_SERVICE_URL", "http://127.0.0.1:8083"),
-		MediaServiceURL:     env(getenv, "MEDIA_SERVICE_URL", "http://127.0.0.1:8085"),
+		Service:                     service,
+		Environment:                 env(getenv, "CITYEVENTS_ENV", "local"),
+		HTTPAddr:                    serviceEnv(getenv, service.Name, "HTTP_ADDR", env(getenv, "HTTP_ADDR", service.DefaultHTTPAddr)),
+		ShutdownTimeout:             shutdownTimeout,
+		PostgresURL:                 serviceEnv(getenv, service.Name, "POSTGRES_URL", env(getenv, "POSTGRES_URL", "postgres://cityevents:cityevents@localhost:5432/cityevents?sslmode=disable")),
+		RabbitMQURL:                 env(getenv, "RABBITMQ_URL", "amqp://cityevents:cityevents@localhost:5672/"),
+		RedisURL:                    env(getenv, "REDIS_URL", "redis://localhost:6379/0"),
+		MinIOEndpoint:               env(getenv, "MINIO_ENDPOINT", "http://localhost:9000"),
+		MinIOAccessKey:              env(getenv, "MINIO_ACCESS_KEY", "cityevents"),
+		MinIOSecretKey:              env(getenv, "MINIO_SECRET_KEY", "cityevents-password"),
+		MinIOBucket:                 env(getenv, "MINIO_BUCKET", "cityevents-media"),
+		SMTPAddr:                    env(getenv, "SMTP_ADDR", "localhost:1025"),
+		JWTSecret:                   serviceEnv(getenv, service.Name, "JWT_SECRET", env(getenv, "JWT_SECRET", "dev-secret-change-me")),
+		JWTIssuer:                   env(getenv, "JWT_ISSUER", "cityevents"),
+		AccessTokenTTL:              accessTokenTTL,
+		RefreshTokenTTL:             refreshTokenTTL,
+		RefreshCookieSecure:         refreshCookieSecure,
+		TokenRevocationCacheEnabled: tokenRevocationCacheEnabled,
+		AllowedOrigins:              parseCSV(env(getenv, "CORS_ALLOWED_ORIGINS", "http://127.0.0.1:18088,http://localhost:18088,http://cityevents.local,https://cityevents.local")),
+		SeedAdminEmail:              env(getenv, "SEED_ADMIN_EMAIL", ""),
+		SeedAdminPass:               env(getenv, "SEED_ADMIN_PASSWORD", ""),
+		SeedAdminName:               env(getenv, "SEED_ADMIN_DISPLAY_NAME", "CityEvents Admin"),
+		AuthServiceURL:              env(getenv, "AUTH_SERVICE_URL", "http://127.0.0.1:8081"),
+		EventServiceURL:             env(getenv, "EVENT_SERVICE_URL", "http://127.0.0.1:8082"),
+		FeedServiceURL:              env(getenv, "FEED_SERVICE_URL", "http://127.0.0.1:8083"),
+		MediaServiceURL:             env(getenv, "MEDIA_SERVICE_URL", "http://127.0.0.1:8085"),
 	}
 
 	if err := cfg.Validate(); err != nil {

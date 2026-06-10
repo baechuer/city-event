@@ -20,6 +20,7 @@ for file in \
   deploy/kubernetes/namespace.yaml \
   deploy/kubernetes/configmap.yaml \
   deploy/kubernetes/secret.example.yaml \
+  deploy/kubernetes/cert-manager-certificate.example.yaml \
   deploy/kubernetes/deployments.yaml \
   deploy/kubernetes/services.yaml \
   deploy/kubernetes/ingress.yaml \
@@ -65,8 +66,11 @@ require_contains deploy/kubernetes/ingress.yaml "name: cityevents-api"
 require_contains deploy/kubernetes/ingress.yaml "name: api-gateway"
 require_contains deploy/kubernetes/ingress.yaml "secretName: cityevents-tls"
 require_contains deploy/kubernetes/ingress.yaml "nginx.ingress.kubernetes.io/ssl-redirect"
+require_contains deploy/kubernetes/cert-manager-certificate.example.yaml "kind: Certificate"
+require_contains deploy/kubernetes/cert-manager-certificate.example.yaml "secretName: cityevents-tls"
 require_contains deploy/kubernetes/configmap.yaml "ACCESS_TOKEN_TTL: 15m"
 require_contains deploy/kubernetes/configmap.yaml "REFRESH_COOKIE_SECURE"
+require_contains deploy/kubernetes/configmap.yaml "TOKEN_REVOCATION_CACHE_ENABLED"
 
 if command -v kubectl >/dev/null 2>&1; then
   log "kubectl kustomize"

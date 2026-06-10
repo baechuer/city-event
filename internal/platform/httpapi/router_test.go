@@ -90,8 +90,33 @@ func TestCORSPreflight(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-User-ID") {
 		t.Fatalf("allow headers = %q", got)
 	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-CSRF-Token") {
+		t.Fatalf("allow headers = %q", got)
+	}
 	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, CorrelationIDHeader) {
 		t.Fatalf("allow headers = %q", got)
+	}
+}
+
+func TestCORSDoesNotTreatWildcardAsCredentialedOrigin(t *testing.T) {
+	envs := map[string]string{
+		"CORS_ALLOWED_ORIGINS": "*",
+	}
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		return envs[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := NewRouter(cfg, nil)
+
+	req := httptest.NewRequest(http.MethodOptions, "/v1/events", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("wildcard should not be accepted for credentialed CORS, got %q", got)
 	}
 }
 

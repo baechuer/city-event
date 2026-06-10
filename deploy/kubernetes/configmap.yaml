@@ -12,6 +12,7 @@ data:
   ACCESS_TOKEN_TTL: 15m
   REFRESH_TOKEN_TTL: 720h
   REFRESH_COOKIE_SECURE: "true"
+  TOKEN_REVOCATION_CACHE_ENABLED: "true"
   CORS_ALLOWED_ORIGINS: https://cityevents.local
   JWT_ISSUER: cityevents
   AUTH_SERVICE_URL: http://auth-service

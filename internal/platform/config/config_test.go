@@ -34,6 +34,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.RefreshCookieSecure {
 		t.Fatalf("refresh cookie should not be secure by default for local HTTP")
 	}
+	if !cfg.TokenRevocationCacheEnabled {
+		t.Fatalf("token revocation cache should be enabled by default")
+	}
 	if cfg.AuthServiceURL != "http://127.0.0.1:8081" || cfg.EventServiceURL != "http://127.0.0.1:8082" {
 		t.Fatalf("expected local service URL defaults, got auth=%q event=%q", cfg.AuthServiceURL, cfg.EventServiceURL)
 	}
@@ -41,20 +44,21 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 	envs := map[string]string{
-		"HTTP_ADDR":                   ":9000",
-		"AUTH_SERVICE_HTTP_ADDR":      ":9101",
-		"CITYEVENTS_ENV":              "test",
-		"POSTGRES_URL":                "postgres://test:test@localhost:5432/test?sslmode=disable",
-		"RABBITMQ_URL":                "amqp://test:test@localhost:5672/",
-		"REDIS_URL":                   "redis://localhost:6379/1",
-		"MINIO_ENDPOINT":              "http://localhost:9000",
-		"SMTP_ADDR":                   "localhost:1025",
-		"SHUTDOWN_TIMEOUT":            "5s",
-		"ACCESS_TOKEN_TTL":            "10m",
-		"REFRESH_TOKEN_TTL":           "168h",
-		"REFRESH_COOKIE_SECURE":       "true",
-		"CORS_ALLOWED_ORIGINS":        "https://cityevents.example,http://localhost:18088",
-		"UNRELATED_SERVICE_HTTP_ADDR": ":9200",
+		"HTTP_ADDR":                      ":9000",
+		"AUTH_SERVICE_HTTP_ADDR":         ":9101",
+		"CITYEVENTS_ENV":                 "test",
+		"POSTGRES_URL":                   "postgres://test:test@localhost:5432/test?sslmode=disable",
+		"RABBITMQ_URL":                   "amqp://test:test@localhost:5672/",
+		"REDIS_URL":                      "redis://localhost:6379/1",
+		"MINIO_ENDPOINT":                 "http://localhost:9000",
+		"SMTP_ADDR":                      "localhost:1025",
+		"SHUTDOWN_TIMEOUT":               "5s",
+		"ACCESS_TOKEN_TTL":               "10m",
+		"REFRESH_TOKEN_TTL":              "168h",
+		"REFRESH_COOKIE_SECURE":          "true",
+		"TOKEN_REVOCATION_CACHE_ENABLED": "false",
+		"CORS_ALLOWED_ORIGINS":           "https://cityevents.example,http://localhost:18088",
+		"UNRELATED_SERVICE_HTTP_ADDR":    ":9200",
 	}
 
 	cfg, err := Load("auth-service", mapGetenv(envs))
@@ -70,6 +74,9 @@ func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 	}
 	if cfg.AccessTokenTTL != 10*time.Minute || cfg.RefreshTokenTTL != 168*time.Hour || !cfg.RefreshCookieSecure {
 		t.Fatalf("unexpected token config: access=%s refresh=%s secure=%v", cfg.AccessTokenTTL, cfg.RefreshTokenTTL, cfg.RefreshCookieSecure)
+	}
+	if cfg.TokenRevocationCacheEnabled {
+		t.Fatalf("expected token revocation cache to be disabled")
 	}
 	if len(cfg.AllowedOrigins) != 2 || cfg.AllowedOrigins[0] != "https://cityevents.example" {
 		t.Fatalf("unexpected allowed origins: %+v", cfg.AllowedOrigins)
@@ -102,6 +109,11 @@ func TestLoadRejectsInvalidRefreshConfig(t *testing.T) {
 		"REFRESH_COOKIE_SECURE": "not-a-bool",
 	})); err == nil {
 		t.Fatalf("expected invalid refresh cookie secure error")
+	}
+	if _, err := Load("auth-service", mapGetenv(map[string]string{
+		"TOKEN_REVOCATION_CACHE_ENABLED": "not-a-bool",
+	})); err == nil {
+		t.Fatalf("expected invalid token revocation cache setting error")
 	}
 }
 

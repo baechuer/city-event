@@ -34,6 +34,9 @@ func TestAuthHandlersWorkflow(t *testing.T) {
 	if cookie := refreshCookieFromRecorder(t, loginResp); !cookie.HttpOnly {
 		t.Fatalf("refresh cookie should be HttpOnly")
 	}
+	if cookie := csrfCookieFromRecorder(t, loginResp); cookie.HttpOnly {
+		t.Fatalf("csrf cookie must be readable by frontend JavaScript")
+	}
 
 	meResp := doJSON(router, http.MethodGet, "/v1/auth/me", "", loginToken)
 	if meResp.Code != http.StatusOK {
@@ -65,31 +68,71 @@ func TestAuthHandlersWorkflow(t *testing.T) {
 func TestAuthHandlersRefreshRotatesCookieAndRejectsReuse(t *testing.T) {
 	router, _ := testAuthRouter(t)
 
+	noCookieResp := doJSON(router, http.MethodPost, "/v1/auth/refresh", "", "")
+	if noCookieResp.Code != http.StatusUnauthorized {
+		t.Fatalf("refresh without cookie status = %d body=%s", noCookieResp.Code, noCookieResp.Body.String())
+	}
+
 	registerResp := doJSON(router, http.MethodPost, "/v1/auth/register", `{"email":"refresh@example.com","password":"StrongerPass123","displayName":"Refresh"}`, "")
 	if registerResp.Code != http.StatusCreated {
 		t.Fatalf("register status = %d body=%s", registerResp.Code, registerResp.Body.String())
 	}
 	firstCookie := refreshCookieFromRecorder(t, registerResp)
+	firstCSRF := csrfCookieFromRecorder(t, registerResp)
 
-	refreshResp := doJSONWithCookies(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{firstCookie})
+	missingCSRFResp := doJSONWithCookies(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{firstCookie})
+	if missingCSRFResp.Code != http.StatusForbidden {
+		t.Fatalf("refresh without csrf status = %d body=%s", missingCSRFResp.Code, missingCSRFResp.Body.String())
+	}
+
+	refreshResp := doJSONWithCookiesAndHeaders(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{firstCookie, firstCSRF}, csrfHeaders(firstCSRF))
 	if refreshResp.Code != http.StatusOK {
 		t.Fatalf("refresh status = %d body=%s", refreshResp.Code, refreshResp.Body.String())
 	}
 	rotatedCookie := refreshCookieFromRecorder(t, refreshResp)
+	rotatedCSRF := csrfCookieFromRecorder(t, refreshResp)
 	if rotatedCookie.Value == firstCookie.Value {
 		t.Fatalf("refresh cookie was not rotated")
+	}
+	if rotatedCSRF.Value == firstCSRF.Value {
+		t.Fatalf("csrf cookie should rotate with refresh session")
 	}
 	if token := accessTokenFromBody(t, refreshResp.Body.Bytes()); token == "" {
 		t.Fatalf("refresh did not return access token")
 	}
 
-	reuseResp := doJSONWithCookies(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{firstCookie})
+	reuseResp := doJSONWithCookiesAndHeaders(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{firstCookie, firstCSRF}, csrfHeaders(firstCSRF))
 	if reuseResp.Code != http.StatusUnauthorized {
 		t.Fatalf("reused refresh status = %d body=%s", reuseResp.Code, reuseResp.Body.String())
 	}
-	afterReuseResp := doJSONWithCookies(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{rotatedCookie})
+	afterReuseResp := doJSONWithCookiesAndHeaders(router, http.MethodPost, "/v1/auth/refresh", "", "", []*http.Cookie{rotatedCookie, rotatedCSRF}, csrfHeaders(rotatedCSRF))
 	if afterReuseResp.Code != http.StatusUnauthorized {
 		t.Fatalf("rotated token after reuse status = %d body=%s", afterReuseResp.Code, afterReuseResp.Body.String())
+	}
+}
+
+func TestAuthHandlersLogoutWithRefreshCookieRequiresCSRF(t *testing.T) {
+	router, _ := testAuthRouter(t)
+
+	registerResp := doJSON(router, http.MethodPost, "/v1/auth/register", `{"email":"logoutcsrf@example.com","password":"StrongerPass123","displayName":"Logout CSRF"}`, "")
+	if registerResp.Code != http.StatusCreated {
+		t.Fatalf("register status = %d body=%s", registerResp.Code, registerResp.Body.String())
+	}
+	token := accessTokenFromBody(t, registerResp.Body.Bytes())
+	refreshCookie := refreshCookieFromRecorder(t, registerResp)
+	csrfCookie := csrfCookieFromRecorder(t, registerResp)
+
+	missingCSRFResp := doJSONWithCookies(router, http.MethodPost, "/v1/auth/logout", "", token, []*http.Cookie{refreshCookie, csrfCookie})
+	if missingCSRFResp.Code != http.StatusForbidden {
+		t.Fatalf("logout without csrf status = %d body=%s", missingCSRFResp.Code, missingCSRFResp.Body.String())
+	}
+
+	logoutResp := doJSONWithCookiesAndHeaders(router, http.MethodPost, "/v1/auth/logout", "", token, []*http.Cookie{refreshCookie, csrfCookie}, csrfHeaders(csrfCookie))
+	if logoutResp.Code != http.StatusNoContent {
+		t.Fatalf("logout status = %d body=%s", logoutResp.Code, logoutResp.Body.String())
+	}
+	if cookie := csrfCookieFromRecorder(t, logoutResp); cookie.MaxAge != -1 {
+		t.Fatalf("expected csrf cookie to be cleared, got max-age %d", cookie.MaxAge)
 	}
 }
 
@@ -210,6 +253,10 @@ func doJSON(handler http.Handler, method, path, body, token string) *httptest.Re
 }
 
 func doJSONWithCookies(handler http.Handler, method, path, body, token string, cookies []*http.Cookie) *httptest.ResponseRecorder {
+	return doJSONWithCookiesAndHeaders(handler, method, path, body, token, cookies, nil)
+}
+
+func doJSONWithCookiesAndHeaders(handler http.Handler, method, path, body, token string, cookies []*http.Cookie, headers map[string]string) *httptest.ResponseRecorder {
 	var requestBody *bytes.Reader
 	if body == "" {
 		requestBody = bytes.NewReader(nil)
@@ -222,6 +269,9 @@ func doJSONWithCookies(handler http.Handler, method, path, body, token string, c
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 	for _, cookie := range cookies {
 		req.AddCookie(cookie)
@@ -263,4 +313,19 @@ func refreshCookieFromRecorder(t *testing.T, rec *httptest.ResponseRecorder) *ht
 	}
 	t.Fatalf("missing refresh cookie in response headers: %v", rec.Header().Values("Set-Cookie"))
 	return nil
+}
+
+func csrfCookieFromRecorder(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
+	t.Helper()
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.Name == csrfCookieName {
+			return cookie
+		}
+	}
+	t.Fatalf("missing csrf cookie in response headers: %v", rec.Header().Values("Set-Cookie"))
+	return nil
+}
+
+func csrfHeaders(cookie *http.Cookie) map[string]string {
+	return map[string]string{csrfHeaderName: cookie.Value}
 }

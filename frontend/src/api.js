@@ -4,6 +4,8 @@ const storageKeys = {
   auth: 'cityevents.auth',
 };
 
+const csrfCookieName = 'cityevents_csrf';
+
 export function createApiClient(config = {}, fetchImpl = globalThis.fetch, storage = globalThis.localStorage) {
   const bases = resolveBases(config);
   let memoryAuth = { user: null, accessToken: '' };
@@ -80,7 +82,7 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
     async logout() {
       await request(bases.authBase, '/v1/auth/logout', {
         method: 'POST',
-        headers: authHeaders(),
+        headers: { ...authHeaders(), ...csrfHeaders() },
       });
       clearAuth();
     },
@@ -145,8 +147,14 @@ export function createApiClient(config = {}, fetchImpl = globalThis.fetch, stora
   async function refresh() {
     return saveAuth(await request(bases.authBase, '/v1/auth/refresh', {
       method: 'POST',
+      headers: csrfHeaders(),
       retryOnUnauthorized: false,
     }));
+  }
+
+  function csrfHeaders() {
+    const token = readCookie(csrfCookieName);
+    return token ? { 'X-CSRF-Token': token } : {};
   }
 }
 
@@ -163,4 +171,15 @@ function resolveBases(config = {}) {
 
 function cleanBase(value) {
   return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function readCookie(name) {
+  const raw = globalThis.document?.cookie || '';
+  const prefix = `${name}=`;
+  const match = raw
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+  if (!match) return '';
+  return decodeURIComponent(match.slice(prefix.length));
 }

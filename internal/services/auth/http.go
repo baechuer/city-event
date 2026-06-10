@@ -2,6 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -22,7 +25,11 @@ type Handler struct {
 	cfg     config.Config
 }
 
-const refreshCookieName = "cityevents_refresh"
+const (
+	refreshCookieName = "cityevents_refresh"
+	csrfCookieName    = "cityevents_csrf"
+	csrfHeaderName    = "X-CSRF-Token"
+)
 
 func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (http.Handler, func(context.Context) error, error) {
 	pool, err := pgxpool.New(ctx, cfg.PostgresURL)
@@ -34,7 +41,22 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 		return nil, nil, err
 	}
 
-	repo := NewPostgresRepository(pool)
+	var repo Repository = NewPostgresRepository(pool)
+	var closeRevocationCache func() error
+	if cfg.TokenRevocationCacheEnabled {
+		cache, cleanup, err := NewRedisRevocationCacheFromURL(ctx, cfg.RedisURL)
+		if err != nil {
+			if logger != nil {
+				logger.Warn("token revocation cache unavailable; falling back to postgres", slog.String("error", err.Error()))
+			}
+		} else {
+			repo = WithRevocationCache(repo, cache)
+			closeRevocationCache = cleanup
+			if logger != nil {
+				logger.Info("token revocation cache enabled")
+			}
+		}
+	}
 	service := NewDefaultServiceWithRefreshTTL(repo, cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
 	if cfg.SeedAdminEmail != "" || cfg.SeedAdminPass != "" {
 		admin, err := service.EnsureSeedAdmin(ctx, SeedAdminCommand{
@@ -53,6 +75,9 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 	router := NewHTTPHandler(cfg, logger, service)
 
 	cleanup := func(context.Context) error {
+		if closeRevocationCache != nil {
+			_ = closeRevocationCache()
+		}
 		pool.Close()
 		return nil
 	}
@@ -117,6 +142,9 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 		return
 	}
+	if !h.requireCSRF(w, r) {
+		return
+	}
 	result, err := h.service.Refresh(r.Context(), refreshToken)
 	if err != nil {
 		h.clearRefreshCookie(w)
@@ -147,6 +175,9 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	refreshToken, hasRefresh := refreshTokenFromCookie(r)
 	if !hasBearer && !hasRefresh {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	if hasRefresh && !h.requireCSRF(w, r) {
 		return
 	}
 
@@ -243,6 +274,24 @@ func refreshTokenFromCookie(r *http.Request) (string, bool) {
 	return strings.TrimSpace(cookie.Value), true
 }
 
+func csrfTokenFromCookie(r *http.Request) (string, bool) {
+	cookie, err := r.Cookie(csrfCookieName)
+	if err != nil || strings.TrimSpace(cookie.Value) == "" {
+		return "", false
+	}
+	return strings.TrimSpace(cookie.Value), true
+}
+
+func (h *Handler) requireCSRF(w http.ResponseWriter, r *http.Request) bool {
+	cookieToken, ok := csrfTokenFromCookie(r)
+	headerToken := strings.TrimSpace(r.Header.Get(csrfHeaderName))
+	if !ok || headerToken == "" || !hmac.Equal([]byte(cookieToken), []byte(headerToken)) {
+		writeError(w, http.StatusForbidden, "csrf_failed", "CSRF token is required")
+		return false
+	}
+	return true
+}
+
 func (h *Handler) setRefreshCookie(w http.ResponseWriter, result AuthResult) {
 	if strings.TrimSpace(result.RefreshToken) == "" || result.RefreshExpiresAt.IsZero() {
 		return
@@ -261,6 +310,7 @@ func (h *Handler) setRefreshCookie(w http.ResponseWriter, result AuthResult) {
 		Expires:  result.RefreshExpiresAt,
 		MaxAge:   maxAge,
 	})
+	h.setCSRFCookie(w, result.RefreshExpiresAt, maxAge)
 }
 
 func (h *Handler) clearRefreshCookie(w http.ResponseWriter) {
@@ -274,6 +324,47 @@ func (h *Handler) clearRefreshCookie(w http.ResponseWriter) {
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 	})
+	h.clearCSRFCookie(w)
+}
+
+func (h *Handler) setCSRFCookie(w http.ResponseWriter, expiresAt time.Time, maxAge int) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookieName,
+		Value:    newCSRFToken(),
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   h.cfg.RefreshCookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  expiresAt,
+		MaxAge:   maxAge,
+	})
+	h.clearCSRFCookiePath(w, "/v1/auth")
+}
+
+func (h *Handler) clearCSRFCookie(w http.ResponseWriter) {
+	h.clearCSRFCookiePath(w, "/")
+	h.clearCSRFCookiePath(w, "/v1/auth")
+}
+
+func (h *Handler) clearCSRFCookiePath(w http.ResponseWriter, path string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     csrfCookieName,
+		Value:    "",
+		Path:     path,
+		HttpOnly: false,
+		Secure:   h.cfg.RefreshCookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
+}
+
+func newCSRFToken() string {
+	var bytes [32]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		panic(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(bytes[:])
 }
 
 func writeAuthError(w http.ResponseWriter, err error) {

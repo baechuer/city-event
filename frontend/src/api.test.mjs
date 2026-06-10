@@ -119,7 +119,8 @@ test('cancel registration moderation uses bearer token', async () => {
   assert.equal(calls[1].options.headers['X-User-ID'], undefined);
 });
 
-test('refresh stores access token in memory from HttpOnly cookie flow', async () => {
+test('refresh stores access token in memory from HttpOnly cookie flow', async (t) => {
+  setDocumentCookie(t, 'cityevents_csrf=csrf-1');
   const calls = [];
   const client = createApiClient({ authBase: 'http://auth' }, async (url, options) => {
     calls.push({ url, options });
@@ -131,6 +132,26 @@ test('refresh stores access token in memory from HttpOnly cookie flow', async ()
   assert.equal(calls[0].url, 'http://auth/v1/auth/refresh');
   assert.equal(calls[0].options.method, 'POST');
   assert.equal(calls[0].options.credentials, 'include');
+  assert.equal(calls[0].options.headers['X-CSRF-Token'], 'csrf-1');
+});
+
+test('logout sends bearer token and csrf token', async (t) => {
+  setDocumentCookie(t, 'cityevents_csrf=csrf-logout');
+  const calls = [];
+  const client = createApiClient({ authBase: 'http://auth' }, async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith('/v1/auth/login')) {
+      return response(200, { user: { id: 'user-1', role: 'USER' }, accessToken: 'token-1' });
+    }
+    return response(204, {});
+  }, memoryStorage());
+  await client.login({ email: 'user@example.com', password: 'StrongerPass123' });
+  await client.logout();
+  assert.equal(calls[1].url, 'http://auth/v1/auth/logout');
+  assert.equal(calls[1].options.method, 'POST');
+  assert.equal(calls[1].options.headers.Authorization, 'Bearer token-1');
+  assert.equal(calls[1].options.headers['X-CSRF-Token'], 'csrf-logout');
+  assert.equal(client.loadAuth().accessToken, '');
 });
 
 test('request errors expose backend message', async () => {
@@ -146,4 +167,17 @@ function response(status, payload) {
     status,
     json: async () => payload,
   };
+}
+
+function setDocumentCookie(t, cookie) {
+  const hadDocument = Object.hasOwn(globalThis, 'document');
+  const previousDocument = globalThis.document;
+  globalThis.document = { cookie };
+  t.after(() => {
+    if (hadDocument) {
+      globalThis.document = previousDocument;
+    } else {
+      delete globalThis.document;
+    }
+  });
 }

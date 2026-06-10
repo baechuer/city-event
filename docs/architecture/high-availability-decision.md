@@ -19,6 +19,7 @@ Implemented and verified today:
 - HTTP services expose `/livez` and `/readyz`.
 - Kubernetes Deployments define liveness probes, readiness probes, and resource requests/limits.
 - ConfigMaps and Secret templates separate configuration from code.
+- Ingress manifests declare TLS routing, forced HTTPS redirect, and a cert-manager certificate example.
 - Phase 10 manifest validation passes through `scripts/verify-phase-10.sh`.
 
 This evidence supports:
@@ -48,6 +49,8 @@ The backing services are also single-instance in the current local stack:
 If any of those dependencies fail, additional stateless service replicas would not make the full system highly available. Adding `replicas: 2` without dependency HA, autoscaling evidence, and failure tests would overstate what the project proves.
 
 The local Kubernetes client dry-run is also not fully verified in this environment because the local kubeconfig is not readable. `kubectl kustomize` validation is available, but a real pod-failure test needs a working local cluster.
+
+TLS is also not production-proven yet. The manifests identify the expected `cityevents-tls` secret and include a cert-manager `Certificate` example, but a real cluster still needs a valid certificate issuer, DNS, and an ingress smoke test.
 
 ## What Would Make HA True
 

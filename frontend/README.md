@@ -32,6 +32,8 @@ The app already appends `/v1/...`, so `CITYEVENTS_API_BASE` should be the gatewa
 
 Access tokens are kept in browser memory only. Page reload calls `/v1/auth/refresh`; the refresh token is an HttpOnly cookie set by the auth service.
 
+Refresh-cookie operations use double-submit CSRF protection. Auth-service sets a readable `cityevents_csrf` cookie alongside the HttpOnly refresh cookie, and the frontend sends that value in `X-CSRF-Token` for `/v1/auth/refresh` and `/v1/auth/logout`.
+
 For frontend-only static serving, after separately starting backend services:
 
 ```bash

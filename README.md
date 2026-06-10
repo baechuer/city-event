@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 12: final evidence audit and resume framing. It contains the Go service foundation, auth service with short-lived JWT access tokens and rotating HttpOnly refresh tokens, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, a documented HA deferral, and resume-safe claim guidance.
+The current branch is in Phase 12: final evidence audit and resume framing. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, a documented HA deferral, and resume-safe claim guidance.
 
 ## Architecture Direction
 
@@ -18,7 +18,7 @@ The intended system is a RabbitMQ-based Go microservices platform:
 
 The core consistency boundary is `event-registration-service`, which owns event creation, registration, capacity, waitlist, cancellation, promotion, and durable outbox writes.
 
-RabbitMQ is used for asynchronous projections and side effects. Delivery is at least once; consumers must provide idempotent business effects. Redis is used as a non-authoritative cache for feed reads only.
+RabbitMQ is used for asynchronous projections and side effects. Delivery is at least once; consumers must provide idempotent business effects. Redis is used as a non-authoritative cache for feed reads and as a non-authoritative acceleration layer for access-token revocation checks.
 
 Notification delivery is local-development evidence through Mailpit. Current async messages carry `userId`, not verified email addresses, so production email delivery is still a later claim.
 
@@ -65,7 +65,7 @@ http://127.0.0.1:18088
 
 The launcher starts Docker dependencies, builds and runs all Go services, starts the RabbitMQ workers, and serves the static frontend. The frontend receives runtime API configuration from `/config.js` and defaults to the local API gateway at `http://127.0.0.1:8080`. Press `Ctrl-C` to stop the Go services and frontend.
 
-Auth uses a 15-minute JWT access token kept in browser memory and a rotating opaque refresh token stored as an HttpOnly cookie. The refresh-token hash and token-family state are stored in Postgres.
+Auth uses a 15-minute JWT access token kept in browser memory and a rotating opaque refresh token stored as an HttpOnly cookie. The refresh-token hash and token-family state are stored in Postgres. Refresh-cookie operations use a double-submit CSRF token: auth-service sets a readable `cityevents_csrf` cookie and the frontend echoes it in `X-CSRF-Token` for refresh/logout.
 
 To point the local frontend at a Kubernetes ingress or another gateway host:
 
@@ -131,6 +131,7 @@ This runs:
 - default Go tests
 - auth Postgres integration tests
 - runtime smoke for register -> login -> me -> logout -> revoked token fails
+- unit tests for refresh-token rotation, CSRF checks, and Redis-backed revocation-cache fallback
 
 ## Verify Event Registration Service
 
@@ -257,7 +258,7 @@ This runs:
 
 ## Verify Kubernetes Readiness
 
-Phase 10 verification validates the local test suite, Docker Compose config, Kubernetes manifest coverage, probes, resource limits, and optional `kubectl` dry-run when `kubectl` is available.
+Phase 10 verification validates the local test suite, Docker Compose config, Kubernetes manifest coverage, probes, resource limits, TLS ingress settings, the cert-manager certificate example, and optional `kubectl` dry-run when `kubectl` is available.
 
 ```bash
 ./scripts/verify-phase-10.sh
@@ -358,7 +359,7 @@ unset CITYEVENTS_STARTUP_CHECK_ONLY
 Allowed claim:
 
 ```text
-Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis feed caching, idempotent consumers, observability hooks, Kubernetes-ready manifests, and documented production/HA limitations.
+Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, observability hooks, Kubernetes-ready manifests, and documented production/HA limitations.
 ```
 
 Not yet allowed:

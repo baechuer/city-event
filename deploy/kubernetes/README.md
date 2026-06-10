@@ -25,7 +25,7 @@ docker build --build-arg SERVICE=outbox-relay -t cityevents/outbox-relay:dev .
 
 Replace `secret.example.yaml` values before any real deployment. The example contains a seed admin so the role workflow can be verified, but the password is not production-safe.
 
-Create a TLS secret named `cityevents-tls` in the `cityevents` namespace before relying on ingress TLS:
+Create a TLS secret named `cityevents-tls` in the `cityevents` namespace before relying on ingress TLS. For a local `cityevents.local` host, create this secret manually:
 
 ```bash
 kubectl create secret tls cityevents-tls \
@@ -34,13 +34,23 @@ kubectl create secret tls cityevents-tls \
   --key path/to/tls.key
 ```
 
+For a real public domain, install cert-manager, create a production `ClusterIssuer`, update `cert-manager-certificate.example.yaml` with the real DNS name, and apply it:
+
+```bash
+kubectl apply -f deploy/kubernetes/cert-manager-certificate.example.yaml
+```
+
+Cert-manager then creates and renews the same `cityevents-tls` secret that `ingress.yaml` references.
+
 ```bash
 kubectl apply -k deploy/kubernetes
 ```
 
 ## Ingress
 
-`ingress.yaml` routes `cityevents.local/v1`, `/readyz`, `/livez`, and `/metrics` to the API gateway. It assumes an ingress controller that supports `ingressClassName: nginx`. The manifest declares TLS for `cityevents.local` and enables NGINX SSL redirect annotations.
+`ingress.yaml` routes `cityevents.local/v1`, `/readyz`, `/livez`, and `/metrics` to the API gateway. It assumes an ingress controller that supports `ingressClassName: nginx`. The manifest declares TLS for `cityevents.local`, references the `cityevents-tls` secret, and enables NGINX SSL redirect annotations.
+
+If you switch to a public hostname, update `ingress.yaml`, `configmap.yaml` `CORS_ALLOWED_ORIGINS`, and `cert-manager-certificate.example.yaml` together.
 
 Ingress is not high availability by itself. It only exposes HTTP routing. HA still needs more than one gateway pod, pod disruption budgets, autoscaling, multi-node scheduling, and highly available data stores.
 
@@ -49,7 +59,7 @@ Ingress is not high availability by itself. It only exposes HTTP routing. HA sti
 Allowed:
 
 ```text
-Kubernetes-ready service manifests with health probes, resource limits, configuration separation, and TLS ingress routing.
+Kubernetes-ready service manifests with health probes, resource limits, configuration separation, forced HTTPS ingress routing, and a cert-manager certificate example.
 ```
 
 Not allowed yet:
