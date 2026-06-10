@@ -71,7 +71,7 @@ const demoEvents = [
     category: 'networking',
     rank: 99,
     title: 'Founder Signal Night',
-    description: 'A compact room for students, builders, and early founders to trade ideas and meet useful people.',
+    description: 'A focused room for students, builders, and early founders to trade ideas and meet useful people.',
     city: 'Sydney',
     venue: 'Haymarket Studio',
     startsAt: relativeDate(2, 18, 30),
@@ -219,16 +219,11 @@ function renderHomePage() {
     <section class="home-board" aria-label="CityEvents discovery">
       <div class="hero-panel">
         <div class="hero-copy">
-          <p class="eyebrow">City radar</p>
+          <p class="eyebrow">Tonight's picks</p>
           <h1>Pick a plan before the night disappears.</h1>
           <p>Fast discovery for social events, useful rooms, active weekends, and low-pressure ways to meet people.</p>
         </div>
         ${renderSearchForm('hero-search', 'Find events, categories, or venues')}
-        <div class="hero-proof" aria-label="Discovery summary">
-          <span><strong>${events.length}</strong> visible events</span>
-          <span><strong>${categories.length}</strong> category lanes</span>
-          <span><strong>${state.filters.city}</strong> default city</span>
-        </div>
       </div>
 
       <section class="spotlight-card ${categoryAccent(spotlight)}" aria-labelledby="spotlight-title">
@@ -300,7 +295,7 @@ function renderCategoriesPage() {
       <div class="page-intro">
         <p class="eyebrow">Category lanes</p>
         <h1>Choose the reason you want to leave the house.</h1>
-        <p>Each lane starts with strong visual cues and compact event cards so the user does not need to hunt.</p>
+        <p>Each lane starts with strong visual cues and focused event cards so the user does not need to hunt.</p>
       </div>
       <div class="category-grid">
         ${categories.map((category) => renderCategoryFeature(category)).join('')}

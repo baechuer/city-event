@@ -2,7 +2,7 @@
 
 ## Visual Direction
 
-CityEvents uses a compact "city radar" interface. The first viewport should feel active and customer-facing: search, featured event, popular stack, categories, and upcoming events are all visible together on desktop. The design is not a Meetup clone; it is denser, more editorial, and built for fast plan selection.
+CityEvents uses a clean bright discovery interface. The first viewport should feel active and customer-facing without cramming every module into view: search, one strong event, and obvious category entry points lead the experience, while supporting event lists can continue below the fold or move to focused routes. The design is not a Meetup clone; it is more restrained, visual, and built for fast plan selection.
 
 ## Color
 
@@ -30,8 +30,8 @@ Use a native system sans stack for speed and product familiarity. Keep fixed rem
 
 ## Components
 
-- Top bar: compact brand and page navigation.
-- Home board: search, hero copy, major spotlight event, popular event stack, category strip, and city row.
+- Top bar: clear brand and page navigation.
+- Home page: search, hero copy, major spotlight event, popular event stack, category strip, and city row with enough spacing to scan.
 - Event card: local image, category/status label, title, description, time, city, and spots left.
 - Category tile: image-led lane for Networking, Meet New Friends, Sports, Hobbies, Learning & Tech, and Food & Nightlife.
 - Event detail: large visual, facts, capacity meter, and RSVP actions.
@@ -40,7 +40,7 @@ Use a native system sans stack for speed and product familiarity. Keep fixed rem
 
 ## Layout
 
-Desktop home uses a compressed board designed to fit the primary discovery experience into the first viewport. Interior pages use focused two-column layouts where useful, then collapse to single-column mobile flows with full-width controls.
+Desktop home uses a two-column discovery lead followed by category and event sections that can scroll naturally. Interior pages use focused two-column layouts where useful, then collapse to single-column mobile flows with full-width controls.
 
 ## Motion
 

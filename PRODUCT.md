@@ -10,11 +10,11 @@ CityEvents serves local event attendees, lightweight event organizers, and revie
 
 ## Product Purpose
 
-CityEvents is a compact customer-facing event discovery product backed by the local distributed services. Success means a visitor can immediately see interesting events, browse category lanes, open a detail page, sign in only when ready to act, publish an event, join or cancel, and create a media upload intent without reading backend documentation.
+CityEvents is a clean customer-facing event discovery product backed by the local distributed services. Success means a visitor can immediately see interesting events, browse category lanes, open a detail page, sign in only when ready to act, publish an event, join or cancel, and create a media upload intent without reading backend documentation.
 
 ## Brand Personality
 
-Casual, precise, city-smart. The interface should feel like a compressed city radar board: strong first impression, dense useful choices, clear category intent, and customer language instead of system language.
+Casual, precise, city-smart. The interface should feel like a polished local discovery app: strong first impression, useful choices, clear category intent, and customer language instead of system language.
 
 ## Anti-references
 
@@ -22,7 +22,7 @@ Avoid generic admin dashboards, oversized marketing heroes, Meetup cloning, purp
 
 ## Design Principles
 
-- Lead with discovery: the first viewport must show featured events, category lanes, search, and local activity without requiring scroll.
+- Lead with discovery: the first viewport must show search, one strong event, and clear category entry points; deeper detail can scroll or move to a focused route.
 - Make state impossible to miss: confirmed, waitlisted, canceled, loading, empty, and error states must have clear labels and affordances.
 - Keep the app customer-first: browsing is open; sign-in appears only when joining, publishing, or managing media.
 - Use technical polish sparingly: modern AI-tech styling should appear through crisp surfaces, OKLCH color, precise motion, and useful status treatment.
@@ -30,7 +30,7 @@ Avoid generic admin dashboards, oversized marketing heroes, Meetup cloning, purp
 
 ## Page Model
 
-- `/` is a compressed discovery board with hero search, major featured event, popular events, category lanes, and upcoming city events.
+- `/` is a clean discovery page with hero search, major featured event, popular events, category lanes, and upcoming city events.
 - `/events` is the full browse/search page.
 - `/events/:id` is the event detail and RSVP page.
 - `/categories` lists major discovery lanes.
@@ -40,7 +40,7 @@ Avoid generic admin dashboards, oversized marketing heroes, Meetup cloning, purp
 
 ## Reviewer Walkthrough
 
-1. Open the local app and inspect the no-scroll discovery board.
+1. Open the local app and inspect the discovery page.
 2. Browse a category lane or use the search form.
 3. Open an event detail page.
 4. Sign in only when attempting to join or publish.
