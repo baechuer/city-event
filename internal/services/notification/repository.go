@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/messaging"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -32,9 +33,11 @@ func (r *Repository) ProcessEnvelope(ctx context.Context, envelope messaging.Env
 	}
 	decision, err := Decide(envelope)
 	if errors.Is(err, ErrUnsupportedRoutingKey) {
+		observability.RecordConsumerMessage(r.consumerName, envelope.RoutingKey, "ignored")
 		return ProcessResult{Ignored: true}, nil
 	}
 	if err != nil {
+		observability.RecordConsumerMessage(r.consumerName, envelope.RoutingKey, "failed")
 		return ProcessResult{}, err
 	}
 
@@ -56,6 +59,7 @@ func (r *Repository) ProcessEnvelope(ctx context.Context, envelope messaging.Env
 		if err := tx.Commit(ctx); err != nil {
 			return ProcessResult{}, err
 		}
+		observability.RecordConsumerMessage(r.consumerName, envelope.RoutingKey, "duplicate")
 		return ProcessResult{Notification: notification, Duplicate: true}, nil
 	}
 
@@ -108,6 +112,7 @@ func (r *Repository) ProcessEnvelope(ctx context.Context, envelope messaging.Env
 	if err := tx.Commit(ctx); err != nil {
 		return ProcessResult{}, err
 	}
+	observability.RecordConsumerMessage(r.consumerName, envelope.RoutingKey, "processed")
 	return ProcessResult{Notification: notification}, nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/messaging"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -45,13 +46,22 @@ func (p *Projector) HandleEnvelope(ctx context.Context, envelope messaging.Envel
 		return err
 	}
 	if !claimed {
-		return tx.Commit(ctx)
+		if err := tx.Commit(ctx); err != nil {
+			return err
+		}
+		observability.RecordConsumerMessage(p.consumerName, envelope.RoutingKey, "duplicate")
+		return nil
 	}
 
 	if err := p.apply(ctx, tx, envelope); err != nil {
+		observability.RecordConsumerMessage(p.consumerName, envelope.RoutingKey, "failed")
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	observability.RecordConsumerMessage(p.consumerName, envelope.RoutingKey, "processed")
+	return nil
 }
 
 func (p *Projector) apply(ctx context.Context, tx pgx.Tx, envelope messaging.Envelope) error {

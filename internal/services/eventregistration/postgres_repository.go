@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -504,6 +505,11 @@ func firstWaitlistedTx(ctx context.Context, tx pgx.Tx, eventID string) (Registra
 }
 
 func insertOutbox(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, routingKey string, payload map[string]any, now time.Time) error {
+	if correlationID := observability.CorrelationIDFromContext(ctx); correlationID != "" {
+		if _, ok := payload["correlationId"]; !ok {
+			payload["correlationId"] = correlationID
+		}
+	}
 	raw, err := marshalPayload(payload)
 	if err != nil {
 		return err

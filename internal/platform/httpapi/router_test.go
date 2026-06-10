@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/baechuer/cityevents/internal/platform/config"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 )
 
 func TestEveryServiceExposesHealthEndpoints(t *testing.T) {
@@ -84,5 +85,58 @@ func TestCORSPreflight(t *testing.T) {
 	}
 	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-User-ID") {
 		t.Fatalf("allow headers = %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, CorrelationIDHeader) {
+		t.Fatalf("allow headers = %q", got)
+	}
+}
+
+func TestCorrelationIDAndMetrics(t *testing.T) {
+	cfg, err := config.Load("api-gateway", nil)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := NewRouter(cfg, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	req.Header.Set(CorrelationIDHeader, "corr-test")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get(CorrelationIDHeader); got != "corr-test" {
+		t.Fatalf("correlation id = %q", got)
+	}
+
+	generatedReq := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	generatedRec := httptest.NewRecorder()
+	router.ServeHTTP(generatedRec, generatedReq)
+	if got := generatedRec.Header().Get(CorrelationIDHeader); got == "" {
+		t.Fatal("expected generated correlation id")
+	}
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	router.ServeHTTP(metricsRec, metricsReq)
+	if metricsRec.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d", metricsRec.Code)
+	}
+	if !strings.Contains(metricsRec.Body.String(), "cityevents_http_requests_total") {
+		t.Fatalf("metrics body missing request counter: %s", metricsRec.Body.String())
+	}
+}
+
+func TestOutboxAndConsumerMetrics(t *testing.T) {
+	observability.RecordOutboxMessage("join.confirmed", "pending")
+	observability.RecordOutboxMessage("join.confirmed", "sent")
+	observability.RecordConsumerMessage("feed-projection", "join.confirmed", "processed")
+	text := observability.MetricsText()
+	if !strings.Contains(text, "cityevents_outbox_messages_total") || !strings.Contains(text, `routing_key="join.confirmed",state="pending"`) {
+		t.Fatalf("outbox metric missing: %s", text)
+	}
+	if !strings.Contains(text, "cityevents_outbox_messages_total") || !strings.Contains(text, `routing_key="join.confirmed",state="sent"`) {
+		t.Fatalf("outbox metric missing: %s", text)
+	}
+	if !strings.Contains(text, "cityevents_consumer_messages_total") || !strings.Contains(text, `consumer="feed-projection",routing_key="join.confirmed",state="processed"`) {
+		t.Fatalf("consumer metric missing: %s", text)
 	}
 }

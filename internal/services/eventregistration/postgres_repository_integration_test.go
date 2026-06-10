@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -50,6 +51,36 @@ func TestPostgresCreateUpdateCancelOutbox(t *testing.T) {
 
 	if _, err := svc.JoinEvent(ctx, event.Event.ID, "user-1", ""); !errors.Is(err, ErrEventCanceled) {
 		t.Fatalf("expected canceled event join to fail, got %v", err)
+	}
+}
+
+func TestPostgresOutboxIncludesCorrelationID(t *testing.T) {
+	ctx := observability.ContextWithCorrelationID(context.Background(), "corr-phase-9")
+	pool := setupEventPostgres(t, ctx)
+	svc := NewService(NewPostgresRepository(pool))
+
+	event, err := svc.CreateEvent(ctx, CreateEventCommand{
+		OrganizerID: "organizer-1",
+		Title:       "Tech Meetup",
+		Description: "Monthly meetup",
+		City:        "Sydney",
+		Venue:       "Town Hall",
+		StartsAt:    time.Now().UTC().Add(24 * time.Hour),
+		Capacity:    10,
+	})
+	if err != nil {
+		t.Fatalf("create event: %v", err)
+	}
+	var correlationID string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT payload->>'correlationId'
+		FROM outbox_messages
+		WHERE aggregate_id = $1 AND routing_key = $2
+	`, event.Event.ID, RoutingEventPublished).Scan(&correlationID); err != nil {
+		t.Fatalf("read outbox correlation id: %v", err)
+	}
+	if correlationID != "corr-phase-9" {
+		t.Fatalf("correlation id = %q", correlationID)
 	}
 }
 

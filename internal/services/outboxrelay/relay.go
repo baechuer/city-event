@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/messaging"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -42,22 +43,26 @@ func (r *Relay) PublishBatch(ctx context.Context, limit int) (int, error) {
 	return r.store.withBatch(ctx, limit, r.now(), func(ctx context.Context, tx pgx.Tx, records []OutboxRecord) (int, error) {
 		published := 0
 		for _, record := range records {
+			observability.RecordOutboxMessage(record.RoutingKey, "pending")
 			envelope, err := record.Envelope()
 			if err != nil {
 				if markErr := markFailed(ctx, tx, record.ID, record.Attempts+1, r.now().Add(r.backoff(record.Attempts+1)), err); markErr != nil {
 					return published, markErr
 				}
+				observability.RecordOutboxMessage(record.RoutingKey, "failed")
 				return published, err
 			}
 			if err := r.publisher.Publish(ctx, record.RoutingKey, envelope); err != nil {
 				if markErr := markFailed(ctx, tx, record.ID, record.Attempts+1, r.now().Add(r.backoff(record.Attempts+1)), err); markErr != nil {
 					return published, markErr
 				}
+				observability.RecordOutboxMessage(record.RoutingKey, "failed")
 				return published, err
 			}
 			if err := markSent(ctx, tx, record.ID); err != nil {
 				return published, err
 			}
+			observability.RecordOutboxMessage(record.RoutingKey, "sent")
 			published++
 		}
 		return published, nil

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/messaging"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/baechuer/cityevents/internal/services/eventregistration"
 	"github.com/baechuer/cityevents/internal/services/feedprojection"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,11 +21,11 @@ import (
 )
 
 func TestRelayPublishesPersistentMessageAndMarksSent(t *testing.T) {
-	ctx := context.Background()
+	ctx := observability.ContextWithCorrelationID(context.Background(), "corr-relay-test")
 	pool, conn := setupPhase4Integration(t, ctx)
 
 	eventSvc := eventregistration.NewService(eventregistration.NewPostgresRepository(pool))
-	created := createRelayEvent(t, eventSvc, "organizer-1")
+	created := createRelayEvent(t, ctx, eventSvc, "organizer-1")
 
 	publisher, err := messaging.NewConfirmingPublisher(conn)
 	if err != nil {
@@ -48,12 +49,21 @@ func TestRelayPublishesPersistentMessageAndMarksSent(t *testing.T) {
 	if delivery.RoutingKey != eventregistration.RoutingEventPublished {
 		t.Fatalf("routing key = %s", delivery.RoutingKey)
 	}
+	if delivery.MessageId == "" {
+		t.Fatal("expected AMQP message id")
+	}
+	if delivery.CorrelationId != "corr-relay-test" {
+		t.Fatalf("delivery correlation id = %s", delivery.CorrelationId)
+	}
 	envelope, err := messaging.DecodeEnvelope(delivery.Body)
 	if err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
 	if envelope.MessageID == "" || envelope.AggregateID != created.Event.ID {
 		t.Fatalf("unexpected envelope: %+v", envelope)
+	}
+	if envelope.CorrelationID != "corr-relay-test" {
+		t.Fatalf("envelope correlation id = %s", envelope.CorrelationID)
 	}
 	_ = delivery.Ack(false)
 
@@ -72,7 +82,7 @@ func TestRelayToFeedProjectionSmoke(t *testing.T) {
 
 	eventSvc := eventregistration.NewService(eventregistration.NewPostgresRepository(pool))
 	projector := feedprojection.NewProjector(pool)
-	event := createRelayEvent(t, eventSvc, "organizer-1")
+	event := createRelayEvent(t, ctx, eventSvc, "organizer-1")
 	if _, err := eventSvc.JoinEvent(ctx, event.Event.ID, "user-1", ""); err != nil {
 		t.Fatalf("join event: %v", err)
 	}
@@ -135,7 +145,7 @@ func TestRelayPublishesManyOutboxMessages(t *testing.T) {
 	pool, conn := setupPhase4Integration(t, ctx)
 	eventSvc := eventregistration.NewService(eventregistration.NewPostgresRepository(pool))
 	for i := 0; i < 100; i++ {
-		createRelayEvent(t, eventSvc, fmt.Sprintf("organizer-%03d", i))
+		createRelayEvent(t, ctx, eventSvc, fmt.Sprintf("organizer-%03d", i))
 	}
 
 	publisher, err := messaging.NewConfirmingPublisher(conn)
@@ -165,7 +175,7 @@ func TestTwoRelaysDoNotDoublePublishSameRow(t *testing.T) {
 	ctx := context.Background()
 	pool, _ := setupPhase4Integration(t, ctx)
 	eventSvc := eventregistration.NewService(eventregistration.NewPostgresRepository(pool))
-	createRelayEvent(t, eventSvc, "organizer-1")
+	createRelayEvent(t, ctx, eventSvc, "organizer-1")
 
 	publisher := &countingPublisher{}
 	relayA := NewRelay(NewStore(pool), publisher)
@@ -197,7 +207,7 @@ func TestRelayMarksFailedPublishRetryable(t *testing.T) {
 	ctx := context.Background()
 	pool, _ := setupPhase4Integration(t, ctx)
 	eventSvc := eventregistration.NewService(eventregistration.NewPostgresRepository(pool))
-	createRelayEvent(t, eventSvc, "organizer-1")
+	createRelayEvent(t, ctx, eventSvc, "organizer-1")
 
 	relay := NewRelay(NewStore(pool), &failingPublisher{err: errors.New("rabbit down")})
 	published, err := relay.PublishBatch(ctx, 1)
@@ -334,9 +344,9 @@ func resetRabbitTopology(t *testing.T, conn *amqp.Connection) {
 	}
 }
 
-func createRelayEvent(t *testing.T, svc *eventregistration.Service, organizerID string) eventregistration.EventDetail {
+func createRelayEvent(t *testing.T, ctx context.Context, svc *eventregistration.Service, organizerID string) eventregistration.EventDetail {
 	t.Helper()
-	event, err := svc.CreateEvent(context.Background(), eventregistration.CreateEventCommand{
+	event, err := svc.CreateEvent(ctx, eventregistration.CreateEventCommand{
 		OrganizerID: organizerID,
 		Title:       "Phase 4 Event",
 		Description: "RabbitMQ relay test",

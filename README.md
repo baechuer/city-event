@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 8: frontend product demo. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, and a browser demo.
+The current branch is in Phase 9: observability and debugging. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, and basic traceability.
 
 ## Architecture Direction
 
@@ -25,6 +25,8 @@ Notification delivery is local-development evidence through Mailpit. Current asy
 Media uses Postgres metadata plus MinIO object storage locally. Media processing is asynchronous and state-based; it does not sit in the core event-registration transaction.
 
 The frontend is a dependency-free browser app because this workspace has Node but no npm package manager. React, TypeScript, and Vite remain a later frontend-hardening step.
+
+Services emit correlation IDs, structured request logs, and basic Prometheus-style metrics. This is not a full OpenTelemetry/Grafana stack yet.
 
 ## Local Requirements
 
@@ -171,6 +173,22 @@ Then open:
 http://127.0.0.1:18088
 ```
 
+## Verify Observability And Debugging
+
+Phase 9 verification requires the full local dependency stack because it reruns the integration suite and checks the debugging walkthrough.
+
+```powershell
+.\scripts\verify-phase-9.ps1
+```
+
+This runs:
+
+- default Go tests
+- full integration tests
+- correlation ID and metrics tests
+- outbox correlation propagation test
+- debugging walkthrough file checks
+
 ## Run Local Infrastructure
 
 ```powershell
@@ -236,16 +254,16 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 8 Claim Boundary
+## Phase 9 Claim Boundary
 
 Allowed claim:
 
 ```text
-Built a frontend product demo for the CityEvents workflow with configurable API integration and tested UI state helpers.
+Added correlation IDs, structured request logging, RabbitMQ message identifiers, basic service metrics, and a documented debugging walkthrough for distributed workflows.
 ```
 
 Not yet allowed:
 
 ```text
-Production frontend deployment, full BFF/gateway architecture, React/TypeScript/Vite implementation, or high availability.
+Full OpenTelemetry tracing, Grafana dashboards, production observability stack, or high availability.
 ```
