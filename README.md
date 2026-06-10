@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 9: observability and debugging. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, and basic traceability.
+The current branch is in Phase 10: Kubernetes readiness. It contains the Go service foundation, auth service, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, and Kubernetes-ready manifests.
 
 ## Architecture Direction
 
@@ -27,6 +27,8 @@ Media uses Postgres metadata plus MinIO object storage locally. Media processing
 The frontend is a dependency-free browser app because this workspace has Node but no npm package manager. React, TypeScript, and Vite remain a later frontend-hardening step.
 
 Services emit correlation IDs, structured request logs, and basic Prometheus-style metrics. This is not a full OpenTelemetry/Grafana stack yet.
+
+Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, and resource limits. They do not prove high availability.
 
 ## Local Requirements
 
@@ -189,6 +191,14 @@ This runs:
 - outbox correlation propagation test
 - debugging walkthrough file checks
 
+## Verify Kubernetes Readiness
+
+Phase 10 verification validates the local test suite, Docker Compose config, Kubernetes manifest coverage, probes, resource limits, and optional `kubectl` dry-run when `kubectl` is available.
+
+```powershell
+.\scripts\verify-phase-10.ps1
+```
+
 ## Run Local Infrastructure
 
 ```powershell
@@ -254,16 +264,16 @@ go run ./cmd/media-worker
 Remove-Item Env:\CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 9 Claim Boundary
+## Phase 10 Claim Boundary
 
 Allowed claim:
 
 ```text
-Added correlation IDs, structured request logging, RabbitMQ message identifiers, basic service metrics, and a documented debugging walkthrough for distributed workflows.
+Containerized and prepared Go microservices for Kubernetes deployment with health probes, configuration separation, Secret templates, resource limits, and manifest validation.
 ```
 
 Not yet allowed:
 
 ```text
-Full OpenTelemetry tracing, Grafana dashboards, production observability stack, or high availability.
+Highly available Kubernetes deployment, autoscaling under load, production cluster deployment, HA RabbitMQ/Postgres/Redis, or failure-tested recovery.
 ```

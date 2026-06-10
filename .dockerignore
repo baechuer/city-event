@@ -1,0 +1,12 @@
+.cache/
+.env
+.git/
+.shared/
+project-center/
+tmp/
+
+*.log
+*.tmp
+
+frontend/node_modules/
+frontend/dist/

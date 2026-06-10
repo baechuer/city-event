@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents

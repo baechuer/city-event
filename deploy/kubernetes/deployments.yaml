@@ -1,0 +1,539 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: api-gateway
+    spec:
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: api-gateway
+          image: cityevents/api-gateway:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: auth-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: auth-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: auth-service
+    spec:
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: auth-service
+          image: cityevents/auth-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-registration-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: event-registration-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: event-registration-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: event-registration-service
+    spec:
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: event-registration-service
+          image: cityevents/event-registration-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feed-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: feed-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: feed-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: feed-service
+    spec:
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: feed-service
+          image: cityevents/feed-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: notification-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: notification-service
+    spec:
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: notification-service
+          image: cityevents/notification-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: media-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: media-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: media-service
+    spec:
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: media-service
+          image: cityevents/media-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feed-worker
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: feed-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: feed-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: feed-worker
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: feed-worker
+          image: cityevents/feed-worker:dev
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -r /proc/1/stat"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -r /proc/1/stat"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-worker
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: notification-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: notification-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: notification-worker
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: notification-worker
+          image: cityevents/notification-worker:dev
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -r /proc/1/stat"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -r /proc/1/stat"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-worker
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: media-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: media-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: media-worker
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: media-worker
+          image: cityevents/media-worker:dev
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -r /proc/1/stat"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -r /proc/1/stat"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: outbox-relay
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: outbox-relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: outbox-relay
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: outbox-relay
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: outbox-relay
+          image: cityevents/outbox-relay:dev
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: cityevents-config
+            - secretRef:
+                name: cityevents-secrets
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -r /proc/1/stat"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -r /proc/1/stat"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

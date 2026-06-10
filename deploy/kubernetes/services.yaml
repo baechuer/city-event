@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: api-gateway
+spec:
+  selector:
+    app.kubernetes.io/component: api-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: auth-service
+spec:
+  selector:
+    app.kubernetes.io/component: auth-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-registration-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: event-registration-service
+spec:
+  selector:
+    app.kubernetes.io/component: event-registration-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: feed-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: feed-service
+spec:
+  selector:
+    app.kubernetes.io/component: feed-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: notification-service
+spec:
+  selector:
+    app.kubernetes.io/component: notification-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-service
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: media-service
+spec:
+  selector:
+    app.kubernetes.io/component: media-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
