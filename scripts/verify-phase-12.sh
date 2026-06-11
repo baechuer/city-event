@@ -39,9 +39,8 @@ require_contains docs/resume/resume-claims.md "exactly-once RabbitMQ consumption
 require_contains docs/resume/resume-claims.md "Kubernetes-ready"
 require_contains docs/resume/resume-claims.md "Current Limitation Statement"
 
-require_contains README.md "Phase 12"
 require_contains README.md "Verify Final Evidence Audit"
-require_contains README.md "Phase 12 Claim Boundary"
+require_contains README.md "Claim Boundary"
 require_contains README.md "Exactly-once RabbitMQ consumption"
 require_contains README.md "guaranteed no message loss"
 

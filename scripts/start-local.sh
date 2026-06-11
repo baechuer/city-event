@@ -78,6 +78,12 @@ common_env=(
   "SMTP_ADDR=localhost:1025"
   "JWT_SECRET=local-dev-secret-not-for-production"
   "JWT_ISSUER=cityevents-local"
+  "TOKEN_REVOCATION_CACHE_ENABLED=true"
+  "RATE_LIMIT_ENABLED=true"
+  "RATE_LIMIT_WINDOW=1m"
+  "RATE_LIMIT_REQUESTS=600"
+  "RATE_LIMIT_AUTH_REQUESTS=60"
+  "RATE_LIMIT_MUTATION_REQUESTS=240"
   "SEED_ADMIN_EMAIL=admin@cityevents.local"
   "SEED_ADMIN_PASSWORD=AdminPass12345"
   "SEED_ADMIN_DISPLAY_NAME=CityEvents Admin"
@@ -152,10 +158,7 @@ is_git_bash() {
 }
 
 has_node_runtime() {
-  if command -v node >/dev/null 2>&1; then
-    return 0
-  fi
-  [[ -x "/mnt/c/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe" ]]
+  node_bin >/dev/null 2>&1
 }
 
 show_log_tail() {
@@ -282,7 +285,7 @@ start_frontend() {
   : >"$log_file"
 
   log "Start frontend"
-  if is_git_bash && has_node_runtime; then
+  if has_node_runtime; then
     if start_frontend_node "$log_file"; then
       return 0
     fi

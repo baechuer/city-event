@@ -17,15 +17,16 @@ Implemented and verified today:
 - Go services are containerized with a shared Dockerfile.
 - Kubernetes manifests exist for HTTP services and workers.
 - HTTP services expose `/livez` and `/readyz`.
-- Kubernetes Deployments define liveness probes, readiness probes, and resource requests/limits.
+- Kubernetes Deployments define liveness probes, readiness probes, resource requests/limits, and `replicas: 2`.
+- PodDisruptionBudgets preserve at least one pod for each workload during voluntary disruption.
 - ConfigMaps and Secret templates separate configuration from code.
 - Ingress manifests declare TLS routing, forced HTTPS redirect, and a cert-manager certificate example.
-- Phase 10 manifest validation passes through `scripts/verify-phase-10.sh`.
+- Phase 10 and Phase 13 manifest validation pass through `scripts/verify-phase-10.sh` and `scripts/verify-phase-13.sh`.
 
 This evidence supports:
 
 ```text
-Kubernetes-ready microservices.
+Kubernetes-ready microservices with replicated stateless workloads.
 ```
 
 It does not support:
@@ -36,7 +37,7 @@ Highly available Kubernetes deployment.
 
 ## Why HA Is Deferred
 
-The current manifests use one replica per service. Kubernetes can restart a failed single pod, but restart behavior is not the same as continuous availability during failure.
+The current manifests use two replicas per service and worker, plus PodDisruptionBudgets. This is useful deployment readiness evidence, but it is not the same as high availability.
 
 The backing services are also single-instance in the current local stack:
 
@@ -46,7 +47,7 @@ The backing services are also single-instance in the current local stack:
 - MinIO
 - Mailpit
 
-If any of those dependencies fail, additional stateless service replicas would not make the full system highly available. Adding `replicas: 2` without dependency HA, autoscaling evidence, and failure tests would overstate what the project proves.
+If any of those dependencies fail, additional stateless service replicas do not make the full system highly available. The new `replicas: 2` and PodDisruptionBudgets improve pod replacement and voluntary disruption readiness, but claiming HA still requires dependency HA, autoscaling evidence, traffic-level validation, and recorded live failure tests.
 
 The local Kubernetes client dry-run is also not fully verified in this environment because the local kubeconfig is not readable. `kubectl kustomize` validation is available, but a real pod-failure test needs a working local cluster.
 
@@ -54,11 +55,9 @@ TLS is also not production-proven yet. The manifests identify the expected `city
 
 ## What Would Make HA True
 
-To claim high availability, the project needs all of the following:
+To claim high availability, the project still needs all of the following:
 
-- multiple replicas for stateless HTTP services
-- readiness probes that remove unhealthy pods from traffic
-- PodDisruptionBudgets for replicated services
+- live verification that multiple replicas continue serving traffic during pod failure
 - rolling update settings
 - Horizontal Pod Autoscaler or a documented manual scaling policy
 - managed or replicated Postgres
@@ -78,12 +77,21 @@ Minimum tests:
 - run concurrent joins above event capacity and verify no overbooking
 - record exact commands, dates, environment, and observed results
 
+The repo now includes a guarded starter script:
+
+```bash
+bash ./scripts/failure-test-kubernetes.sh
+bash ./scripts/failure-test-kubernetes.sh --live --deployment api-gateway
+```
+
+The first command is static. The second command mutates the current `kubectl` context and only counts as evidence after it is run in a real, safe cluster with images and dependencies configured.
+
 ## Safe Resume Wording
 
 Use:
 
 ```text
-Prepared Go microservices for Kubernetes deployment with health probes, configuration separation, resource limits, and documented high-availability requirements.
+Prepared Go microservices for Kubernetes deployment with health probes, configuration separation, resource limits, two-replica workload manifests, PodDisruptionBudgets, and documented high-availability requirements.
 ```
 
 Use:
@@ -110,4 +118,4 @@ Kubernetes readiness and high availability are different claims.
 
 This project currently proves that the services can be containerized and described with Kubernetes manifests. It also proves important reliability mechanisms at the application layer: transactional outbox, persistent RabbitMQ messages, publisher confirms, idempotent consumers, Redis fallback, and correlation IDs.
 
-The project does not yet prove production high availability because the deployment is not running with tested replicas and the backing dependencies are not highly available. The honest next step is to run the manifests in a local or cloud cluster, add replicas and disruption budgets where safe, make dependencies HA, then run pod and dependency failure tests.
+The project does not yet prove production high availability because the deployment has not been live-tested under failure and the backing dependencies are not highly available. The honest next step is to run the manifests in a local or cloud cluster, make dependencies HA, add autoscaling or a scaling policy, then record pod and dependency failure tests.

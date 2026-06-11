@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 12: final evidence audit and resume framing. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, basic traceability, Kubernetes-ready manifests, a documented HA deferral, and resume-safe claim guidance.
+The current branch is in Phase 13: CI/CD, browser E2E, rate limiting, observability, and replica-readiness hardening. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, shared HTTP rate limiting, richer Prometheus-style request metrics, GitHub Actions CI gates, Playwright browser E2E coverage, Kubernetes replicated workload manifests, a guarded failure-test harness, and resume-safe claim guidance.
 
 ## Architecture Direction
 
@@ -24,11 +24,11 @@ Notification delivery is local-development evidence through Mailpit. Current asy
 
 Media uses Postgres metadata plus MinIO object storage locally. Media processing is asynchronous and state-based; it does not sit in the core event-registration transaction.
 
-The frontend is a dependency-free browser app because this workspace has Node but no npm package manager. React, TypeScript, and Vite remain a later frontend-hardening step.
+The frontend is a dependency-light browser app with Playwright E2E coverage. React, TypeScript, and Vite remain a later frontend-hardening step.
 
-Services emit correlation IDs, structured request logs, and basic Prometheus-style metrics. This is not a full OpenTelemetry/Grafana stack yet.
+Services emit correlation IDs, structured request logs, Prometheus-style request counters, latency histograms, rate-limit counters, and async workflow metrics. This is not a full OpenTelemetry/Grafana stack yet.
 
-Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, ingress routing, and resource limits. They do not prove high availability.
+Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, ingress routing, resource limits, two replicas per workload, and PodDisruptionBudgets. They do not prove high availability until live failure tests and highly available backing services are verified.
 
 High availability is intentionally documented as a later stage in `docs/architecture/high-availability-decision.md`.
 
@@ -286,6 +286,27 @@ For the strongest local evidence run, include full Docker-backed integration tes
 ./scripts/verify-phase-12.sh --run-full-integration
 ```
 
+## Verify CI/E2E/Rate-Limit Hardening
+
+Phase 13 verification checks the CI workflow, Playwright E2E files, shared rate-limiting middleware, upgraded observability metrics, Kubernetes replicas/PDBs, failure-test harness, and related documentation.
+
+```bash
+./scripts/verify-phase-13.sh
+```
+
+To include the browser E2E flow, which starts the full local stack:
+
+```bash
+./scripts/verify-phase-13.sh --run-e2e
+```
+
+The browser E2E can also be run directly:
+
+```bash
+cd frontend
+npm run e2e
+```
+
 ## Run Local Load Test
 
 The local load test exercises the public gateway path for admin login, organizer promotion, event creation, attendee registration, concurrent joins, capacity/waitlist invariants, CSRF refresh smoke, and eventual feed projection.
@@ -370,16 +391,16 @@ go run ./cmd/media-worker
 unset CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 12 Claim Boundary
+## Phase 13 Claim Boundary
 
 Allowed claim:
 
 ```text
-Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, observability hooks, Kubernetes-ready manifests, and documented production/HA limitations.
+Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, shared HTTP rate limiting, request metrics, Playwright browser E2E coverage, CI gates, Kubernetes-ready replicated manifests, and documented production/HA limitations.
 ```
 
 Not yet allowed:
 
 ```text
-Exactly-once RabbitMQ consumption, guaranteed no message loss, highly available Kubernetes deployment, autoscaling under load, production cluster deployment, HA RabbitMQ/Postgres/Redis, or failure-tested recovery.
+Exactly-once RabbitMQ consumption, guaranteed no message loss, distributed rate limiting, full OpenTelemetry/Grafana observability, highly available Kubernetes deployment, autoscaling under load, production cluster deployment, HA RabbitMQ/Postgres/Redis, or failure-tested recovery.
 ```

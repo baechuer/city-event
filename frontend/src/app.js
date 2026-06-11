@@ -327,6 +327,16 @@ function renderCategoryPage(slug) {
 function renderEventDetailPage(eventID) {
   const event = getEventForDisplay(eventID);
   if (!event) {
+    if (isPending('detail')) {
+      return `
+        <section class="detail-page">
+          <div class="state-message">
+            <strong>Loading event</strong>
+            <span>Fetching the live event details.</span>
+          </div>
+        </section>
+      `;
+    }
     return `
       <section class="detail-page">
         <div class="state-message">
@@ -814,10 +824,9 @@ function parseRoute() {
 async function syncRoute() {
   const route = parseRoute();
   if (route.name !== 'eventDetail') return;
-  const event = getEventForDisplay(route.eventID);
-  if (!event) return;
   state.selectedEvent = route.eventID;
-  if (event.source === 'demo') {
+  const event = getEventForDisplay(route.eventID);
+  if (event?.source === 'demo') {
     state.eventDetail = null;
     state.media = null;
     return;

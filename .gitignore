@@ -68,6 +68,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+playwright-report/
+test-results/
+frontend/playwright-report/
+frontend/test-results/
 
 # =========================
 # IDEs

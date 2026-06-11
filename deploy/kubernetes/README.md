@@ -1,6 +1,6 @@
 # Kubernetes Readiness
 
-These manifests prepare CityEvents for Kubernetes deployment. They do not prove high availability.
+These manifests prepare CityEvents for Kubernetes deployment. They include two replicas per workload and PodDisruptionBudgets, but they do not prove high availability.
 
 The current HA decision is documented in `../../docs/architecture/high-availability-decision.md`.
 
@@ -52,14 +52,28 @@ kubectl apply -k deploy/kubernetes
 
 If you switch to a public hostname, update `ingress.yaml`, `configmap.yaml` `CORS_ALLOWED_ORIGINS`, and `cert-manager-certificate.example.yaml` together.
 
-Ingress is not high availability by itself. It only exposes HTTP routing. HA still needs more than one gateway pod, pod disruption budgets, autoscaling, multi-node scheduling, and highly available data stores.
+Ingress is not high availability by itself. It only exposes HTTP routing. The manifests now include replicated app pods and PodDisruptionBudgets, but HA still needs autoscaling or an explicit scaling policy, multi-node scheduling evidence, highly available data stores, and recorded failure tests.
+
+## Failure Testing
+
+Static readiness check:
+
+```bash
+bash ./scripts/failure-test-kubernetes.sh
+```
+
+Live pod-deletion test, only after the current `kubectl` context is safe and images/dependencies are available:
+
+```bash
+bash ./scripts/failure-test-kubernetes.sh --live --deployment api-gateway
+```
 
 ## Claim Boundary
 
 Allowed:
 
 ```text
-Kubernetes-ready service manifests with health probes, resource limits, configuration separation, forced HTTPS ingress routing, and a cert-manager certificate example.
+Kubernetes-ready service manifests with two replicas per workload, PodDisruptionBudgets, health probes, resource limits, configuration separation, forced HTTPS ingress routing, and a cert-manager certificate example.
 ```
 
 Not allowed yet:
@@ -68,4 +82,4 @@ Not allowed yet:
 Highly available Kubernetes deployment.
 ```
 
-High availability still requires multiple replicas, autoscaling, highly available Postgres/RabbitMQ/Redis, and failure testing.
+High availability still requires live traffic/failure evidence, autoscaling or an explicit scaling policy, highly available Postgres/RabbitMQ/Redis, and dependency failure testing.

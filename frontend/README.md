@@ -1,6 +1,6 @@
 # CityEvents Frontend
 
-Phase 8 uses a dependency-free browser app.
+The frontend is a dependency-light browser app. Runtime behavior remains plain JavaScript, and Phase 13 adds Playwright for browser E2E coverage.
 
 Run locally:
 
@@ -39,3 +39,13 @@ For frontend-only static serving, after separately starting backend services:
 ```bash
 ./scripts/serve-frontend.sh
 ```
+
+Run browser E2E:
+
+```bash
+cd frontend
+npm install
+npm run e2e
+```
+
+The E2E suite starts the local stack through `../scripts/start-local.sh` unless `CITYEVENTS_E2E_SKIP_WEBSERVER=true` is set.

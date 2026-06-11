@@ -3,7 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
     "test": "node --test src/api.test.mjs src/state.test.mjs",
     "verify": "node --test src/api.test.mjs src/state.test.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }

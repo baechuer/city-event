@@ -152,6 +152,92 @@ func TestCorrelationIDAndMetrics(t *testing.T) {
 	if !strings.Contains(metricsRec.Body.String(), "cityevents_http_requests_total") {
 		t.Fatalf("metrics body missing request counter: %s", metricsRec.Body.String())
 	}
+	if !strings.Contains(metricsRec.Body.String(), "cityevents_http_request_duration_seconds_bucket") {
+		t.Fatalf("metrics body missing request duration histogram: %s", metricsRec.Body.String())
+	}
+	if !strings.Contains(metricsRec.Body.String(), `method="GET",path="/readyz",status="200"`) {
+		t.Fatalf("metrics body missing method/path/status labels: %s", metricsRec.Body.String())
+	}
+}
+
+func TestRateLimitRejectsRepeatedRequests(t *testing.T) {
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		values := map[string]string{
+			"RATE_LIMIT_REQUESTS": "1",
+			"RATE_LIMIT_WINDOW":   "1m",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := NewBaseRouter(cfg, nil)
+	router.Get("/limited", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	})
+
+	first := httptest.NewRecorder()
+	firstReq := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	firstReq.RemoteAddr = "203.0.113.10:5000"
+	router.ServeHTTP(first, firstReq)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first request status = %d body=%s", first.Code, first.Body.String())
+	}
+
+	second := httptest.NewRecorder()
+	secondReq := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	secondReq.RemoteAddr = "203.0.113.10:5001"
+	router.ServeHTTP(second, secondReq)
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request status = %d body=%s", second.Code, second.Body.String())
+	}
+	if got := second.Header().Get("Retry-After"); got == "" {
+		t.Fatalf("expected Retry-After header")
+	}
+	if !strings.Contains(second.Body.String(), "rate_limited") {
+		t.Fatalf("expected rate_limited response, got %s", second.Body.String())
+	}
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	router.ServeHTTP(metricsRec, metricsReq)
+	if !strings.Contains(metricsRec.Body.String(), `cityevents_rate_limited_requests_total{service="api-gateway",scope="read"} 1`) {
+		t.Fatalf("metrics body missing rate limit counter: %s", metricsRec.Body.String())
+	}
+}
+
+func TestRateLimitSkipsHealthAndPreflight(t *testing.T) {
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		values := map[string]string{
+			"RATE_LIMIT_REQUESTS": "1",
+			"RATE_LIMIT_WINDOW":   "1m",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := NewRouter(cfg, nil)
+
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+		req.RemoteAddr = "203.0.113.20:5000"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("health request %d status = %d", i, rec.Code)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodOptions, "/v1/events", nil)
+	req.Header.Set("Origin", "http://127.0.0.1:18088")
+	req.RemoteAddr = "203.0.113.20:5000"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("preflight status = %d", rec.Code)
+	}
 }
 
 func TestOutboxAndConsumerMetrics(t *testing.T) {

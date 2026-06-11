@@ -22,6 +22,7 @@ for file in \
   deploy/kubernetes/secret.example.yaml \
   deploy/kubernetes/cert-manager-certificate.example.yaml \
   deploy/kubernetes/deployments.yaml \
+  deploy/kubernetes/poddisruptionbudgets.yaml \
   deploy/kubernetes/services.yaml \
   deploy/kubernetes/ingress.yaml \
   deploy/kubernetes/kustomization.yaml; do
@@ -49,6 +50,8 @@ done
 [[ "$(count_occurrences deploy/kubernetes/deployments.yaml "resources:")" -ge "${#all_deployments[@]}" ]] || die "each deployment must define resource requests and limits."
 [[ "$(count_occurrences deploy/kubernetes/deployments.yaml "requests:")" -ge "${#all_deployments[@]}" ]] || die "each deployment must define resource requests."
 [[ "$(count_occurrences deploy/kubernetes/deployments.yaml "limits:")" -ge "${#all_deployments[@]}" ]] || die "each deployment must define resource limits."
+[[ "$(count_occurrences deploy/kubernetes/deployments.yaml "replicas: 2")" -eq "${#all_deployments[@]}" ]] || die "each deployment must run two replicas in the readiness manifest."
+[[ "$(count_occurrences deploy/kubernetes/poddisruptionbudgets.yaml "kind: PodDisruptionBudget")" -eq "${#all_deployments[@]}" ]] || die "each deployment must have a PodDisruptionBudget."
 [[ "$(count_occurrences deploy/kubernetes/deployments.yaml "/readyz")" -ge "${#http_services[@]}" ]] || die "each HTTP service must use /readyz readiness probe."
 [[ "$(count_occurrences deploy/kubernetes/deployments.yaml "/livez")" -ge "${#http_services[@]}" ]] || die "each HTTP service must use /livez liveness probe."
 
@@ -71,6 +74,9 @@ require_contains deploy/kubernetes/cert-manager-certificate.example.yaml "secret
 require_contains deploy/kubernetes/configmap.yaml "ACCESS_TOKEN_TTL: 15m"
 require_contains deploy/kubernetes/configmap.yaml "REFRESH_COOKIE_SECURE"
 require_contains deploy/kubernetes/configmap.yaml "TOKEN_REVOCATION_CACHE_ENABLED"
+require_contains deploy/kubernetes/configmap.yaml "RATE_LIMIT_ENABLED"
+require_contains deploy/kubernetes/configmap.yaml "RATE_LIMIT_AUTH_REQUESTS"
+require_contains deploy/kubernetes/kustomization.yaml "poddisruptionbudgets.yaml"
 
 if command -v kubectl >/dev/null 2>&1; then
   log "kubectl kustomize"

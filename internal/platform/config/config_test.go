@@ -37,6 +37,9 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.TokenRevocationCacheEnabled {
 		t.Fatalf("token revocation cache should be enabled by default")
 	}
+	if !cfg.RateLimitEnabled || cfg.RateLimitWindow != time.Minute || cfg.RateLimitRequests != 600 || cfg.RateLimitAuthRequests != 60 || cfg.RateLimitMutationRequests != 240 {
+		t.Fatalf("unexpected rate limit defaults: enabled=%v window=%s requests=%d auth=%d mutation=%d", cfg.RateLimitEnabled, cfg.RateLimitWindow, cfg.RateLimitRequests, cfg.RateLimitAuthRequests, cfg.RateLimitMutationRequests)
+	}
 	if cfg.AuthServiceURL != "http://127.0.0.1:8081" || cfg.EventServiceURL != "http://127.0.0.1:8082" {
 		t.Fatalf("expected local service URL defaults, got auth=%q event=%q", cfg.AuthServiceURL, cfg.EventServiceURL)
 	}
@@ -57,6 +60,11 @@ func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 		"REFRESH_TOKEN_TTL":              "168h",
 		"REFRESH_COOKIE_SECURE":          "true",
 		"TOKEN_REVOCATION_CACHE_ENABLED": "false",
+		"RATE_LIMIT_ENABLED":             "true",
+		"RATE_LIMIT_WINDOW":              "30s",
+		"RATE_LIMIT_REQUESTS":            "50",
+		"RATE_LIMIT_AUTH_REQUESTS":       "5",
+		"RATE_LIMIT_MUTATION_REQUESTS":   "20",
 		"CORS_ALLOWED_ORIGINS":           "https://cityevents.example,http://localhost:18088",
 		"UNRELATED_SERVICE_HTTP_ADDR":    ":9200",
 	}
@@ -77,6 +85,9 @@ func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 	}
 	if cfg.TokenRevocationCacheEnabled {
 		t.Fatalf("expected token revocation cache to be disabled")
+	}
+	if cfg.RateLimitWindow != 30*time.Second || cfg.RateLimitRequests != 50 || cfg.RateLimitAuthRequests != 5 || cfg.RateLimitMutationRequests != 20 {
+		t.Fatalf("unexpected rate limits: window=%s requests=%d auth=%d mutation=%d", cfg.RateLimitWindow, cfg.RateLimitRequests, cfg.RateLimitAuthRequests, cfg.RateLimitMutationRequests)
 	}
 	if len(cfg.AllowedOrigins) != 2 || cfg.AllowedOrigins[0] != "https://cityevents.example" {
 		t.Fatalf("unexpected allowed origins: %+v", cfg.AllowedOrigins)
@@ -115,6 +126,21 @@ func TestLoadRejectsInvalidRefreshConfig(t *testing.T) {
 	})); err == nil {
 		t.Fatalf("expected invalid token revocation cache setting error")
 	}
+	if _, err := Load("auth-service", mapGetenv(map[string]string{
+		"RATE_LIMIT_ENABLED": "not-a-bool",
+	})); err == nil {
+		t.Fatalf("expected invalid rate limit enabled error")
+	}
+	if _, err := Load("auth-service", mapGetenv(map[string]string{
+		"RATE_LIMIT_WINDOW": "not-a-duration",
+	})); err == nil {
+		t.Fatalf("expected invalid rate limit window error")
+	}
+	if _, err := Load("auth-service", mapGetenv(map[string]string{
+		"RATE_LIMIT_REQUESTS": "not-a-number",
+	})); err == nil {
+		t.Fatalf("expected invalid rate limit request count error")
+	}
 }
 
 func TestValidateRejectsEmptyEnvironment(t *testing.T) {
@@ -150,6 +176,18 @@ func TestValidateRejectsNonPositiveShutdownTimeout(t *testing.T) {
 
 	if err := cfg.Validate(); err == nil {
 		t.Fatalf("expected non-positive shutdown timeout to be rejected")
+	}
+}
+
+func TestValidateRejectsNonPositiveRateLimit(t *testing.T) {
+	cfg, err := Load("auth-service", nil)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.RateLimitRequests = 0
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected non-positive rate limit to be rejected")
 	}
 }
 

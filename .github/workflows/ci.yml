@@ -3,16 +3,31 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  foundation:
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
 
       - name: Validate Bash scripts
         run: bash -n scripts/*.sh scripts/lib/*.sh
@@ -20,5 +35,75 @@ jobs:
       - name: Test Go packages
         run: go test ./...
 
+      - name: Test frontend units
+        working-directory: frontend
+        run: npm run verify
+
       - name: Validate Docker Compose
         run: docker compose config --quiet
+
+      - name: Verify project phase gates
+        run: bash ./scripts/verify-phase-13.sh
+
+  container-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - auth-service
+          - event-registration-service
+          - feed-service
+          - notification-service
+          - media-service
+          - outbox-relay
+          - feed-worker
+          - notification-worker
+          - media-worker
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build service image
+        run: docker build --build-arg SERVICE=${{ matrix.service }} -t cityevents/${{ matrix.service }}:ci .
+
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: verify
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser E2E
+        working-directory: frontend
+        run: npm run e2e
+        env:
+          CITYEVENTS_E2E_BASE_URL: http://127.0.0.1:18088
+
+      - name: Stop local stack
+        if: always()
+        run: bash ./scripts/stop-local.sh --with-infrastructure || true

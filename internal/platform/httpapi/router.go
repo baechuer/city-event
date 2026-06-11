@@ -27,6 +27,7 @@ func NewBaseRouter(cfg config.Config, logger *slog.Logger) chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(localCORSMiddleware(cfg))
 	r.Use(observabilityMiddleware(cfg, logger))
+	r.Use(rateLimitMiddleware(cfg))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		health.WriteJSON(w, http.StatusOK, map[string]string{

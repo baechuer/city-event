@@ -97,6 +97,34 @@ func TestGatewayAllowsPublicEventListWithoutAuth(t *testing.T) {
 	}
 }
 
+func TestGatewayOwnsPublicCORSHeaders(t *testing.T) {
+	auth := newGatewayAuthStub(t)
+	feed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Access-Control-Allow-Origin", "https://internal-service.example")
+		w.Header().Add("Access-Control-Allow-Credentials", "true")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"events":[]}`))
+	}))
+	defer feed.Close()
+
+	router := testGatewayRouter(t, auth.URL, "http://127.0.0.1:1", feed.URL, "http://127.0.0.1:1")
+	req := httptest.NewRequest(http.MethodGet, "/v1/feed/events", nil)
+	req.Header.Set("Origin", "http://127.0.0.1:18088")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if values := rec.Header().Values("Access-Control-Allow-Origin"); len(values) != 1 || values[0] != "http://127.0.0.1:18088" {
+		t.Fatalf("gateway should emit one allow-origin header, got %#v", values)
+	}
+	if values := rec.Header().Values("Access-Control-Allow-Credentials"); len(values) != 1 || values[0] != "true" {
+		t.Fatalf("gateway should emit one allow-credentials header, got %#v", values)
+	}
+}
+
 func TestGatewayRejectsInvalidTokenBeforeProxying(t *testing.T) {
 	auth := newGatewayAuthStub(t)
 	var eventCalls atomic.Int32

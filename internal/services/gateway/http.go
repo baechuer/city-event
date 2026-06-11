@@ -93,6 +93,10 @@ func NewHTTPHandler(cfg config.Config, logger *slog.Logger, transport http.Round
 
 func newProxy(target *url.URL, logger *slog.Logger) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		stripCORSHeaders(resp.Header)
+		return nil
+	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		if logger != nil {
 			logger.Error("gateway proxy failed", slog.String("target", target.Host), slog.String("error", err.Error()))
@@ -100,6 +104,18 @@ func newProxy(target *url.URL, logger *slog.Logger) *httputil.ReverseProxy {
 		writeGatewayError(w, http.StatusBadGateway, "bad_gateway", "upstream service unavailable")
 	}
 	return proxy
+}
+
+func stripCORSHeaders(header http.Header) {
+	for _, name := range []string{
+		"Access-Control-Allow-Origin",
+		"Access-Control-Allow-Credentials",
+		"Access-Control-Allow-Methods",
+		"Access-Control-Allow-Headers",
+		"Access-Control-Max-Age",
+	} {
+		header.Del(name)
+	}
 }
 
 func (h *Handler) proxyAuth(w http.ResponseWriter, r *http.Request) {

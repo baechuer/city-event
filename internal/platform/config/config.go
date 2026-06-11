@@ -36,6 +36,11 @@ type Config struct {
 	RefreshCookieSecure         bool
 	TokenRevocationCacheEnabled bool
 	AllowedOrigins              []string
+	RateLimitEnabled            bool
+	RateLimitWindow             time.Duration
+	RateLimitRequests           int
+	RateLimitAuthRequests       int
+	RateLimitMutationRequests   int
 	SeedAdminEmail              string
 	SeedAdminPass               string
 	SeedAdminName               string
@@ -103,6 +108,26 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid TOKEN_REVOCATION_CACHE_ENABLED: %w", err)
 	}
+	rateLimitEnabled, err := parseBool(env(getenv, "RATE_LIMIT_ENABLED", "true"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid RATE_LIMIT_ENABLED: %w", err)
+	}
+	rateLimitWindow, err := parseDuration(env(getenv, "RATE_LIMIT_WINDOW", "1m"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid RATE_LIMIT_WINDOW: %w", err)
+	}
+	rateLimitRequests, err := parseInt(env(getenv, "RATE_LIMIT_REQUESTS", "600"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid RATE_LIMIT_REQUESTS: %w", err)
+	}
+	rateLimitAuthRequests, err := parseInt(env(getenv, "RATE_LIMIT_AUTH_REQUESTS", "60"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid RATE_LIMIT_AUTH_REQUESTS: %w", err)
+	}
+	rateLimitMutationRequests, err := parseInt(env(getenv, "RATE_LIMIT_MUTATION_REQUESTS", "240"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid RATE_LIMIT_MUTATION_REQUESTS: %w", err)
+	}
 
 	cfg := Config{
 		Service:                     service,
@@ -124,6 +149,11 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 		RefreshCookieSecure:         refreshCookieSecure,
 		TokenRevocationCacheEnabled: tokenRevocationCacheEnabled,
 		AllowedOrigins:              parseCSV(env(getenv, "CORS_ALLOWED_ORIGINS", "http://127.0.0.1:18088,http://localhost:18088,http://cityevents.local,https://cityevents.local")),
+		RateLimitEnabled:            rateLimitEnabled,
+		RateLimitWindow:             rateLimitWindow,
+		RateLimitRequests:           rateLimitRequests,
+		RateLimitAuthRequests:       rateLimitAuthRequests,
+		RateLimitMutationRequests:   rateLimitMutationRequests,
 		SeedAdminEmail:              env(getenv, "SEED_ADMIN_EMAIL", ""),
 		SeedAdminPass:               env(getenv, "SEED_ADMIN_PASSWORD", ""),
 		SeedAdminName:               env(getenv, "SEED_ADMIN_DISPLAY_NAME", "CityEvents Admin"),
@@ -179,6 +209,20 @@ func (c Config) Validate() error {
 	if c.MinIOBucket == "" {
 		return fmt.Errorf("minio bucket is required")
 	}
+	if c.RateLimitEnabled {
+		if c.RateLimitWindow <= 0 {
+			return fmt.Errorf("rate limit window must be positive")
+		}
+		for name, value := range map[string]int{
+			"rate limit requests":          c.RateLimitRequests,
+			"rate limit auth requests":     c.RateLimitAuthRequests,
+			"rate limit mutation requests": c.RateLimitMutationRequests,
+		} {
+			if value <= 0 {
+				return fmt.Errorf("%s must be positive", name)
+			}
+		}
+	}
 	for name, value := range map[string]string{
 		"auth service url":  c.AuthServiceURL,
 		"event service url": c.EventServiceURL,
@@ -222,6 +266,10 @@ func parseDuration(value string) (time.Duration, error) {
 
 func parseBool(value string) (bool, error) {
 	return strconv.ParseBool(strings.TrimSpace(value))
+}
+
+func parseInt(value string) (int, error) {
+	return strconv.Atoi(strings.TrimSpace(value))
 }
 
 func parseCSV(value string) []string {

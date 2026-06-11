@@ -56,16 +56,26 @@ run_git() {
   git "$@"
 }
 
+valid_node_candidate() {
+  local candidate="$1"
+  [[ -n "$candidate" ]] || return 1
+  "$candidate" -v >/dev/null 2>&1
+}
+
 node_bin() {
-  if command -v node >/dev/null 2>&1; then
-    command -v node
-    return
-  fi
-  local bundled="/mnt/c/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"
-  if [[ -x "$bundled" ]]; then
-    echo "$bundled"
-    return
-  fi
+  local candidate
+  for candidate in \
+    "$(command -v node 2>/dev/null || true)" \
+    "$(command -v node.exe 2>/dev/null || true)" \
+    "/mnt/c/nvm4w/nodejs/node.exe" \
+    "/c/nvm4w/nodejs/node.exe" \
+    "/mnt/c/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe" \
+    "/c/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"; do
+    if valid_node_candidate "$candidate"; then
+      echo "$candidate"
+      return
+    fi
+  done
   die "node was not found. Install Node or use the bundled Codex runtime."
 }
 

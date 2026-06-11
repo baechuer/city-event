@@ -8,6 +8,7 @@ import (
 
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/observability"
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
@@ -24,15 +25,17 @@ func observabilityMiddleware(cfg config.Config, logger *slog.Logger) func(http.H
 			ctx := observability.ContextWithCorrelationID(r.Context(), correlationID)
 			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 			start := time.Now()
-			next.ServeHTTP(rec, r.WithContext(ctx))
+			req := r.WithContext(ctx)
+			next.ServeHTTP(rec, req)
 			duration := time.Since(start)
-			observability.RecordHTTPRequest(cfg.Service.Name, rec.status)
+			path := routePattern(req)
+			observability.RecordHTTPRequest(cfg.Service.Name, r.Method, path, rec.status, duration)
 			logger.Info("http request completed",
 				slog.String("service", cfg.Service.Name),
 				slog.String("request_id", middleware.GetReqID(ctx)),
 				slog.String("correlation_id", correlationID),
 				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
+				slog.String("path", path),
 				slog.Int("status", rec.status),
 				slog.Int64("duration_ms", duration.Milliseconds()),
 			)
@@ -53,4 +56,11 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.wroteHeader = true
 	r.ResponseWriter.WriteHeader(status)
+}
+
+func routePattern(r *http.Request) string {
+	if pattern := chi.RouteContext(r.Context()).RoutePattern(); pattern != "" {
+		return pattern
+	}
+	return r.URL.Path
 }
