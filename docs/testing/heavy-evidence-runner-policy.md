@@ -7,6 +7,14 @@ Heavy evidence must not run from the local workstation.
 The approved runner is GitHub Actions through the manual
 `Heavy Evidence` workflow in `.github/workflows/heavy-evidence.yml`.
 
+The load-evidence job intentionally runs as a GitHub Actions matrix:
+
+| Profile | Users | Capacity | Join concurrency |
+| --- | ---: | ---: | ---: |
+| small | 40 | 15 | 10 |
+| medium | 80 | 25 | 20 |
+| stress | 160 | 50 | 40 |
+
 ## Protected Scripts
 
 The following scripts are blocked outside GitHub Actions:
@@ -39,6 +47,7 @@ Before a heavy-evidence claim is resume-safe, capture:
 - exact workflow inputs
 - uploaded evidence artifact
 - generated `summary.md`
+- dependency snapshots from the load evidence artifact, when present
 - whether the result changes a resume-safe claim
 
 ## Local Safety Gate

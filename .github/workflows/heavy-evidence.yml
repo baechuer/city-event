@@ -9,25 +9,10 @@ on:
         type: boolean
         default: true
       run_load_evidence:
-        description: Run gateway load evidence against the local CI stack
+        description: Run gateway load evidence matrix against the local CI stack
         required: true
         type: boolean
         default: true
-      load_users:
-        description: Attendee users for load evidence
-        required: true
-        type: string
-        default: "80"
-      load_capacity:
-        description: Event capacity for load evidence
-        required: true
-        type: string
-        default: "25"
-      load_concurrency:
-        description: Join concurrency for load evidence
-        required: true
-        type: string
-        default: "20"
 
 jobs:
   kubernetes-live-smoke:
@@ -66,7 +51,23 @@ jobs:
   load-evidence:
     if: ${{ inputs.run_load_evidence }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: small
+            users: "40"
+            capacity: "15"
+            concurrency: "10"
+          - profile: medium
+            users: "80"
+            capacity: "25"
+            concurrency: "20"
+          - profile: stress
+            users: "160"
+            capacity: "50"
+            concurrency: "40"
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -87,13 +88,13 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run load evidence
+      - name: Run load evidence ${{ matrix.profile }}
         run: |
           bash ./scripts/load-test-local.sh \
             --start-stack \
-            --users "${{ inputs.load_users }}" \
-            --capacity "${{ inputs.load_capacity }}" \
-            --concurrency "${{ inputs.load_concurrency }}"
+            --users "${{ matrix.users }}" \
+            --capacity "${{ matrix.capacity }}" \
+            --concurrency "${{ matrix.concurrency }}"
 
       - name: Stop local stack
         if: always()
@@ -103,6 +104,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: load-evidence
+          name: load-evidence-${{ matrix.profile }}-${{ matrix.users }}u
           path: tmp/load-test-local/**
           if-no-files-found: ignore

@@ -197,7 +197,7 @@ Edge-grade DDoS protection.
 
 - Extend load testing to capture latency percentiles, request counts, status
   counts, throughput, CPU/memory snapshots, and dependency state where available.
-- Run at multiple sizes, such as 40, 80, and 160 users.
+- Run the manual GitHub Actions matrix at 40, 80, and 160 users.
 - Block load evidence outside GitHub Actions.
 - Keep correctness gates for capacity and waitlist invariants.
 
@@ -206,7 +206,8 @@ Edge-grade DDoS protection.
 - `tmp/load-test-local/<run-id>/summary.md` includes p50, p95, p99, max latency,
   join throughput, success rate, and dependency snapshots when available.
 - Load evidence artifacts are uploaded from the manual GitHub Actions
-  `Heavy Evidence` workflow.
+  `Heavy Evidence` workflow as `load-evidence-small-40u`,
+  `load-evidence-medium-80u`, and `load-evidence-stress-160u`.
 - `docs/testing/load-testing.md` records the latest successful run.
 
 ### Quantitative Gate
@@ -221,7 +222,7 @@ Edge-grade DDoS protection.
 Allowed:
 
 ```text
-Added repeatable CI load evidence for correctness and latency under concurrent joins.
+Added repeatable GitHub Actions load evidence for correctness, latency, and dependency snapshots under concurrent joins.
 ```
 
 Not allowed:

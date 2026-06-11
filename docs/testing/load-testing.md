@@ -1,4 +1,4 @@
-# Local Load Testing
+# CI Load Evidence
 
 ## Purpose
 
@@ -40,11 +40,13 @@ event detail confirmedCount == confirmed joins
 ## Run
 
 The manual GitHub Actions `Heavy Evidence` workflow starts and stops the app
-automatically with:
+automatically. It runs a fixed matrix:
 
-```bash
-./scripts/load-test-local.sh --start-stack --users 80 --capacity 25 --concurrency 20
-```
+| Profile | Users | Capacity | Join concurrency |
+| --- | ---: | ---: | ---: |
+| small | 40 | 15 | 10 |
+| medium | 80 | 25 | 20 |
+| stress | 160 | 50 | 40 |
 
 The old local pattern is no longer approved for evidence:
 
@@ -67,6 +69,12 @@ Each run writes:
 - request/response bodies for setup steps
 - per-user join responses
 - `join-results.tsv`
+- `dependencies-before-joins.md`
+- `dependencies-after-joins.md`
+
+The summary includes p50, p95, p99, max latency, join throughput, success
+rate, HTTP status counts, domain status counts, and dependency snapshots where
+Docker provides them.
 
 ## What It Does Not Prove
 
@@ -84,12 +92,21 @@ It does not prove:
 
 Use it as CI correctness and regression evidence. Strong throughput claims need repeated runs, resource metrics, database metrics, and failure testing.
 
-The next load-evidence target is defined in
-`docs/architecture/phase-15-hardening-rubric.md`: summaries should include p50,
-p95, p99, max latency, throughput, success rate, status counts, and dependency
-snapshots where available.
+The load-evidence acceptance target is defined in
+`docs/architecture/phase-15-hardening-rubric.md`: each Actions matrix artifact
+should include p50, p95, p99, max latency, throughput, success rate, status
+counts, and dependency snapshots where available.
 
-## Current Evidence
+## Accepted Evidence Status
+
+Current accepted evidence is pending the manual GitHub Actions `Heavy Evidence`
+workflow matrix artifacts. A resume claim should not say "high throughput" or
+"load tested in production" from the historical local run below.
+
+## Historical Local Evidence
+
+This run happened before the Phase 15 workstation-safety policy. Keep it as
+development history only; do not repeat it on the local workstation.
 
 Verified on 2026-06-11 with:
 

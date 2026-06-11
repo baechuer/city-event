@@ -169,6 +169,71 @@ process.stdin.on("end", () => {
 ' "$path"
 }
 
+millis_now() {
+  run_node -e 'console.log(Date.now())'
+}
+
+format_seconds() {
+  local millis="$1"
+  run_node -e 'const ms = Number(process.argv[1]); console.log((ms / 1000).toFixed(3));' "$millis"
+}
+
+format_throughput() {
+  local count="$1"
+  local millis="$2"
+  run_node -e '
+const count = Number(process.argv[1]);
+const millis = Number(process.argv[2]);
+const seconds = Math.max(millis / 1000, 0.001);
+console.log((count / seconds).toFixed(2));
+' "$count" "$millis"
+}
+
+latency_percentile() {
+  local percentile="$1"
+  local count="$2"
+  local index=$(( (count * percentile + 99) / 100 ))
+  (( index > 0 )) || index=1
+  awk '{ print $4 }' "$run_dir/join-results.tsv" | sort -n | awk -v idx="$index" 'NR == idx { print; found = 1; exit } END { if (!found) print "0" }'
+}
+
+dependency_snapshot() {
+  local label="$1"
+  local outfile="$run_dir/dependencies-$label.md"
+
+  {
+    echo "# Dependency Snapshot: $label"
+    echo
+    echo "- Captured At: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    echo
+
+    if ! command -v docker >/dev/null 2>&1; then
+      echo "Docker was not available on this runner; dependency snapshot skipped."
+      return 0
+    fi
+
+    echo "## Docker Compose"
+    docker compose ps || true
+    echo
+
+    echo "## Docker Stats"
+    docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}' || true
+    echo
+
+    echo "## Postgres"
+    docker compose exec -T postgres psql -U cityevents -d cityevents -c "select count(*) as active_connections from pg_stat_activity;" || true
+    echo
+
+    echo "## RabbitMQ Queues"
+    docker compose exec -T rabbitmq rabbitmqctl list_queues name messages messages_ready messages_unacknowledged consumers || true
+    echo
+
+    echo "## Redis Stats"
+    docker compose exec -T redis redis-cli info stats \
+      | grep -E '^(total_commands_processed|instantaneous_ops_per_sec|total_net_input_bytes|total_net_output_bytes|rejected_connections|expired_keys):' || true
+  } >"$outfile" 2>&1 || true
+}
+
 request_json() {
   local expected="$1"
   local method="$2"
@@ -315,6 +380,8 @@ for i in $(seq 1 "$users"); do
   json_field "$user_json" "accessToken" >"$run_dir/users/$i.token"
 done
 
+dependency_snapshot "before-joins"
+
 join_user() {
   local i="$1"
   local token
@@ -334,7 +401,7 @@ join_user() {
 }
 
 log "Run concurrent joins users=$users capacity=$capacity concurrency=$concurrency"
-start_epoch="$(date -u '+%s')"
+start_millis="$(millis_now)"
 batch=()
 for i in $(seq 1 "$users"); do
   join_user "$i" &
@@ -349,7 +416,7 @@ done
 for pid in "${batch[@]}"; do
   wait "$pid"
 done
-end_epoch="$(date -u '+%s')"
+end_millis="$(millis_now)"
 
 cat "$run_dir"/joins/*.tsv >"$run_dir/join-results.tsv"
 total_ok="$(awk '$2 == "200" { count++ } END { print count + 0 }' "$run_dir/join-results.tsv")"
@@ -357,9 +424,19 @@ confirmed="$(awk '$2 == "200" && $3 == "CONFIRMED" { count++ } END { print count
 waitlisted="$(awk '$2 == "200" && $3 == "WAITLISTED" { count++ } END { print count + 0 }' "$run_dir/join-results.tsv")"
 failed="$(( users - total_ok ))"
 result_count="$(wc -l <"$run_dir/join-results.tsv" | tr -d ' ')"
-p95_index=$(( (result_count * 95 + 99) / 100 ))
-p95="$(awk '{ print $4 }' "$run_dir/join-results.tsv" | sort -n | awk -v idx="$p95_index" 'NR == idx { print; found = 1; exit } END { if (!found) print "0" }')"
+p50="$(latency_percentile 50 "$result_count")"
+p95="$(latency_percentile 95 "$result_count")"
+p99="$(latency_percentile 99 "$result_count")"
 max_latency="$(awk 'BEGIN { max = 0 } { if ($4 > max) max = $4 } END { printf "%.6f", max }' "$run_dir/join-results.tsv")"
+join_duration_millis="$(( end_millis - start_millis ))"
+if (( join_duration_millis < 1 )); then
+  join_duration_millis=1
+fi
+duration_seconds="$(format_seconds "$join_duration_millis")"
+join_throughput="$(format_throughput "$total_ok" "$join_duration_millis")"
+join_success_rate="$(run_node -e 'const ok = Number(process.argv[1]); const total = Number(process.argv[2]); console.log(((ok / total) * 100).toFixed(2));' "$total_ok" "$users")"
+http_status_counts="$(awk '{ counts[$2]++ } END { for (code in counts) printf "- %s: %d\n", code, counts[code] }' "$run_dir/join-results.tsv" | sort)"
+domain_status_counts="$(awk '{ counts[$3]++ } END { for (status in counts) printf "- %s: %d\n", status, counts[status] }' "$run_dir/join-results.tsv" | sort)"
 
 expected_confirmed="$capacity"
 if (( users < capacity )); then
@@ -402,9 +479,11 @@ if [[ "$skip_feed_check" == false ]]; then
   [[ "$feed_status" == "ok" ]] || die "feed projection did not reach confirmedCount=$expected_confirmed within 30s"
 fi
 
-duration_seconds="$(( end_epoch - start_epoch ))"
-cat >"$run_dir/summary.md" <<EOF
-# Local Load Test Summary
+dependency_snapshot "after-joins"
+
+{
+cat <<EOF
+# CI Load Evidence Summary
 
 - Run ID: $run_id
 - Gateway: $base_url
@@ -413,16 +492,32 @@ cat >"$run_dir/summary.md" <<EOF
 - Capacity: $capacity
 - Join concurrency: $concurrency
 - Join duration seconds: $duration_seconds
+- Join throughput requests/second: $join_throughput
 - Join HTTP success: $total_ok/$users
+- Join success rate percent: $join_success_rate
 - Confirmed joins: $confirmed
 - Waitlisted joins: $waitlisted
 - Event detail confirmedCount: $detail_confirmed
+- Join latency p50 seconds: $p50
 - Join latency p95 seconds: $p95
+- Join latency p99 seconds: $p99
 - Join latency max seconds: $max_latency
 - Feed projection: $feed_status
+- Dependency snapshot before joins: $run_dir/dependencies-before-joins.md
+- Dependency snapshot after joins: $run_dir/dependencies-after-joins.md
 - Result files: $run_dir
 EOF
 
+echo
+echo "## Join HTTP Status Counts"
+echo
+printf '%s\n' "$http_status_counts"
+echo
+echo "## Join Domain Status Counts"
+echo
+printf '%s\n' "$domain_status_counts"
+} >"$run_dir/summary.md"
+
 cat "$run_dir/summary.md"
 echo
-echo "Local load test passed."
+echo "CI load evidence passed."

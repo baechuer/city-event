@@ -332,13 +332,12 @@ availability.
 Load evidence exercises the public gateway path for admin login, organizer promotion, event creation, attendee registration, concurrent joins, capacity/waitlist invariants, CSRF refresh smoke, and eventual feed projection.
 
 Run it through the manual GitHub Actions `Heavy Evidence` workflow. The workflow
-executes:
+executes a matrix of 40, 80, and 160 attendee runs, each with its own uploaded
+`load-evidence-*` artifact.
 
-```bash
-./scripts/load-test-local.sh --start-stack --users 80 --capacity 25 --concurrency 20
-```
-
-This is CI correctness and regression evidence, not a production throughput benchmark. The script is blocked on the local workstation by `docs/testing/heavy-evidence-runner-policy.md`.
+This is CI correctness and regression evidence, not a production throughput
+benchmark. The script is blocked on the local workstation by
+`docs/testing/heavy-evidence-runner-policy.md`.
 
 ## Run Local Infrastructure
 

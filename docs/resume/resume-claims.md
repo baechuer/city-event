@@ -83,7 +83,7 @@ Do not say:
 | CI gates | `.github/workflows/ci.yml`, `scripts/verify-phase-14.sh` |
 | observability | correlation ID middleware, metrics endpoint, request histograms, debugging walkthrough |
 | Kubernetes readiness | `deploy/kubernetes/`, including ingress, replicas, PodDisruptionBudgets, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-11.sh`, `scripts/failure-test-kubernetes.sh`, `scripts/k8s-live-smoke.sh` |
-| load evidence | `scripts/load-test-local.sh`, `docs/testing/load-testing.md`, `.github/workflows/heavy-evidence.yml`, uploaded `tmp/load-test-local/<run-id>/summary.md` artifact |
+| load evidence | `scripts/load-test-local.sh`, `docs/testing/load-testing.md`, `.github/workflows/heavy-evidence.yml`, uploaded `load-evidence-small-40u`, `load-evidence-medium-80u`, and `load-evidence-stress-160u` artifacts after the manual Actions run |
 
 ## Current Limitation Statement
 
@@ -96,5 +96,5 @@ The project is not production deployed and does not claim high availability. I t
 Load-test wording:
 
 ```text
-I added a CI-gated gateway-level load evidence script that registers users, creates an event, performs concurrent joins, and verifies capacity/waitlist invariants plus eventual feed projection. I do not treat that as a production throughput benchmark.
+I added a GitHub-Actions-only gateway-level load evidence matrix that registers users, creates an event, performs concurrent joins, records latency/throughput/status/dependency snapshots, and verifies capacity/waitlist invariants plus eventual feed projection. I do not treat that as a production throughput benchmark, and I would review the Actions artifacts before using the stronger wording.
 ```
