@@ -4,6 +4,9 @@
 
 Failure testing prevents the project from overclaiming high availability. The current repo now has replica and PodDisruptionBudget manifests, but a real HA claim still requires live failure evidence.
 
+Live failure evidence is GitHub Actions-only. Do not run cluster mutation from
+the local workstation. See `docs/testing/heavy-evidence-runner-policy.md`.
+
 ## Static Gate
 
 Run:
@@ -23,7 +26,8 @@ The static gate does not create or modify a cluster.
 
 ## Live Pod-Failure Test
 
-Only run this when the current `kubectl` context is safe to modify and the cluster can run the CityEvents images:
+The live command is approved only inside the manual GitHub Actions
+`Heavy Evidence` workflow or a future Actions job with equivalent isolation:
 
 ```bash
 bash ./scripts/failure-test-kubernetes.sh --live --deployment api-gateway
@@ -37,8 +41,8 @@ The live path:
 - deletes one pod from the selected Deployment
 - waits for Kubernetes to report the Deployment available again
 
-For a local all-in-one Minikube smoke that also provisions local dependencies
-and runs the gateway workflow:
+For an all-in-one Minikube smoke that also provisions local dependencies and
+runs the gateway workflow, the Actions workflow runs:
 
 ```bash
 bash ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
@@ -68,6 +72,11 @@ Still required for a strong claim:
 - Redis outage during feed reads and token-revocation checks
 - Postgres outage and recovery behavior
 - concurrent joins above capacity during or after worker failure
+
+The next hardening phase is governed by
+`docs/architecture/phase-15-hardening-rubric.md`. A failure scenario does not
+count as done unless it records exact commands, observed behavior, and whether
+the result changes any resume-safe claim.
 
 ## Claim Boundary
 

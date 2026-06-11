@@ -44,8 +44,8 @@ jobs:
 
       - name: Verify project phase gates
         run: |
-          # verify-phase-13.sh is chained by verify-phase-14.sh.
-          bash ./scripts/verify-phase-14.sh
+          # verify-phase-13.sh and verify-phase-14.sh are chained by verify-phase-15.sh.
+          bash ./scripts/verify-phase-15.sh
 
   container-build:
     runs-on: ubuntu-latest

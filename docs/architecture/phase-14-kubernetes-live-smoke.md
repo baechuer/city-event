@@ -1,12 +1,12 @@
-# Phase 14 Kubernetes Local Live Smoke And Failure Evidence
+# Phase 14 Kubernetes Live Smoke And Failure Evidence
 
 ## Objective
 
-Phase 14 moves Kubernetes from static manifest readiness toward runnable local
+Phase 14 moves Kubernetes from static manifest readiness toward runnable CI
 evidence.
 
 The goal is not to claim production high availability. The goal is to prove that
-the current manifests can run in a local Kubernetes cluster, that the gateway
+the current manifests can run in a Minikube Kubernetes cluster, that the gateway
 workflow works after migrations, and that Kubernetes can replace one selected
 app pod while the gateway becomes ready again.
 
@@ -17,7 +17,7 @@ app pod while the gateway becomes ready again.
 | Local Kubernetes overlay | `deploy/kubernetes/local/kustomization.yaml` |
 | Local-only dependencies | `deploy/kubernetes/local/dependencies.yaml` |
 | Local secret patch | `deploy/kubernetes/local/secret.local.patch.yaml` |
-| Live smoke/failure runner | `scripts/k8s-live-smoke.sh` |
+| GitHub-Actions-only smoke/failure runner | `scripts/k8s-live-smoke.sh` |
 | Phase verifier | `scripts/verify-phase-14.sh` |
 | Testing guide | `docs/testing/kubernetes-live-smoke.md` |
 | CI gate | `.github/workflows/ci.yml` |
@@ -61,7 +61,8 @@ local dependencies into production.
 - verifies `/metrics`
 - optionally deletes one app pod and waits for replacement
 
-The generated evidence is written to `tmp/k8s-live-smoke/<timestamp>/`.
+The generated evidence is written to `tmp/k8s-live-smoke/<timestamp>/` and
+uploaded by the manual GitHub Actions `Heavy Evidence` workflow.
 
 ## Why This Still Is Not High Availability
 
@@ -90,7 +91,7 @@ Static and CI-safe:
 ./scripts/verify-phase-14.sh
 ```
 
-Live local smoke and pod replacement:
+Live smoke and pod replacement is approved only through GitHub Actions:
 
 ```bash
 ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
@@ -102,7 +103,7 @@ Optional explicit verifier path:
 ./scripts/verify-phase-14.sh --run-live
 ```
 
-## Current Local Run Result
+## Current Run Result
 
 On 2026-06-11, the static Phase 14 verifier passed locally. The live Minikube
 smoke was attempted with:
@@ -127,21 +128,22 @@ apiserver: Stopped
 kubeconfig: Configured
 ```
 
-This means Phase 14 currently proves static/local-smoke readiness only. It does
-not yet prove live Kubernetes app recovery in this environment.
+This means Phase 14 currently proves static smoke readiness only. It does not
+yet prove live Kubernetes app recovery. Future live attempts must use the
+manual GitHub Actions `Heavy Evidence` workflow, not the local workstation.
 
 ## Claim Boundary
 
 Allowed after static verification:
 
 ```text
-Added a local Kubernetes overlay and CI-safe verifier for Minikube smoke-test readiness.
+Added a Kubernetes overlay and CI-safe verifier for Minikube smoke-test readiness.
 ```
 
 Allowed only after the live smoke succeeds:
 
 ```text
-Ran a local Kubernetes smoke test that deployed the service set, applied migrations, verified the gateway event workflow, and confirmed Kubernetes replaced a selected app pod.
+Ran a GitHub Actions Kubernetes smoke test that deployed the service set, applied migrations, verified the gateway event workflow, and confirmed Kubernetes replaced a selected app pod.
 ```
 
 Still not allowed:

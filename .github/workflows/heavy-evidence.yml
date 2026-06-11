@@ -1,0 +1,108 @@
+name: Heavy Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_kubernetes_live:
+        description: Run Minikube Kubernetes live smoke with pod replacement evidence
+        required: true
+        type: boolean
+        default: true
+      run_load_evidence:
+        description: Run gateway load evidence against the local CI stack
+        required: true
+        type: boolean
+        default: true
+      load_users:
+        description: Attendee users for load evidence
+        required: true
+        type: string
+        default: "80"
+      load_capacity:
+        description: Event capacity for load evidence
+        required: true
+        type: string
+        default: "25"
+      load_concurrency:
+        description: Join concurrency for load evidence
+        required: true
+        type: string
+        default: "20"
+
+jobs:
+  kubernetes-live-smoke:
+    if: ${{ inputs.run_kubernetes_live }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install Minikube
+        run: |
+          curl -fsSL -o /tmp/minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          chmod +x /tmp/minikube
+          sudo install /tmp/minikube /usr/local/bin/minikube
+
+      - name: Validate Bash scripts
+        run: bash -n scripts/*.sh scripts/lib/*.sh
+
+      - name: Run Kubernetes live smoke
+        run: bash ./scripts/k8s-live-smoke.sh --start-minikube --run-failure --cleanup
+
+      - name: Upload Kubernetes evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-live-smoke
+          path: tmp/k8s-live-smoke/**
+          if-no-files-found: ignore
+
+  load-evidence:
+    if: ${{ inputs.run_load_evidence }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run load evidence
+        run: |
+          bash ./scripts/load-test-local.sh \
+            --start-stack \
+            --users "${{ inputs.load_users }}" \
+            --capacity "${{ inputs.load_capacity }}" \
+            --concurrency "${{ inputs.load_concurrency }}"
+
+      - name: Stop local stack
+        if: always()
+        run: bash ./scripts/stop-local.sh --with-infrastructure || true
+
+      - name: Upload load evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-evidence
+          path: tmp/load-test-local/**
+          if-no-files-found: ignore

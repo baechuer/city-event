@@ -59,6 +59,15 @@ These tests verify configuration parsing, invalid config rejection, health/prefl
 
 The current limiter is in-memory per process. In Kubernetes with two replicas, each pod has independent counters. That is acceptable for local hardening evidence, but it is not distributed rate limiting.
 
+The next implementation target is a Redis-backed shared limiter, tracked in
+`docs/architecture/phase-15-hardening-rubric.md`. The required security choice
+is explicit fail behavior:
+
+- fail open: preserve availability if Redis is down, but abuse protection
+  degrades to local fallback
+- fail closed: preserve strict rate-limit enforcement, but Redis outage can
+  reject legitimate traffic
+
 For production, replace or complement this with one of:
 
 - Redis-backed shared counters

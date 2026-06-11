@@ -176,6 +176,21 @@ cleanup_pid() {
   fi
 }
 
+require_github_actions_evidence_runner() {
+  local script_name="$1"
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    return 0
+  fi
+
+  cat >&2 <<EOF
+error: $script_name is a heavy evidence script and is approved only on GitHub Actions.
+
+Local workstation execution is blocked to protect Docker/WSL/host stability.
+Run the manual GitHub Actions heavy-evidence workflow instead.
+EOF
+  exit 1
+}
+
 stop_frontend_servers_on_port() {
   local frontend_port="$1"
   if command -v powershell.exe >/dev/null 2>&1; then

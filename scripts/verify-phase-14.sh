@@ -9,11 +9,11 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/verify-phase-14.sh [options]
 
-Verifies Phase 14 Kubernetes local live-smoke readiness. The default path is
-static and CI-safe. Use --run-live to start/run the Minikube smoke manually.
+Verifies Phase 14 Kubernetes live-smoke readiness. The default path is
+static and CI-safe. Use --run-live only inside GitHub Actions.
 
 Options:
-  --run-live   Run ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
+  --run-live   Run ./scripts/k8s-live-smoke.sh --start-minikube --run-failure in GitHub Actions
   -h, --help   Show this help
 EOF
 }
@@ -77,11 +77,12 @@ else
 fi
 
 if [[ "$run_live" == true ]]; then
+  require_github_actions_evidence_runner "scripts/verify-phase-14.sh --run-live"
   log "Live Minikube smoke"
   "$REPO_ROOT/scripts/k8s-live-smoke.sh" --start-minikube --run-failure
 else
   cat <<'EOF'
-Live Kubernetes smoke skipped. To run it locally:
+Live Kubernetes smoke skipped. To run it in the manual GitHub Actions heavy-evidence workflow:
 
   ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
 

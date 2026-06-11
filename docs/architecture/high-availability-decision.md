@@ -22,7 +22,7 @@ Implemented and verified today:
 - ConfigMaps and Secret templates separate configuration from code.
 - Ingress manifests declare TLS routing, forced HTTPS redirect, and a cert-manager certificate example.
 - Phase 10, Phase 13, and Phase 14 manifest validation pass through `scripts/verify-phase-10.sh`, `scripts/verify-phase-13.sh`, and `scripts/verify-phase-14.sh`.
-- A local Kubernetes overlay and Minikube smoke runner exist for deploy-and-pod-replacement evidence.
+- A Kubernetes overlay and GitHub-Actions-only Minikube smoke runner exist for deploy-and-pod-replacement evidence.
 
 This evidence supports:
 
@@ -50,12 +50,13 @@ The backing services are also single-instance in the current local stack:
 
 If any of those dependencies fail, additional stateless service replicas do not make the full system highly available. The new `replicas: 2` and PodDisruptionBudgets improve pod replacement and voluntary disruption readiness, but claiming HA still requires dependency HA, autoscaling evidence, traffic-level validation, and recorded live failure tests.
 
-The local Kubernetes overlay can create local single-instance backing services for Minikube smoke testing. That improves evidence beyond static manifests, but it is still not production HA because the cluster and backing dependencies are not highly available.
+The Kubernetes overlay can create single-instance backing services for Minikube smoke testing in GitHub Actions. That improves evidence beyond static manifests, but it is still not production HA because the cluster and backing dependencies are not highly available.
 
-Current local note from 2026-06-11: the live Minikube smoke did not reach app
-deployment because Minikube failed with `K8S_APISERVER_MISSING` and reported the
-kubelet and apiserver as stopped. Until the profile is repaired or recreated,
-the live Kubernetes recovery claim remains unproven in this environment.
+Current note from 2026-06-11: local workstation execution is blocked after a
+stability warning. The first live Minikube smoke did not reach app deployment
+because Minikube failed with `K8S_APISERVER_MISSING`. Later attempts showed this
+is heavy host-level evidence, so future accepted runs must use the manual
+GitHub Actions `Heavy Evidence` workflow and uploaded artifacts.
 
 TLS is also not production-proven yet. The manifests identify the expected `cityevents-tls` secret and include a cert-manager `Certificate` example, but a real cluster still needs a valid certificate issuer, DNS, and an ingress smoke test.
 
@@ -91,7 +92,9 @@ bash ./scripts/failure-test-kubernetes.sh --live --deployment api-gateway
 bash ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
 ```
 
-The first command is static. The second command mutates the current `kubectl` context and only counts as evidence after it is run in a real, safe cluster with images and dependencies configured. The third command is the local all-in-one Minikube path and writes evidence under `tmp/k8s-live-smoke/`.
+The first command is static and local-safe. The second and third commands are
+blocked outside GitHub Actions and only count as evidence when run by the manual
+`Heavy Evidence` workflow with uploaded artifacts reviewed.
 
 ## Safe Resume Wording
 
@@ -125,4 +128,4 @@ Kubernetes readiness and high availability are different claims.
 
 This project currently proves that the services can be containerized and described with Kubernetes manifests. It also proves important reliability mechanisms at the application layer: transactional outbox, persistent RabbitMQ messages, publisher confirms, idempotent consumers, Redis fallback, and correlation IDs.
 
-The project does not yet prove production high availability because the deployment has not been live-tested under failure and the backing dependencies are not highly available. The honest next step is to run the manifests in a local or cloud cluster, make dependencies HA, add autoscaling or a scaling policy, then record pod and dependency failure tests.
+The project does not yet prove production high availability because the deployment has not been live-tested under failure and the backing dependencies are not highly available. The honest next step is to run the manual GitHub Actions heavy-evidence workflow, make dependencies HA, add autoscaling or a scaling policy, then record pod and dependency failure tests.

@@ -20,6 +20,7 @@ Options:
   -h, --help              Show this help
 
 Live test prerequisites:
+  - GitHub Actions runner
   - working kubectl context
   - cityevents images available to the cluster
   - Kubernetes dependencies/secrets adjusted for that cluster
@@ -48,6 +49,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$REPO_ROOT"
+
+if [[ "$live" == true ]]; then
+  require_github_actions_evidence_runner "scripts/failure-test-kubernetes.sh --live"
+fi
 
 log "Kubernetes replica and disruption-budget static checks"
 require_file deploy/kubernetes/deployments.yaml

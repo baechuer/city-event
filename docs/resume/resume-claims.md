@@ -2,7 +2,7 @@
 
 ## Primary Project Summary
 
-CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows, Redis-backed caching, idempotent consumers, local media processing, shared HTTP rate limiting, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and local Kubernetes smoke-test tooling.
+CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows, Redis-backed caching, idempotent consumers, local media processing, shared HTTP rate limiting, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
 
 ## Recommended Resume Bullets
 
@@ -16,14 +16,14 @@ Use these bullets as the strongest current version:
 - Added correlation IDs, structured logs, Prometheus-style request counters, latency histograms, rate-limit counters, and a debugging walkthrough to trace HTTP requests through outbox, RabbitMQ, feed projection, and notification records.
 - Added shared HTTP rate limiting for auth, mutation, and read endpoints with tested 429 responses and explicit per-pod/distributed-limit caveats.
 - Added GitHub Actions gates and a Playwright browser E2E flow covering organizer publishing and attendee joining against the local stack.
-- Prepared services for Kubernetes deployment with Docker builds, Deployments, Services, ConfigMaps, Secret templates, health probes, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, a local Minikube smoke/failure runner, and a documented high-availability roadmap.
+- Prepared services for Kubernetes deployment with Docker builds, Deployments, Services, ConfigMaps, Secret templates, health probes, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, GitHub-Actions-only Minikube smoke/load evidence tooling, and a documented high-availability roadmap.
 
 ## Short Version
 
 Use this if space is limited:
 
 ```text
-Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, rate limiting, request metrics, Playwright E2E coverage, CI gates, Kubernetes-ready replicated manifests, and local Kubernetes smoke-test tooling.
+Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, rate limiting, request metrics, Playwright E2E coverage, CI gates, Kubernetes-ready replicated manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
 ```
 
 ## Interview Framing
@@ -43,13 +43,13 @@ I do not claim exactly-once RabbitMQ consumption. RabbitMQ gives at-least-once d
 Explain Kubernetes honestly:
 
 ```text
-The project is Kubernetes-ready, not highly available. The manifests include replicas, PodDisruptionBudgets, probes, resources, config separation, and local smoke-test tooling, but HA would still require production-grade failure evidence, autoscaling policy, HA Postgres/RabbitMQ/Redis, and dependency failure tests.
+The project is Kubernetes-ready, not highly available. The manifests include replicas, PodDisruptionBudgets, probes, resources, config separation, and Actions-only smoke-test tooling, but HA would still require production-grade failure evidence, autoscaling policy, HA Postgres/RabbitMQ/Redis, and dependency failure tests.
 ```
 
 Current evidence boundary:
 
 ```text
-The local Kubernetes smoke runner exists and static verification passes, but the 2026-06-11 live Minikube attempt failed before app deployment because the Minikube apiserver did not start. Do not claim live Kubernetes recovery until that run passes.
+The Kubernetes smoke runner exists and static verification passes, but local workstation execution is blocked after a stability warning. Do not claim live Kubernetes recovery until the manual GitHub Actions Heavy Evidence workflow passes and artifacts are reviewed.
 ```
 
 ## Claims To Avoid
@@ -83,18 +83,18 @@ Do not say:
 | CI gates | `.github/workflows/ci.yml`, `scripts/verify-phase-14.sh` |
 | observability | correlation ID middleware, metrics endpoint, request histograms, debugging walkthrough |
 | Kubernetes readiness | `deploy/kubernetes/`, including ingress, replicas, PodDisruptionBudgets, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-11.sh`, `scripts/failure-test-kubernetes.sh`, `scripts/k8s-live-smoke.sh` |
-| local load evidence | `scripts/load-test-local.sh`, `docs/testing/load-testing.md`, `tmp/load-test-local/<run-id>/summary.md` after each run |
+| load evidence | `scripts/load-test-local.sh`, `docs/testing/load-testing.md`, `.github/workflows/heavy-evidence.yml`, uploaded `tmp/load-test-local/<run-id>/summary.md` artifact |
 
 ## Current Limitation Statement
 
 Use this in interviews:
 
 ```text
-The project is not production deployed and does not claim high availability. I treated those as evidence-gated claims: the next step would be a real cluster smoke test under failure, HA dependencies, autoscaling policy, and recorded dependency failure testing.
+The project is not production deployed and does not claim high availability. I treated those as evidence-gated claims: the next step would be the manual GitHub Actions heavy-evidence run, HA dependencies, autoscaling policy, and recorded dependency failure testing.
 ```
 
-Local load-test wording:
+Load-test wording:
 
 ```text
-I added a repeatable local gateway-level load test that registers users, creates an event, performs concurrent joins, and verifies capacity/waitlist invariants plus eventual feed projection. I do not treat that as a production throughput benchmark.
+I added a CI-gated gateway-level load evidence script that registers users, creates an event, performs concurrent joins, and verifies capacity/waitlist invariants plus eventual feed projection. I do not treat that as a production throughput benchmark.
 ```

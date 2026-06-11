@@ -5,16 +5,20 @@
 This test records whether CityEvents can run in a local Kubernetes cluster and
 whether one selected app pod can be deleted and replaced.
 
-It is not a production HA test. It uses local Minikube plus single-instance
+It is not a production HA test. It uses Minikube plus single-instance
 backing services from `deploy/kubernetes/local`.
+
+It is also not a lightweight unit test. Minikube with the Docker driver runs on
+the workstation's Docker/WSL runtime and can consume enough CPU, memory, and
+network resources to destabilize a small local machine. For repeat evidence,
+use the manual GitHub Actions `Heavy Evidence` workflow. The script is blocked
+outside GitHub Actions so it cannot destabilize the local workstation.
 
 ## Prerequisites
 
-- Docker Desktop
-- `kubectl`
-- `minikube`
-- Bash
-- enough local resources for roughly 25 pods
+- manual GitHub Actions `Heavy Evidence` workflow
+- Docker available on the GitHub-hosted runner
+- `minikube` installed by the workflow
 
 ## Static Gate
 
@@ -36,11 +40,16 @@ This checks:
 
 ## Live Gate
 
-Run:
+The live gate is executed by `.github/workflows/heavy-evidence.yml`:
 
 ```bash
 ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
 ```
+
+Do not run this from the local workstation. `verify-phase-15.sh` keeps the live
+path out of normal verification, checks that the smoke script calls the
+GitHub-Actions-only evidence guard, and statically rejects host process-killing
+cleanup.
 
 The script writes evidence under:
 
@@ -73,10 +82,10 @@ It does not support:
 Production high availability.
 ```
 
-## Current Environment Blocker
+## Current Environment Notes
 
-The live command was attempted on 2026-06-11, but Minikube failed before the app
-was deployed:
+The first live command attempted on 2026-06-11 failed before the app was
+deployed:
 
 ```text
 K8S_APISERVER_MISSING: apiserver process never appeared
@@ -91,9 +100,21 @@ apiserver: Stopped
 kubeconfig: Configured
 ```
 
-Do not treat this as live Kubernetes evidence. The next safe remediation is to
-recreate or repair the local Minikube profile, then rerun the same smoke command
-and review the generated `summary.md`.
+Do not treat this as live Kubernetes evidence. The next accepted remediation is
+to run the manual GitHub Actions `Heavy Evidence` workflow and review the
+uploaded `summary.md`.
+
+After profile repair, later runs reached dependency readiness, migrations, app
+workload readiness, and gateway port-forwarding. They uncovered two Windows/Git
+Bash transport issues:
+
+- direct `kubectl.exe` from Bash was less stable than `minikube kubectl --`
+- Windows `curl.exe` could reach the port-forward but needed request bodies
+  posted from no-BOM temp files with converted Windows paths
+
+The script now handles those transport issues and refuses to take over an
+already-used local gateway port. Further live evidence must run in GitHub
+Actions before it is treated as resume evidence.
 
 ## Follow-Up Failure Tests
 

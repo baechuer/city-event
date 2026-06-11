@@ -19,7 +19,7 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/load-test-local.sh [options]
 
-Runs a local gateway-level load test:
+Runs a GitHub Actions-only gateway-level load test:
   - logs in seeded admin
   - registers and promotes one organizer
   - creates one event through api-gateway
@@ -42,6 +42,9 @@ Options:
 Environment:
   SEED_ADMIN_EMAIL       Admin email. Default: admin@cityevents.local
   SEED_ADMIN_PASSWORD    Admin password. Default: AdminPass12345
+
+This script is blocked on local workstations. Run it through the manual
+heavy-evidence GitHub Actions workflow.
 EOF
 }
 
@@ -102,6 +105,7 @@ done
 (( concurrency > 0 )) || die "--concurrency must be greater than zero"
 
 cd "$REPO_ROOT"
+require_github_actions_evidence_runner "scripts/load-test-local.sh"
 setup_go_cache
 
 run_id="$(date -u '+%Y%m%dT%H%M%SZ')-$RANDOM"

@@ -43,9 +43,9 @@ The rebuilt architecture uses:
 | Browser E2E | Supported locally | Playwright organizer publish and attendee join flow against the local stack |
 | CI gates | Supported | GitHub Actions workflow for Go tests, frontend tests, phase verification, service image builds, and browser E2E |
 | Observability/debugging | Supported as basic observability | correlation IDs, structured request logs, `/metrics`, request counters, latency histograms, rate-limit counters, outbox correlation propagation, debugging walkthrough |
-| Local load/correctness smoke | Supported locally | `scripts/load-test-local.sh` verifies gateway-level auth, event creation, concurrent joins, capacity/waitlist invariant, and feed projection |
+| Load/correctness smoke | CI-only evidence pending | `scripts/load-test-local.sh` verifies gateway-level auth, event creation, concurrent joins, capacity/waitlist invariant, and feed projection, but Phase 15 blocks future runs outside GitHub Actions |
 | Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/Ingress/probes/resource limits/replicas/PDBs, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-13.sh`, `scripts/verify-phase-14.sh` |
-| Local Kubernetes smoke | Tooling supported; live run blocked locally | `scripts/k8s-live-smoke.sh --start-minikube --run-failure`; 2026-06-11 attempt failed before app deployment because Minikube apiserver did not start |
+| Kubernetes live smoke | Tooling supported; live run blocked locally | `scripts/k8s-live-smoke.sh --start-minikube --run-failure`; future accepted evidence must come from the manual GitHub Actions `Heavy Evidence` workflow |
 | High availability | Deferred | `docs/architecture/high-availability-decision.md`; manifests have replicas/PDBs and local smoke tooling, but production HA dependencies, multi-node evidence, continuous traffic failure tests, and autoscaling are not present |
 | Production deployment | Not supported | no verified live cluster run, managed secrets, production database, or failure-test evidence; TLS is manifest/example coverage only |
 
@@ -63,16 +63,16 @@ docker compose config --quiet
 ./scripts/verify-phase-14.sh
 ```
 
-Full local integration verification when Docker dependencies are available:
+Full integration verification when Docker dependencies are available:
 
 ```bash
 ./scripts/verify-phase-9.sh
 ./scripts/verify-phase-12.sh --run-full-integration
-./scripts/load-test-local.sh --start-stack --users 80 --capacity 25 --concurrency 20
 ./scripts/verify-phase-13.sh --run-e2e
-# after Minikube is healthy:
-./scripts/k8s-live-smoke.sh --start-minikube --run-failure
 ```
+
+Heavy evidence is not a local command. Run the manual GitHub Actions
+`Heavy Evidence` workflow for Kubernetes live smoke and load evidence.
 
 ## Current Safe Claims
 
@@ -121,13 +121,13 @@ Added GitHub Actions gates and Playwright browser E2E coverage for the organizer
 Safe:
 
 ```text
-Added a repeatable local gateway-level load test that verifies concurrent event joins preserve capacity and waitlist invariants while feed projection catches up eventually.
+Added a CI-gated gateway-level load evidence script that verifies concurrent event joins preserve capacity and waitlist invariants while feed projection catches up eventually.
 ```
 
 Safe:
 
 ```text
-Prepared the services for Kubernetes deployment with container builds, Deployments, Services, health probes, configuration separation, Secret templates, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, a local Minikube smoke-test overlay, and documented high-availability requirements.
+Prepared the services for Kubernetes deployment with container builds, Deployments, Services, health probes, configuration separation, Secret templates, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, a GitHub-Actions-only Minikube smoke-test overlay, and documented high-availability requirements.
 ```
 
 ## Claims To Avoid
@@ -178,12 +178,12 @@ Distributed rate limiting.
 
 Highest priority gaps before stronger claims:
 
-- repair or recreate the local Minikube profile, then run and record a real Kubernetes deployment smoke test in Kind, Minikube, or a cloud cluster
+- run and record the manual GitHub Actions Kubernetes deployment smoke test
 - add continuous traffic during Kubernetes pod deletion, not only post-replacement readiness
 - add production-grade dependency HA: managed Postgres, RabbitMQ quorum queues or cluster, managed Redis or Redis Cluster
 - add failure tests for pod deletion, worker restart, RabbitMQ restart, Redis outage, and Postgres outage
 - run a real TLS ingress smoke test with a valid `cityevents-tls` secret or cert-manager-issued certificate
-- repeat load tests in a controlled environment with resource metrics before making throughput claims
+- repeat load tests in GitHub Actions with resource metrics before making throughput claims
 - add registry push and controlled deployment jobs after secrets and cluster target are available
 - replace per-pod rate limiting with Redis, ingress, or gateway-level distributed rate limiting before claiming distributed abuse protection
 - add OpenTelemetry collector, trace backend, Prometheus scraping, and Grafana dashboard if claiming production observability

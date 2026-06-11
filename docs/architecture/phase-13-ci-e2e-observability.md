@@ -37,7 +37,7 @@ This is CI plus deployment-readiness build validation. It is not production CD y
 
 The Playwright test starts the local one-shot stack through `scripts/start-local.sh`, opens the frontend, verifies runtime API configuration, creates fresh test users, promotes one user through the seeded admin account, publishes an event through the browser UI, loads the direct live event detail route before relying on feed projection, signs in as another user, joins the event through the browser UI, and checks that `/metrics` exposes the new latency histogram.
 
-This covers the gateway, auth, role update, event creation, feed projection, and join path from a browser-facing workflow. It does not replace lower-level concurrency tests or the local load test.
+This covers the gateway, auth, role update, event creation, feed projection, and join path from a browser-facing workflow. It does not replace lower-level concurrency tests or the CI-gated load evidence.
 
 ## Rate Limiting Design
 
@@ -101,7 +101,8 @@ Kubernetes static failure-test readiness:
 bash ./scripts/failure-test-kubernetes.sh
 ```
 
-Live pod-deletion test, only after the current `kubectl` context is safe:
+Live pod-deletion test, only inside the manual GitHub Actions `Heavy Evidence`
+workflow:
 
 ```bash
 bash ./scripts/failure-test-kubernetes.sh --live --deployment api-gateway

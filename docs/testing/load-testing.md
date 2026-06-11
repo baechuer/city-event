@@ -2,7 +2,12 @@
 
 ## Purpose
 
-`scripts/load-test-local.sh` is a repeatable local HTTP load test for the running CityEvents stack.
+`scripts/load-test-local.sh` is a repeatable HTTP load test for the running
+CityEvents stack.
+
+From Phase 15 onward, load evidence is GitHub Actions-only. Do not run this
+script from the local workstation. See
+`docs/testing/heavy-evidence-runner-policy.md`.
 
 It exercises the public gateway path instead of calling internal services directly:
 
@@ -34,18 +39,21 @@ event detail confirmedCount == confirmed joins
 
 ## Run
 
-Start and stop the app automatically:
+The manual GitHub Actions `Heavy Evidence` workflow starts and stops the app
+automatically with:
 
 ```bash
 ./scripts/load-test-local.sh --start-stack --users 80 --capacity 25 --concurrency 20
 ```
 
-Against an already running local stack:
+The old local pattern is no longer approved for evidence:
 
 ```bash
 ./scripts/start-local.sh
 ./scripts/load-test-local.sh --users 80 --capacity 25 --concurrency 20
 ```
+
+The script now blocks outside GitHub Actions to avoid stressing the workstation.
 
 Results are written to:
 
@@ -74,7 +82,12 @@ It does not prove:
 - browser rendering performance
 - CDN or TLS termination performance
 
-Use it as local correctness and regression evidence. Strong throughput claims need a controlled environment, repeated runs, resource metrics, database metrics, and failure testing.
+Use it as CI correctness and regression evidence. Strong throughput claims need repeated runs, resource metrics, database metrics, and failure testing.
+
+The next load-evidence target is defined in
+`docs/architecture/phase-15-hardening-rubric.md`: summaries should include p50,
+p95, p99, max latency, throughput, success rate, status counts, and dependency
+snapshots where available.
 
 ## Current Evidence
 

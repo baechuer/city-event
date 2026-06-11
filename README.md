@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 14: local Kubernetes live-smoke and failure-evidence readiness. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, shared HTTP rate limiting, richer Prometheus-style request metrics, GitHub Actions CI gates, Playwright browser E2E coverage, Kubernetes replicated workload manifests, a local Kubernetes overlay, a Minikube smoke/failure runner, and resume-safe claim guidance.
+The current branch is in Phase 15+: reliability, observability, distributed rate-limit, load-evidence, and frontend-hardening work. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, shared HTTP rate limiting, richer Prometheus-style request metrics, GitHub Actions CI gates, Playwright browser E2E coverage, Kubernetes replicated workload manifests, a local Kubernetes overlay, GitHub-Actions-only heavy evidence tooling, and resume-safe claim guidance.
 
 ## Architecture Direction
 
@@ -28,7 +28,7 @@ The frontend is a dependency-light browser app with Playwright E2E coverage. Rea
 
 Services emit correlation IDs, structured request logs, Prometheus-style request counters, latency histograms, rate-limit counters, and async workflow metrics. This is not a full OpenTelemetry/Grafana stack yet.
 
-Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, ingress routing, resource limits, two replicas per workload, and PodDisruptionBudgets. A local overlay and Minikube smoke script exist for live local evidence. They do not prove high availability. Production HA still requires multi-node behavior, continuous traffic under failure, autoscaling policy, and highly available backing services.
+Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, ingress routing, resource limits, two replicas per workload, and PodDisruptionBudgets. A local overlay and Minikube smoke script exist for live evidence, but heavy evidence is blocked on the local workstation and must run through the manual GitHub Actions `Heavy Evidence` workflow. They do not prove high availability. Production HA still requires multi-node behavior, continuous traffic under failure, autoscaling policy, and highly available backing services.
 
 High availability is intentionally documented as a later stage in `docs/architecture/high-availability-decision.md`.
 
@@ -307,7 +307,7 @@ cd frontend
 npm run e2e
 ```
 
-## Verify Kubernetes Local Live Smoke Readiness
+## Verify Kubernetes Live Smoke Readiness
 
 Phase 14 verification checks the local Kubernetes overlay and live-smoke script
 without requiring a running cluster:
@@ -316,31 +316,29 @@ without requiring a running cluster:
 ./scripts/verify-phase-14.sh
 ```
 
-To run the live local Minikube smoke and pod-replacement test:
+To run live Minikube smoke, use the manual GitHub Actions `Heavy Evidence`
+workflow. The workflow runs:
 
 ```bash
 ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
 ```
 
-This creates evidence under `tmp/k8s-live-smoke/<timestamp>/`. Passing this test
-supports local Kubernetes deployment smoke evidence, not production high
+This uploads evidence from `tmp/k8s-live-smoke/<timestamp>/`. Passing this test
+supports CI Kubernetes deployment smoke evidence, not production high
 availability.
 
-## Run Local Load Test
+## Run Load Evidence
 
-The local load test exercises the public gateway path for admin login, organizer promotion, event creation, attendee registration, concurrent joins, capacity/waitlist invariants, CSRF refresh smoke, and eventual feed projection.
+Load evidence exercises the public gateway path for admin login, organizer promotion, event creation, attendee registration, concurrent joins, capacity/waitlist invariants, CSRF refresh smoke, and eventual feed projection.
+
+Run it through the manual GitHub Actions `Heavy Evidence` workflow. The workflow
+executes:
 
 ```bash
 ./scripts/load-test-local.sh --start-stack --users 80 --capacity 25 --concurrency 20
 ```
 
-For an already running stack:
-
-```bash
-./scripts/load-test-local.sh --users 80 --capacity 25 --concurrency 20
-```
-
-This is local correctness and regression evidence, not a production throughput benchmark. Details are in `docs/testing/load-testing.md`.
+This is CI correctness and regression evidence, not a production throughput benchmark. The script is blocked on the local workstation by `docs/testing/heavy-evidence-runner-policy.md`.
 
 ## Run Local Infrastructure
 
@@ -415,7 +413,7 @@ unset CITYEVENTS_STARTUP_CHECK_ONLY
 Allowed claim:
 
 ```text
-Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, shared HTTP rate limiting, request metrics, Playwright browser E2E coverage, CI gates, Kubernetes-ready replicated manifests, local Kubernetes smoke-test tooling, and documented production/HA limitations.
+Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, shared HTTP rate limiting, request metrics, Playwright browser E2E coverage, CI gates, Kubernetes-ready replicated manifests, GitHub-Actions-only Kubernetes/load evidence tooling, and documented production/HA limitations.
 ```
 
 Not yet allowed:

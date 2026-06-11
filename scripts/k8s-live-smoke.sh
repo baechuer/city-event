@@ -34,6 +34,14 @@ dependency_deployments=(
   "mailpit"
 )
 
+dependency_images=(
+  "postgres:16-alpine"
+  "rabbitmq:3.13-management-alpine"
+  "redis:7-alpine"
+  "minio/minio:latest"
+  "axllent/mailpit:latest"
+)
+
 migrations=(
   "migrations/auth/001_init.sql"
   "migrations/eventregistration/001_init.sql"
@@ -47,7 +55,7 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/k8s-live-smoke.sh [options]
 
-Runs a local Kubernetes smoke test using the local overlay:
+Runs a GitHub Actions-only Kubernetes smoke test using the local overlay:
   - optionally starts Minikube
   - builds service images with the shared Dockerfile
   - loads images into Minikube
@@ -68,9 +76,9 @@ Options:
   --cleanup              Delete the cityevents namespace at the end after success
   -h, --help             Show this help
 
-This script is intended for local Minikube evidence. It is not a production HA
-test because the local overlay uses single-instance Postgres, RabbitMQ, Redis,
-MinIO, and Mailpit dependencies.
+This script is heavy host-level evidence and is approved only inside GitHub
+Actions. It is not a production HA test because the local overlay uses
+single-instance Postgres, RabbitMQ, Redis, MinIO, and Mailpit dependencies.
 EOF
 }
 
@@ -122,6 +130,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$REPO_ROOT"
+require_github_actions_evidence_runner "scripts/k8s-live-smoke.sh"
 setup_go_cache
 
 if [[ -z "$evidence_dir" ]]; then
@@ -133,6 +142,7 @@ mkdir -p "$evidence_dir"
 summary_file="$evidence_dir/summary.md"
 port_forward_log="$evidence_dir/api-gateway-port-forward.log"
 port_forward_pid=""
+failure_recorded=false
 
 cleanup() {
   cleanup_pid "$port_forward_pid"
@@ -140,6 +150,10 @@ cleanup() {
 
 on_error() {
   local exit_code=$?
+  if [[ "$failure_recorded" == true ]]; then
+    return
+  fi
+  failure_recorded=true
   if [[ -n "${summary_file:-}" && -f "$summary_file" ]]; then
     printf -- '- Failed before completion with exit code `%s`. Check the command output and cluster status before treating this as live evidence.\n' "$exit_code" >>"$summary_file"
   fi
@@ -165,11 +179,26 @@ resolve_executable() {
 }
 
 kubectl_cmd() {
-  "$kubectl_bin" "$@"
+  minikube_cmd kubectl -- "$@"
 }
 
 minikube_cmd() {
   "$minikube_bin" "$@"
+}
+
+curl_file_path() {
+  local path="$1"
+  if [[ "${use_windows_curl:-false}" == true ]]; then
+    if command -v wslpath >/dev/null 2>&1; then
+      wslpath -w "$path"
+      return
+    fi
+    if command -v cygpath >/dev/null 2>&1; then
+      cygpath -w "$path"
+      return
+    fi
+  fi
+  printf '%s\n' "$path"
 }
 
 json_eval() {
@@ -178,32 +207,107 @@ json_eval() {
   JSON_INPUT="$json" run_node -e "const data = JSON.parse(process.env.JSON_INPUT || '{}'); const value = $expression; if (value === undefined || value === null || value === '') process.exit(2); process.stdout.write(String(value));"
 }
 
+curl_cmd() {
+  if [[ "${use_windows_curl:-false}" == true ]]; then
+    curl.exe "$@"
+  else
+    curl "$@"
+  fi
+}
+
+wait_for_gateway_http() {
+  local url="$1"
+  local timeout_seconds="${2:-60}"
+  local deadline=$((SECONDS + timeout_seconds))
+  while (( SECONDS < deadline )); do
+    if curl_cmd -fsS --max-time 2 "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
+ensure_local_port_free() {
+  local port="$1"
+  if command -v powershell.exe >/dev/null 2>&1; then
+    if powershell.exe -NoProfile -Command "
+      \$port = [int]'$port'
+      \$listeners = Get-NetTCPConnection -LocalPort \$port -State Listen -ErrorAction SilentlyContinue
+      if (\$listeners) { exit 1 }
+    " >/dev/null 2>&1; then
+      return 0
+    fi
+    die "local port $port is already in use. Stop the existing listener or pass --port with a free port."
+  fi
+
+  if command -v ss >/dev/null 2>&1; then
+    if ss -ltn "sport = :$port" | tail -n +2 | grep -q .; then
+      die "local port $port is already in use. Stop the existing listener or pass --port with a free port."
+    fi
+  fi
+}
+
 post_json() {
   local path="$1"
   local body="$2"
+  local body_file
+  local curl_body_file
+  local status
   shift 2
-  curl -fsS \
+  body_file="$(mktemp "$evidence_dir/request-body.XXXXXX.json")"
+  printf '%s' "$body" >"$body_file"
+  curl_body_file="$(curl_file_path "$body_file")"
+  set +e
+  curl_cmd -fsS \
     -H "Content-Type: application/json" \
     "$@" \
-    -d "$body" \
+    --data-binary "@$curl_body_file" \
     "$api_base$path"
+  status=$?
+  set -e
+  rm -f "$body_file"
+  return "$status"
 }
 
 patch_json() {
   local path="$1"
   local body="$2"
+  local body_file
+  local curl_body_file
+  local status
   shift 2
-  curl -fsS \
+  body_file="$(mktemp "$evidence_dir/request-body.XXXXXX.json")"
+  printf '%s' "$body" >"$body_file"
+  curl_body_file="$(curl_file_path "$body_file")"
+  set +e
+  curl_cmd -fsS \
     -X PATCH \
     -H "Content-Type: application/json" \
     "$@" \
-    -d "$body" \
+    --data-binary "@$curl_body_file" \
     "$api_base$path"
+  status=$?
+  set -e
+  rm -f "$body_file"
+  return "$status"
 }
 
 wait_for_deployment() {
   local name="$1"
   kubectl_cmd -n cityevents wait --for=condition=available "deployment/$name" --timeout=240s
+}
+
+wait_for_cluster_access() {
+  local timeout_seconds="${1:-180}"
+  local deadline=$((SECONDS + timeout_seconds))
+  while (( SECONDS < deadline )); do
+    if kubectl_cmd get nodes --request-timeout=20s >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 5
+  done
+  kubectl_cmd get nodes --request-timeout=20s
 }
 
 append_summary_header() {
@@ -236,10 +340,13 @@ record_result() {
   printf -- '- %s\n' "$*" >>"$summary_file"
 }
 
-kubectl_bin="$(resolve_executable kubectl)" || die "kubectl was not found"
 minikube_bin="$(resolve_executable minikube)" || die "minikube was not found"
 command -v docker >/dev/null 2>&1 || die "docker was not found"
 command -v curl >/dev/null 2>&1 || die "curl was not found"
+use_windows_curl=false
+if command -v curl.exe >/dev/null 2>&1 && command -v wslpath >/dev/null 2>&1; then
+  use_windows_curl=true
+fi
 
 append_summary_header "$original_args"
 
@@ -250,7 +357,8 @@ if [[ "$start_minikube" == true ]]; then
 fi
 
 log "Check Kubernetes cluster access"
-kubectl_cmd cluster-info --request-timeout=10s >/dev/null
+wait_for_cluster_access 180
+kubectl_cmd cluster-info --request-timeout=30s >"$evidence_dir/cluster-info.txt" 2>&1 || true
 kubectl_cmd config current-context >"$evidence_dir/current-context.txt"
 kubectl_cmd get nodes -o wide >"$evidence_dir/nodes.txt"
 record_result "Kubernetes cluster is reachable. Context recorded in \`current-context.txt\`."
@@ -264,6 +372,14 @@ if [[ "$skip_build" == false ]]; then
 fi
 
 if [[ "$skip_load" == false ]]; then
+  for image in "${dependency_images[@]}"; do
+    log "Pull dependency image $image"
+    run_docker pull "$image"
+    log "Load dependency image into Minikube $image"
+    minikube_cmd image load "$image"
+  done
+  record_result "Loaded dependency images into Minikube."
+
   for service in "${app_deployments[@]}"; do
     log "Load image into Minikube $service"
     minikube_cmd image load "cityevents/$service:dev"
@@ -306,10 +422,11 @@ kubectl_cmd -n cityevents get pods -o wide >"$evidence_dir/pods-after-start.txt"
 record_result "All app deployments became available after migrations."
 
 log "Port-forward api-gateway"
+ensure_local_port_free "$local_port"
 : >"$port_forward_log"
 kubectl_cmd -n cityevents port-forward service/api-gateway "$local_port:80" >"$port_forward_log" 2>&1 &
 port_forward_pid=$!
-if ! wait_for_http "http://127.0.0.1:$local_port/readyz" 60; then
+if ! wait_for_gateway_http "http://127.0.0.1:$local_port/readyz" 60; then
   tail -n 80 "$port_forward_log" >&2 || true
   die "api-gateway port-forward did not become ready"
 fi
@@ -317,8 +434,8 @@ api_base="http://127.0.0.1:$local_port"
 record_result "Gateway port-forward became ready."
 
 log "Smoke gateway workflow"
-curl -fsS "$api_base/livez" >/dev/null
-curl -fsS "$api_base/readyz" >/dev/null
+curl_cmd -fsS "$api_base/livez" >/dev/null
+curl_cmd -fsS "$api_base/readyz" >/dev/null
 
 suffix="$(date +%s)"
 organizer_email="k8s-organizer-$suffix@example.com"
@@ -341,8 +458,8 @@ event_json="$(post_json "/v1/events" "{\"title\":\"K8s Smoke Event $suffix\",\"d
 event_id="$(json_eval "data.event.id" "$event_json")"
 
 post_json "/v1/events/$event_id/join" '{}' -H "Authorization: Bearer $attendee_token" -H "Idempotency-Key: k8s-smoke-$suffix" >/dev/null
-curl -fsS -H "Authorization: Bearer $attendee_token" "$api_base/v1/events/$event_id/join" >"$evidence_dir/join-status.json"
-curl -fsS "$api_base/metrics" >"$evidence_dir/metrics.txt"
+curl_cmd -fsS -H "Authorization: Bearer $attendee_token" "$api_base/v1/events/$event_id/join" >"$evidence_dir/join-status.json"
+curl_cmd -fsS "$api_base/metrics" >"$evidence_dir/metrics.txt"
 grep -Fq "cityevents_http_request_duration_seconds" "$evidence_dir/metrics.txt" || die "metrics endpoint did not expose request duration histogram"
 record_result "Gateway workflow passed: register users, admin promotion, event creation, attendee join, and metrics."
 
@@ -355,7 +472,7 @@ if [[ "$run_failure" == true ]]; then
   printf '%s\n' "$pod_name" >"$evidence_dir/deleted-pod.txt"
   kubectl_cmd -n cityevents delete pod "$pod_name" --wait=false
   wait_for_deployment "$target_deployment"
-  if ! wait_for_http "$api_base/readyz" 60; then
+  if ! wait_for_gateway_http "$api_base/readyz" 60; then
     die "gateway readiness failed after pod deletion"
   fi
   kubectl_cmd -n cityevents get pods -o wide >"$evidence_dir/pods-after-failure.txt"

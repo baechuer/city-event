@@ -66,6 +66,6 @@ These directories are ignored by Git.
 
 This is an end-to-end browser workflow test, not a production load test. It should be read together with:
 
-- `scripts/load-test-local.sh` for local concurrency/capacity checks
+- `scripts/load-test-local.sh` through GitHub Actions for concurrency/capacity evidence
 - `scripts/verify-phase-13.sh` for the phase gate
 - `docs/testing/load-testing.md` for load-test claim boundaries
