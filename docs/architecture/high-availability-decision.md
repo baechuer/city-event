@@ -21,7 +21,8 @@ Implemented and verified today:
 - PodDisruptionBudgets preserve at least one pod for each workload during voluntary disruption.
 - ConfigMaps and Secret templates separate configuration from code.
 - Ingress manifests declare TLS routing, forced HTTPS redirect, and a cert-manager certificate example.
-- Phase 10 and Phase 13 manifest validation pass through `scripts/verify-phase-10.sh` and `scripts/verify-phase-13.sh`.
+- Phase 10, Phase 13, and Phase 14 manifest validation pass through `scripts/verify-phase-10.sh`, `scripts/verify-phase-13.sh`, and `scripts/verify-phase-14.sh`.
+- A local Kubernetes overlay and Minikube smoke runner exist for deploy-and-pod-replacement evidence.
 
 This evidence supports:
 
@@ -49,7 +50,12 @@ The backing services are also single-instance in the current local stack:
 
 If any of those dependencies fail, additional stateless service replicas do not make the full system highly available. The new `replicas: 2` and PodDisruptionBudgets improve pod replacement and voluntary disruption readiness, but claiming HA still requires dependency HA, autoscaling evidence, traffic-level validation, and recorded live failure tests.
 
-The local Kubernetes client dry-run is also not fully verified in this environment because the local kubeconfig is not readable. `kubectl kustomize` validation is available, but a real pod-failure test needs a working local cluster.
+The local Kubernetes overlay can create local single-instance backing services for Minikube smoke testing. That improves evidence beyond static manifests, but it is still not production HA because the cluster and backing dependencies are not highly available.
+
+Current local note from 2026-06-11: the live Minikube smoke did not reach app
+deployment because Minikube failed with `K8S_APISERVER_MISSING` and reported the
+kubelet and apiserver as stopped. Until the profile is repaired or recreated,
+the live Kubernetes recovery claim remains unproven in this environment.
 
 TLS is also not production-proven yet. The manifests identify the expected `cityevents-tls` secret and include a cert-manager `Certificate` example, but a real cluster still needs a valid certificate issuer, DNS, and an ingress smoke test.
 
@@ -82,9 +88,10 @@ The repo now includes a guarded starter script:
 ```bash
 bash ./scripts/failure-test-kubernetes.sh
 bash ./scripts/failure-test-kubernetes.sh --live --deployment api-gateway
+bash ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
 ```
 
-The first command is static. The second command mutates the current `kubectl` context and only counts as evidence after it is run in a real, safe cluster with images and dependencies configured.
+The first command is static. The second command mutates the current `kubectl` context and only counts as evidence after it is run in a real, safe cluster with images and dependencies configured. The third command is the local all-in-one Minikube path and writes evidence under `tmp/k8s-live-smoke/`.
 
 ## Safe Resume Wording
 

@@ -1,0 +1,328 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: cityevents
+            - name: POSTGRES_PASSWORD
+              value: cityevents
+            - name: POSTGRES_DB
+              value: cityevents
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "cityevents", "-d", "cityevents"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "cityevents", "-d", "cityevents"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: postgres
+spec:
+  selector:
+    app.kubernetes.io/component: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: rabbitmq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.13-management-alpine
+          ports:
+            - name: amqp
+              containerPort: 5672
+            - name: management
+              containerPort: 15672
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: cityevents
+            - name: RABBITMQ_DEFAULT_PASS
+              value: cityevents
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 700m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: rabbitmq
+spec:
+  selector:
+    app.kubernetes.io/component: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+    - name: management
+      port: 15672
+      targetPort: management
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: redis
+spec:
+  selector:
+    app.kubernetes.io/component: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: minio
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:latest
+          args: ["server", "/data", "--console-address", ":9001"]
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          env:
+            - name: MINIO_ROOT_USER
+              value: cityevents
+            - name: MINIO_ROOT_PASSWORD
+              value: cityevents-password
+          readinessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: minio
+spec:
+  selector:
+    app.kubernetes.io/component: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+    - name: console
+      port: 9001
+      targetPort: console
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: mailpit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: mailpit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cityevents
+        app.kubernetes.io/component: mailpit
+    spec:
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:latest
+          ports:
+            - name: smtp
+              containerPort: 1025
+            - name: http
+              containerPort: 8025
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: mailpit
+spec:
+  selector:
+    app.kubernetes.io/component: mailpit
+  ports:
+    - name: smtp
+      port: 1025
+      targetPort: smtp
+    - name: http
+      port: 8025
+      targetPort: http

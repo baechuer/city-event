@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 13: CI/CD, browser E2E, rate limiting, observability, and replica-readiness hardening. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, shared HTTP rate limiting, richer Prometheus-style request metrics, GitHub Actions CI gates, Playwright browser E2E coverage, Kubernetes replicated workload manifests, a guarded failure-test harness, and resume-safe claim guidance.
+The current branch is in Phase 14: local Kubernetes live-smoke and failure-evidence readiness. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, shared HTTP rate limiting, richer Prometheus-style request metrics, GitHub Actions CI gates, Playwright browser E2E coverage, Kubernetes replicated workload manifests, a local Kubernetes overlay, a Minikube smoke/failure runner, and resume-safe claim guidance.
 
 ## Architecture Direction
 
@@ -28,7 +28,7 @@ The frontend is a dependency-light browser app with Playwright E2E coverage. Rea
 
 Services emit correlation IDs, structured request logs, Prometheus-style request counters, latency histograms, rate-limit counters, and async workflow metrics. This is not a full OpenTelemetry/Grafana stack yet.
 
-Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, ingress routing, resource limits, two replicas per workload, and PodDisruptionBudgets. They do not prove high availability until live failure tests and highly available backing services are verified.
+Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, ingress routing, resource limits, two replicas per workload, and PodDisruptionBudgets. A local overlay and Minikube smoke script exist for live local evidence. They do not prove high availability. Production HA still requires multi-node behavior, continuous traffic under failure, autoscaling policy, and highly available backing services.
 
 High availability is intentionally documented as a later stage in `docs/architecture/high-availability-decision.md`.
 
@@ -307,6 +307,25 @@ cd frontend
 npm run e2e
 ```
 
+## Verify Kubernetes Local Live Smoke Readiness
+
+Phase 14 verification checks the local Kubernetes overlay and live-smoke script
+without requiring a running cluster:
+
+```bash
+./scripts/verify-phase-14.sh
+```
+
+To run the live local Minikube smoke and pod-replacement test:
+
+```bash
+./scripts/k8s-live-smoke.sh --start-minikube --run-failure
+```
+
+This creates evidence under `tmp/k8s-live-smoke/<timestamp>/`. Passing this test
+supports local Kubernetes deployment smoke evidence, not production high
+availability.
+
 ## Run Local Load Test
 
 The local load test exercises the public gateway path for admin login, organizer promotion, event creation, attendee registration, concurrent joins, capacity/waitlist invariants, CSRF refresh smoke, and eventual feed projection.
@@ -391,16 +410,16 @@ go run ./cmd/media-worker
 unset CITYEVENTS_STARTUP_CHECK_ONLY
 ```
 
-## Phase 13 Claim Boundary
+## Phase 14 Claim Boundary
 
 Allowed claim:
 
 ```text
-Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, shared HTTP rate limiting, request metrics, Playwright browser E2E coverage, CI gates, Kubernetes-ready replicated manifests, and documented production/HA limitations.
+Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, shared HTTP rate limiting, request metrics, Playwright browser E2E coverage, CI gates, Kubernetes-ready replicated manifests, local Kubernetes smoke-test tooling, and documented production/HA limitations.
 ```
 
 Not yet allowed:
 
 ```text
-Exactly-once RabbitMQ consumption, guaranteed no message loss, distributed rate limiting, full OpenTelemetry/Grafana observability, highly available Kubernetes deployment, autoscaling under load, production cluster deployment, HA RabbitMQ/Postgres/Redis, or failure-tested recovery.
+Exactly-once RabbitMQ consumption, guaranteed no message loss, distributed rate limiting, full OpenTelemetry/Grafana observability, highly available Kubernetes deployment, highly available production Kubernetes deployment, autoscaling under load, production cluster deployment, or HA RabbitMQ/Postgres/Redis.
 ```

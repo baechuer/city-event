@@ -37,6 +37,15 @@ The live path:
 - deletes one pod from the selected Deployment
 - waits for Kubernetes to report the Deployment available again
 
+For a local all-in-one Minikube smoke that also provisions local dependencies
+and runs the gateway workflow:
+
+```bash
+bash ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
+```
+
+That command is documented in `docs/testing/kubernetes-live-smoke.md`.
+
 ## Required Evidence Before Claiming HA
 
 Record the following before using high-availability wording on a resume:

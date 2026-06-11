@@ -43,7 +43,9 @@ jobs:
         run: docker compose config --quiet
 
       - name: Verify project phase gates
-        run: bash ./scripts/verify-phase-13.sh
+        run: |
+          # verify-phase-13.sh is chained by verify-phase-14.sh.
+          bash ./scripts/verify-phase-14.sh
 
   container-build:
     runs-on: ubuntu-latest

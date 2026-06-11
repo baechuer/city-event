@@ -46,13 +46,26 @@ Cert-manager then creates and renews the same `cityevents-tls` secret that `ingr
 kubectl apply -k deploy/kubernetes
 ```
 
+## Local Minikube Overlay
+
+The base manifests intentionally do not create Postgres, RabbitMQ, Redis, MinIO,
+or Mailpit. For local Kubernetes evidence, use the separate overlay:
+
+```bash
+./scripts/k8s-live-smoke.sh --start-minikube --run-failure
+```
+
+The overlay at `deploy/kubernetes/local` adds single-instance local dependencies
+and development secrets. It is for smoke testing only. Do not treat it as a
+production dependency architecture.
+
 ## Ingress
 
 `ingress.yaml` routes `cityevents.local/v1`, `/readyz`, `/livez`, and `/metrics` to the API gateway. It assumes an ingress controller that supports `ingressClassName: nginx`. The manifest declares TLS for `cityevents.local`, references the `cityevents-tls` secret, and enables NGINX SSL redirect annotations.
 
 If you switch to a public hostname, update `ingress.yaml`, `configmap.yaml` `CORS_ALLOWED_ORIGINS`, and `cert-manager-certificate.example.yaml` together.
 
-Ingress is not high availability by itself. It only exposes HTTP routing. The manifests now include replicated app pods and PodDisruptionBudgets, but HA still needs autoscaling or an explicit scaling policy, multi-node scheduling evidence, highly available data stores, and recorded failure tests.
+Ingress is not high availability by itself. It only exposes HTTP routing. The manifests now include replicated app pods and PodDisruptionBudgets, and the local overlay can be smoke-tested in Minikube, but HA still needs autoscaling or an explicit scaling policy, multi-node scheduling evidence, highly available data stores, continuous traffic under failure, and recorded dependency failure tests.
 
 ## Failure Testing
 
@@ -66,6 +79,12 @@ Live pod-deletion test, only after the current `kubectl` context is safe and ima
 
 ```bash
 bash ./scripts/failure-test-kubernetes.sh --live --deployment api-gateway
+```
+
+Local all-in-one smoke plus pod replacement:
+
+```bash
+bash ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
 ```
 
 ## Claim Boundary

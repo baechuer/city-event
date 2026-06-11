@@ -2,7 +2,7 @@
 
 ## Primary Project Summary
 
-CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows, Redis-backed caching, idempotent consumers, local media processing, shared HTTP rate limiting, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, and Kubernetes-ready replicated deployment manifests.
+CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows, Redis-backed caching, idempotent consumers, local media processing, shared HTTP rate limiting, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and local Kubernetes smoke-test tooling.
 
 ## Recommended Resume Bullets
 
@@ -16,14 +16,14 @@ Use these bullets as the strongest current version:
 - Added correlation IDs, structured logs, Prometheus-style request counters, latency histograms, rate-limit counters, and a debugging walkthrough to trace HTTP requests through outbox, RabbitMQ, feed projection, and notification records.
 - Added shared HTTP rate limiting for auth, mutation, and read endpoints with tested 429 responses and explicit per-pod/distributed-limit caveats.
 - Added GitHub Actions gates and a Playwright browser E2E flow covering organizer publishing and attendee joining against the local stack.
-- Prepared services for Kubernetes deployment with Docker builds, Deployments, Services, ConfigMaps, Secret templates, health probes, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, and a documented high-availability roadmap.
+- Prepared services for Kubernetes deployment with Docker builds, Deployments, Services, ConfigMaps, Secret templates, health probes, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, a local Minikube smoke/failure runner, and a documented high-availability roadmap.
 
 ## Short Version
 
 Use this if space is limited:
 
 ```text
-Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, rate limiting, request metrics, Playwright E2E coverage, CI gates, and Kubernetes-ready replicated manifests.
+Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, rate limiting, request metrics, Playwright E2E coverage, CI gates, Kubernetes-ready replicated manifests, and local Kubernetes smoke-test tooling.
 ```
 
 ## Interview Framing
@@ -43,7 +43,13 @@ I do not claim exactly-once RabbitMQ consumption. RabbitMQ gives at-least-once d
 Explain Kubernetes honestly:
 
 ```text
-The project is Kubernetes-ready, not highly available. The manifests include replicas, PodDisruptionBudgets, probes, resources, and config separation, but HA would still require live failure evidence, autoscaling policy, HA Postgres/RabbitMQ/Redis, and dependency failure tests.
+The project is Kubernetes-ready, not highly available. The manifests include replicas, PodDisruptionBudgets, probes, resources, config separation, and local smoke-test tooling, but HA would still require production-grade failure evidence, autoscaling policy, HA Postgres/RabbitMQ/Redis, and dependency failure tests.
+```
+
+Current evidence boundary:
+
+```text
+The local Kubernetes smoke runner exists and static verification passes, but the 2026-06-11 live Minikube attempt failed before app deployment because the Minikube apiserver did not start. Do not claim live Kubernetes recovery until that run passes.
 ```
 
 ## Claims To Avoid
@@ -74,9 +80,9 @@ Do not say:
 | media processing | MinIO integration and worker failure tests |
 | rate limiting | `internal/platform/httpapi/rate_limit.go`, router tests, `docs/security/rate-limiting.md` |
 | browser E2E | `frontend/e2e/cityevents.spec.mjs`, `docs/testing/browser-e2e.md` |
-| CI gates | `.github/workflows/ci.yml`, `scripts/verify-phase-13.sh` |
+| CI gates | `.github/workflows/ci.yml`, `scripts/verify-phase-14.sh` |
 | observability | correlation ID middleware, metrics endpoint, request histograms, debugging walkthrough |
-| Kubernetes readiness | `deploy/kubernetes/`, including ingress, replicas, PodDisruptionBudgets, `scripts/verify-phase-10.sh`, `scripts/verify-phase-11.sh`, `scripts/failure-test-kubernetes.sh` |
+| Kubernetes readiness | `deploy/kubernetes/`, including ingress, replicas, PodDisruptionBudgets, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-11.sh`, `scripts/failure-test-kubernetes.sh`, `scripts/k8s-live-smoke.sh` |
 | local load evidence | `scripts/load-test-local.sh`, `docs/testing/load-testing.md`, `tmp/load-test-local/<run-id>/summary.md` after each run |
 
 ## Current Limitation Statement

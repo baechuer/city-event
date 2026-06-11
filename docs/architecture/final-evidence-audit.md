@@ -21,7 +21,7 @@ The rebuilt architecture uses:
 - Docker Compose for local dependencies
 - GitHub Actions for CI/build gates
 - Playwright for browser E2E testing
-- Kubernetes manifests for replicated deployment readiness
+- Kubernetes manifests and a local overlay for replicated deployment readiness
 
 ## Evidence Matrix
 
@@ -44,8 +44,9 @@ The rebuilt architecture uses:
 | CI gates | Supported | GitHub Actions workflow for Go tests, frontend tests, phase verification, service image builds, and browser E2E |
 | Observability/debugging | Supported as basic observability | correlation IDs, structured request logs, `/metrics`, request counters, latency histograms, rate-limit counters, outbox correlation propagation, debugging walkthrough |
 | Local load/correctness smoke | Supported locally | `scripts/load-test-local.sh` verifies gateway-level auth, event creation, concurrent joins, capacity/waitlist invariant, and feed projection |
-| Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/Ingress/probes/resource limits/replicas/PDBs, `scripts/verify-phase-10.sh`, `scripts/verify-phase-13.sh` |
-| High availability | Deferred | `docs/architecture/high-availability-decision.md`; manifests have replicas/PDBs, but live failure evidence and HA dependencies are not present |
+| Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/Ingress/probes/resource limits/replicas/PDBs, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-13.sh`, `scripts/verify-phase-14.sh` |
+| Local Kubernetes smoke | Tooling supported; live run blocked locally | `scripts/k8s-live-smoke.sh --start-minikube --run-failure`; 2026-06-11 attempt failed before app deployment because Minikube apiserver did not start |
+| High availability | Deferred | `docs/architecture/high-availability-decision.md`; manifests have replicas/PDBs and local smoke tooling, but production HA dependencies, multi-node evidence, continuous traffic failure tests, and autoscaling are not present |
 | Production deployment | Not supported | no verified live cluster run, managed secrets, production database, or failure-test evidence; TLS is manifest/example coverage only |
 
 ## Verification Commands
@@ -59,6 +60,7 @@ docker compose config --quiet
 ./scripts/verify-phase-11.sh
 ./scripts/verify-phase-12.sh
 ./scripts/verify-phase-13.sh
+./scripts/verify-phase-14.sh
 ```
 
 Full local integration verification when Docker dependencies are available:
@@ -68,6 +70,8 @@ Full local integration verification when Docker dependencies are available:
 ./scripts/verify-phase-12.sh --run-full-integration
 ./scripts/load-test-local.sh --start-stack --users 80 --capacity 25 --concurrency 20
 ./scripts/verify-phase-13.sh --run-e2e
+# after Minikube is healthy:
+./scripts/k8s-live-smoke.sh --start-minikube --run-failure
 ```
 
 ## Current Safe Claims
@@ -123,7 +127,7 @@ Added a repeatable local gateway-level load test that verifies concurrent event 
 Safe:
 
 ```text
-Prepared the services for Kubernetes deployment with container builds, Deployments, Services, health probes, configuration separation, Secret templates, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, and documented high-availability requirements.
+Prepared the services for Kubernetes deployment with container builds, Deployments, Services, health probes, configuration separation, Secret templates, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, a local Minikube smoke-test overlay, and documented high-availability requirements.
 ```
 
 ## Claims To Avoid
@@ -174,7 +178,8 @@ Distributed rate limiting.
 
 Highest priority gaps before stronger claims:
 
-- run and record a real Kubernetes deployment smoke test in Kind, Minikube, or a cloud cluster
+- repair or recreate the local Minikube profile, then run and record a real Kubernetes deployment smoke test in Kind, Minikube, or a cloud cluster
+- add continuous traffic during Kubernetes pod deletion, not only post-replacement readiness
 - add production-grade dependency HA: managed Postgres, RabbitMQ quorum queues or cluster, managed Redis or Redis Cluster
 - add failure tests for pod deletion, worker restart, RabbitMQ restart, Redis outage, and Postgres outage
 - run a real TLS ingress smoke test with a valid `cityevents-tls` secret or cert-manager-issued certificate
