@@ -15,6 +15,7 @@ import (
 	"github.com/baechuer/cityevents/internal/platform/health"
 	"github.com/baechuer/cityevents/internal/platform/httpapi"
 	"github.com/baechuer/cityevents/internal/platform/identity"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 )
 
 var (
@@ -182,6 +183,7 @@ func (h *Handler) authenticate(ctx context.Context, token string) (principal, er
 		return principal{}, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	observability.InjectTraceHeaders(req.Header, ctx)
 
 	resp, err := h.client.Do(req)
 	if err != nil {

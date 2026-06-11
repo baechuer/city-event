@@ -8,6 +8,7 @@ import (
 
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/identity"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 )
 
 func TestGatewayInjectsTrustedIdentityAndStripsSpoofedHeaders(t *testing.T) {
@@ -146,6 +147,49 @@ func TestGatewayRejectsInvalidTokenBeforeProxying(t *testing.T) {
 	}
 	if eventCalls.Load() != 0 {
 		t.Fatalf("event upstream calls = %d, want 0", eventCalls.Load())
+	}
+}
+
+func TestGatewayPropagatesTraceContextToAuthAndUpstream(t *testing.T) {
+	traceParent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	authSawTrace := atomic.Bool{}
+	auth := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/auth/me" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.Header.Get(observability.TraceParentHeader); got != traceParent {
+			t.Fatalf("auth traceparent = %q", got)
+		}
+		authSawTrace.Store(true)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"user":{"id":"user-123","role":"ORGANIZER"}}`))
+	}))
+	defer auth.Close()
+
+	eventSawTrace := atomic.Bool{}
+	event := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get(observability.TraceParentHeader); got != traceParent {
+			t.Fatalf("event traceparent = %q", got)
+		}
+		eventSawTrace.Store(true)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer event.Close()
+
+	router := testGatewayRouter(t, auth.URL, event.URL, "http://127.0.0.1:1", "http://127.0.0.1:1")
+	req := httptest.NewRequest(http.MethodPost, "/v1/events", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set(observability.TraceParentHeader, traceParent)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !authSawTrace.Load() || !eventSawTrace.Load() {
+		t.Fatalf("expected auth and event upstreams to receive trace context")
 	}
 }
 

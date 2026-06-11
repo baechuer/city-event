@@ -3,8 +3,10 @@ package messaging
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/observability"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -84,9 +86,11 @@ func (p *ConfirmingPublisher) Publish(ctx context.Context, routingKey string, en
 	if err != nil {
 		return err
 	}
+	headers := traceHeadersFromContext(ctx)
 	if err := p.ch.PublishWithContext(ctx, EventExchange, routingKey, false, false, amqp.Publishing{
 		DeliveryMode:  amqp.Persistent,
 		ContentType:   "application/json",
+		Headers:       headers,
 		MessageId:     envelope.MessageID,
 		CorrelationId: envelope.CorrelationID,
 		Timestamp:     envelope.OccurredAt,
@@ -109,4 +113,31 @@ func (p *ConfirmingPublisher) Publish(ctx context.Context, routingKey string, en
 	case <-time.After(10 * time.Second):
 		return errors.New("publisher confirm timeout")
 	}
+}
+
+func traceHeadersFromContext(ctx context.Context) amqp.Table {
+	trace := observability.TraceContextFromContext(ctx)
+	if trace.TraceParent == "" {
+		return nil
+	}
+	headers := amqp.Table{
+		observability.TraceParentHeader: trace.TraceParent,
+	}
+	if trace.TraceState != "" {
+		headers[observability.TraceStateHeader] = trace.TraceState
+	}
+	return headers
+}
+
+func ContextWithAMQPTraceHeaders(ctx context.Context, headers amqp.Table) context.Context {
+	traceParent, _ := headers[observability.TraceParentHeader].(string)
+	traceState, _ := headers[observability.TraceStateHeader].(string)
+	trace := observability.TraceContext{
+		TraceParent: strings.TrimSpace(traceParent),
+		TraceState:  strings.TrimSpace(traceState),
+	}
+	if !observability.ValidTraceParent(trace.TraceParent) {
+		return ctx
+	}
+	return observability.ContextWithTraceContext(ctx, trace)
 }

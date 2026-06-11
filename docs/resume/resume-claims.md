@@ -2,7 +2,7 @@
 
 ## Primary Project Summary
 
-CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows, Redis-backed caching, idempotent consumers, local media processing, Redis-backed shared HTTP rate limiting, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
+CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows, Redis-backed caching, idempotent consumers, local media processing, Redis-backed shared HTTP rate limiting, W3C trace-context propagation, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
 
 ## Recommended Resume Bullets
 
@@ -13,7 +13,7 @@ Use these bullets as the strongest current version:
 - Designed the event-registration service as the consistency boundary, using PostgreSQL transactions, row-level locking, unique constraints, and idempotent join behavior to prevent overbooking under tested concurrency.
 - Implemented RabbitMQ-based asynchronous workflows with a transactional outbox, persistent messages, publisher confirms, retryable outbox failures, and idempotent consumers for feed and notification side effects.
 - Added Redis-backed feed caching and access-token revocation caching as non-authoritative fast paths with durable Postgres fallback.
-- Added correlation IDs, structured logs, Prometheus-style request counters, latency histograms, rate-limit counters, and a debugging walkthrough to trace HTTP requests through outbox, RabbitMQ, feed projection, and notification records.
+- Added correlation IDs, W3C trace-context propagation across HTTP/RabbitMQ metadata, structured logs, Prometheus-style request counters, latency histograms, rate-limit counters, and a debugging walkthrough to trace HTTP requests through outbox, RabbitMQ, feed projection, and notification records.
 - Added Redis-backed shared HTTP rate limiting for auth, mutation, and read endpoints with tested 429 responses, fail-open/fail-closed configuration, and explicit edge-protection caveats.
 - Added GitHub Actions gates and a Playwright browser E2E flow covering organizer publishing and attendee joining against the local stack.
 - Prepared services for Kubernetes deployment with Docker builds, Deployments, Services, ConfigMaps, Secret templates, health probes, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, GitHub-Actions-only Minikube smoke/load evidence tooling, and a documented high-availability roadmap.
@@ -23,7 +23,7 @@ Use these bullets as the strongest current version:
 Use this if space is limited:
 
 ```text
-Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, Redis-backed rate limiting, request metrics, Playwright E2E coverage, CI gates, Kubernetes-ready replicated manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
+Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, Redis-backed rate limiting, trace-context propagation, request metrics, Playwright E2E coverage, CI gates, Kubernetes-ready replicated manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
 ```
 
 ## Interview Framing
@@ -63,7 +63,7 @@ Do not say:
 - edge-grade DDoS protection
 - production deployed
 - autoscaled production microservices
-- full OpenTelemetry/Grafana observability
+- full OpenTelemetry/Grafana observability stack
 
 ## Evidence Map
 

@@ -42,7 +42,7 @@ The rebuilt architecture uses:
 | Media worker | Supported locally | metadata repository tests, MinIO integration, worker state transition tests, failure-state tests |
 | Browser E2E | Supported locally | Playwright organizer publish and attendee join flow against the local stack |
 | CI gates | Supported | GitHub Actions workflow for Go tests, frontend tests, phase verification, service image builds, and browser E2E |
-| Observability/debugging | Supported as basic observability | correlation IDs, structured request logs, `/metrics`, request counters, latency histograms, rate-limit counters, outbox correlation propagation, debugging walkthrough |
+| Observability/debugging | Supported with caveat | correlation IDs, W3C trace-context propagation across HTTP and RabbitMQ headers, structured request logs, `/metrics`, request counters, latency histograms, rate-limit counters, outbox correlation propagation, debugging walkthrough |
 | Load/correctness smoke | CI-only evidence pending | `scripts/load-test-local.sh` verifies gateway-level auth, event creation, concurrent joins, capacity/waitlist invariant, and feed projection, but Phase 15 blocks future runs outside GitHub Actions |
 | Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/Ingress/probes/resource limits/replicas/PDBs, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-13.sh`, `scripts/verify-phase-14.sh` |
 | Kubernetes live smoke | Tooling supported; live run blocked locally | `scripts/k8s-live-smoke.sh --start-minikube --run-failure`; future accepted evidence must come from the manual GitHub Actions `Heavy Evidence` workflow |
@@ -109,7 +109,7 @@ Implemented browser auth hardening with memory-only access tokens, rotating Http
 Safe:
 
 ```text
-Added correlation IDs, structured request logging, Prometheus-style request counters, latency histograms, rate-limit counters, and a debugging walkthrough for tracing distributed workflows.
+Added correlation IDs, W3C trace-context propagation across HTTP and RabbitMQ headers, structured request logging, Prometheus-style request counters, latency histograms, rate-limit counters, and a debugging walkthrough for tracing distributed workflows.
 ```
 
 Safe:
@@ -186,7 +186,7 @@ Highest priority gaps before stronger claims:
 - repeat load tests in GitHub Actions with resource metrics before making throughput claims
 - add registry push and controlled deployment jobs after secrets and cluster target are available
 - complement Redis-backed rate limiting with ingress or WAF controls before claiming edge-grade abuse protection
-- add OpenTelemetry collector, trace backend, Prometheus scraping, and Grafana dashboard if claiming production observability
+- add OpenTelemetry SDK spans, collector, trace backend, Prometheus scraping, and Grafana dashboard if claiming production observability
 - replace the plain JavaScript frontend with the intended React/TypeScript/Vite frontend if the frontend is meant to be a primary claim
 
 ## Final Verdict

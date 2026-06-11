@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,8 +14,16 @@ import (
 )
 
 const CorrelationIDHeader = "X-Correlation-ID"
+const TraceParentHeader = "traceparent"
+const TraceStateHeader = "tracestate"
 
 type correlationIDKey struct{}
+type traceContextKey struct{}
+
+type TraceContext struct {
+	TraceParent string
+	TraceState  string
+}
 
 func CorrelationIDFromContext(ctx context.Context) string {
 	value, _ := ctx.Value(correlationIDKey{}).(string)
@@ -25,12 +34,88 @@ func ContextWithCorrelationID(ctx context.Context, correlationID string) context
 	return context.WithValue(ctx, correlationIDKey{}, strings.TrimSpace(correlationID))
 }
 
+func TraceContextFromContext(ctx context.Context) TraceContext {
+	value, _ := ctx.Value(traceContextKey{}).(TraceContext)
+	return value
+}
+
+func ContextWithTraceContext(ctx context.Context, trace TraceContext) context.Context {
+	trace.TraceParent = strings.TrimSpace(trace.TraceParent)
+	trace.TraceState = strings.TrimSpace(trace.TraceState)
+	if trace.TraceParent == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, traceContextKey{}, trace)
+}
+
+func TraceContextFromHeaders(header http.Header) TraceContext {
+	traceParent := strings.TrimSpace(header.Get(TraceParentHeader))
+	if !ValidTraceParent(traceParent) {
+		return TraceContext{}
+	}
+	return TraceContext{
+		TraceParent: strings.ToLower(traceParent),
+		TraceState:  strings.TrimSpace(header.Get(TraceStateHeader)),
+	}
+}
+
+func InjectTraceHeaders(header http.Header, ctx context.Context) {
+	trace := TraceContextFromContext(ctx)
+	if trace.TraceParent == "" {
+		return
+	}
+	header.Set(TraceParentHeader, trace.TraceParent)
+	if trace.TraceState != "" {
+		header.Set(TraceStateHeader, trace.TraceState)
+	}
+}
+
 func NewCorrelationID() string {
 	var bytes [16]byte
 	if _, err := rand.Read(bytes[:]); err != nil {
 		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(bytes[:])
+}
+
+func NewTraceParent() string {
+	var traceID [16]byte
+	var spanID [8]byte
+	if _, err := rand.Read(traceID[:]); err != nil {
+		now := time.Now().UnixNano()
+		return fmt.Sprintf("00-%032x-%016x-01", now, now)
+	}
+	if _, err := rand.Read(spanID[:]); err != nil {
+		now := time.Now().UnixNano()
+		return fmt.Sprintf("00-%s-%016x-01", hex.EncodeToString(traceID[:]), now)
+	}
+	return "00-" + hex.EncodeToString(traceID[:]) + "-" + hex.EncodeToString(spanID[:]) + "-01"
+}
+
+func ValidTraceParent(value string) bool {
+	parts := strings.Split(strings.TrimSpace(value), "-")
+	if len(parts) != 4 {
+		return false
+	}
+	if len(parts[0]) != 2 || len(parts[1]) != 32 || len(parts[2]) != 16 || len(parts[3]) != 2 {
+		return false
+	}
+	if !isLowerHex(parts[0]) || !isLowerHex(parts[1]) || !isLowerHex(parts[2]) || !isLowerHex(parts[3]) {
+		return false
+	}
+	if parts[1] == "00000000000000000000000000000000" || parts[2] == "0000000000000000" {
+		return false
+	}
+	return true
+}
+
+func isLowerHex(value string) bool {
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 var metrics = struct {

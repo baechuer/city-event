@@ -58,6 +58,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 }
 
 func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery) error {
+	ctx = messaging.ContextWithAMQPTraceHeaders(ctx, delivery.Headers)
 	envelope, err := messaging.DecodeEnvelope(delivery.Body)
 	if err != nil {
 		return err

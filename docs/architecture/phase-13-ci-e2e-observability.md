@@ -19,7 +19,7 @@ Phase 13 turns the existing local project evidence into repeatable gates:
 | Phase verifier | `scripts/verify-phase-13.sh` |
 | Browser E2E | `frontend/playwright.config.mjs`, `frontend/e2e/cityevents.spec.mjs`, `frontend/package.json`, `frontend/package-lock.json` |
 | Rate limiting | `internal/platform/httpapi/rate_limit.go`, `internal/platform/httpapi/router.go`, `internal/platform/config/config.go` |
-| Observability metrics | `internal/platform/httpapi/observability.go`, `internal/platform/observability/observability.go` |
+| Observability metrics and trace context | `internal/platform/httpapi/observability.go`, `internal/platform/observability/observability.go`, `internal/platform/messaging/rabbitmq.go` |
 | Kubernetes replicas/PDBs | `deploy/kubernetes/deployments.yaml`, `deploy/kubernetes/poddisruptionbudgets.yaml`, `deploy/kubernetes/kustomization.yaml` |
 | Failure-test harness | `scripts/failure-test-kubernetes.sh`, `docs/testing/failure-testing.md` |
 
@@ -66,7 +66,14 @@ The metrics endpoint now exposes:
 
 The path label uses the Chi route pattern when available to avoid a different metric series for every event ID.
 
-This is still basic metrics. It is not full distributed tracing, Prometheus scraping, Grafana dashboards, alerting, or SLO monitoring.
+HTTP middleware now accepts or creates W3C `traceparent`, preserves optional
+`tracestate`, logs the trace context, and exposes it on the response. The
+gateway forwards trace headers to auth and proxied services. RabbitMQ publishers
+write trace headers to AMQP metadata, and consumers extract them into context.
+
+This is trace-context propagation, not a full tracing backend. It is not yet
+OpenTelemetry SDK spans, Prometheus scraping, Grafana dashboards, alerting, or
+SLO monitoring.
 
 ## Kubernetes Replica Readiness
 

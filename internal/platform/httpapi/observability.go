@@ -13,6 +13,8 @@ import (
 )
 
 const CorrelationIDHeader = observability.CorrelationIDHeader
+const TraceParentHeader = observability.TraceParentHeader
+const TraceStateHeader = observability.TraceStateHeader
 
 func observabilityMiddleware(cfg config.Config, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -21,8 +23,17 @@ func observabilityMiddleware(cfg config.Config, logger *slog.Logger) func(http.H
 			if correlationID == "" {
 				correlationID = observability.NewCorrelationID()
 			}
+			trace := observability.TraceContextFromHeaders(r.Header)
+			if trace.TraceParent == "" {
+				trace.TraceParent = observability.NewTraceParent()
+			}
 			w.Header().Set(CorrelationIDHeader, correlationID)
+			w.Header().Set(TraceParentHeader, trace.TraceParent)
+			if trace.TraceState != "" {
+				w.Header().Set(TraceStateHeader, trace.TraceState)
+			}
 			ctx := observability.ContextWithCorrelationID(r.Context(), correlationID)
+			ctx = observability.ContextWithTraceContext(ctx, trace)
 			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 			start := time.Now()
 			req := r.WithContext(ctx)
@@ -34,6 +45,7 @@ func observabilityMiddleware(cfg config.Config, logger *slog.Logger) func(http.H
 				slog.String("service", cfg.Service.Name),
 				slog.String("request_id", middleware.GetReqID(ctx)),
 				slog.String("correlation_id", correlationID),
+				slog.String("traceparent", trace.TraceParent),
 				slog.String("method", r.Method),
 				slog.String("path", path),
 				slog.Int("status", rec.status),

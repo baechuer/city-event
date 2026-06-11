@@ -100,6 +100,9 @@ func TestCORSPreflight(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, CorrelationIDHeader) {
 		t.Fatalf("allow headers = %q", got)
 	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, TraceParentHeader) || !strings.Contains(got, TraceStateHeader) {
+		t.Fatalf("allow headers = %q", got)
+	}
 }
 
 func TestCORSDoesNotTreatWildcardAsCredentialedOrigin(t *testing.T) {
@@ -133,11 +136,15 @@ func TestCorrelationIDAndMetrics(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	req.Header.Set(CorrelationIDHeader, "corr-test")
+	req.Header.Set(TraceParentHeader, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
 	if got := rec.Header().Get(CorrelationIDHeader); got != "corr-test" {
 		t.Fatalf("correlation id = %q", got)
+	}
+	if got := rec.Header().Get(TraceParentHeader); got != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
+		t.Fatalf("traceparent = %q", got)
 	}
 
 	generatedReq := httptest.NewRequest(http.MethodGet, "/readyz", nil)
@@ -145,6 +152,9 @@ func TestCorrelationIDAndMetrics(t *testing.T) {
 	router.ServeHTTP(generatedRec, generatedReq)
 	if got := generatedRec.Header().Get(CorrelationIDHeader); got == "" {
 		t.Fatal("expected generated correlation id")
+	}
+	if got := generatedRec.Header().Get(TraceParentHeader); !observability.ValidTraceParent(got) {
+		t.Fatalf("expected generated traceparent, got %q", got)
 	}
 
 	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
