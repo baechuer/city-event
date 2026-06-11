@@ -37,7 +37,10 @@ type Config struct {
 	TokenRevocationCacheEnabled bool
 	AllowedOrigins              []string
 	RateLimitEnabled            bool
+	RateLimitBackend            string
 	RateLimitWindow             time.Duration
+	RateLimitRedisTimeout       time.Duration
+	RateLimitRedisFailOpen      bool
 	RateLimitRequests           int
 	RateLimitAuthRequests       int
 	RateLimitMutationRequests   int
@@ -112,9 +115,18 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid RATE_LIMIT_ENABLED: %w", err)
 	}
+	rateLimitBackend := strings.ToLower(env(getenv, "RATE_LIMIT_BACKEND", "memory"))
 	rateLimitWindow, err := parseDuration(env(getenv, "RATE_LIMIT_WINDOW", "1m"))
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid RATE_LIMIT_WINDOW: %w", err)
+	}
+	rateLimitRedisTimeout, err := parseDuration(env(getenv, "RATE_LIMIT_REDIS_TIMEOUT", "200ms"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid RATE_LIMIT_REDIS_TIMEOUT: %w", err)
+	}
+	rateLimitRedisFailOpen, err := parseBool(env(getenv, "RATE_LIMIT_REDIS_FAIL_OPEN", "true"))
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid RATE_LIMIT_REDIS_FAIL_OPEN: %w", err)
 	}
 	rateLimitRequests, err := parseInt(env(getenv, "RATE_LIMIT_REQUESTS", "600"))
 	if err != nil {
@@ -150,7 +162,10 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 		TokenRevocationCacheEnabled: tokenRevocationCacheEnabled,
 		AllowedOrigins:              parseCSV(env(getenv, "CORS_ALLOWED_ORIGINS", "http://127.0.0.1:18088,http://localhost:18088,http://cityevents.local,https://cityevents.local")),
 		RateLimitEnabled:            rateLimitEnabled,
+		RateLimitBackend:            rateLimitBackend,
 		RateLimitWindow:             rateLimitWindow,
+		RateLimitRedisTimeout:       rateLimitRedisTimeout,
+		RateLimitRedisFailOpen:      rateLimitRedisFailOpen,
 		RateLimitRequests:           rateLimitRequests,
 		RateLimitAuthRequests:       rateLimitAuthRequests,
 		RateLimitMutationRequests:   rateLimitMutationRequests,
@@ -210,8 +225,16 @@ func (c Config) Validate() error {
 		return fmt.Errorf("minio bucket is required")
 	}
 	if c.RateLimitEnabled {
+		switch c.RateLimitBackend {
+		case "", "memory", "redis":
+		default:
+			return fmt.Errorf("rate limit backend must be memory or redis")
+		}
 		if c.RateLimitWindow <= 0 {
 			return fmt.Errorf("rate limit window must be positive")
+		}
+		if c.RateLimitRedisTimeout <= 0 {
+			return fmt.Errorf("rate limit redis timeout must be positive")
 		}
 		for name, value := range map[string]int{
 			"rate limit requests":          c.RateLimitRequests,

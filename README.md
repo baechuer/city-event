@@ -2,7 +2,7 @@
 
 CityEvents V2 is a clean rebuild of the city event platform.
 
-The current branch is in Phase 15+: reliability, observability, distributed rate-limit, load-evidence, and frontend-hardening work. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, shared HTTP rate limiting, richer Prometheus-style request metrics, GitHub Actions CI gates, Playwright browser E2E coverage, Kubernetes replicated workload manifests, a local Kubernetes overlay, GitHub-Actions-only heavy evidence tooling, and resume-safe claim guidance.
+The current branch is in Phase 15+: reliability, observability, distributed rate-limit, load-evidence, and frontend-hardening work. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, Redis-backed shared HTTP rate limiting, richer Prometheus-style request metrics, GitHub Actions CI gates, Playwright browser E2E coverage, Kubernetes replicated workload manifests, a local Kubernetes overlay, GitHub-Actions-only heavy evidence tooling, and resume-safe claim guidance.
 
 ## Architecture Direction
 
@@ -413,11 +413,11 @@ unset CITYEVENTS_STARTUP_CHECK_ONLY
 Allowed claim:
 
 ```text
-Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, shared HTTP rate limiting, request metrics, Playwright browser E2E coverage, CI gates, Kubernetes-ready replicated manifests, GitHub-Actions-only Kubernetes/load evidence tooling, and documented production/HA limitations.
+Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, Redis-backed shared HTTP rate limiting, request metrics, Playwright browser E2E coverage, CI gates, Kubernetes-ready replicated manifests, GitHub-Actions-only Kubernetes/load evidence tooling, and documented production/HA limitations.
 ```
 
 Not yet allowed:
 
 ```text
-Exactly-once RabbitMQ consumption, guaranteed no message loss, distributed rate limiting, full OpenTelemetry/Grafana observability, highly available Kubernetes deployment, highly available production Kubernetes deployment, autoscaling under load, production cluster deployment, or HA RabbitMQ/Postgres/Redis.
+Exactly-once RabbitMQ consumption, guaranteed no message loss, edge-grade DDoS protection, full OpenTelemetry/Grafana observability, highly available Kubernetes deployment, highly available production Kubernetes deployment, autoscaling under load, production cluster deployment, or HA RabbitMQ/Postgres/Redis.
 ```

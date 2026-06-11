@@ -17,6 +17,10 @@ func NewRouter(cfg config.Config, logger *slog.Logger) http.Handler {
 }
 
 func NewBaseRouter(cfg config.Config, logger *slog.Logger) chi.Router {
+	return newBaseRouterWithRateLimitStore(cfg, logger, newRateLimitStore(cfg))
+}
+
+func newBaseRouterWithRateLimitStore(cfg config.Config, logger *slog.Logger, store rateLimitStore) chi.Router {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -27,7 +31,7 @@ func NewBaseRouter(cfg config.Config, logger *slog.Logger) chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(localCORSMiddleware(cfg))
 	r.Use(observabilityMiddleware(cfg, logger))
-	r.Use(rateLimitMiddleware(cfg))
+	r.Use(rateLimitMiddlewareWithStore(cfg, store))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		health.WriteJSON(w, http.StatusOK, map[string]string{

@@ -51,7 +51,7 @@ Default scopes:
 
 Health, readiness, metrics, root, and CORS preflight requests are excluded.
 
-Current limitation: this is in-memory per process. With multiple Kubernetes replicas, each pod has its own limiter state. A production distributed limiter should use Redis, an ingress controller limit policy, or an API gateway product.
+Current implementation: the middleware supports memory counters for tests and Redis-backed shared counters for local/Kubernetes runtime config. This is distributed across service replicas that share Redis, but production edge protection should still add ingress, gateway, or WAF controls.
 
 ## Observability Design
 
@@ -119,5 +119,5 @@ Added CI gates, browser E2E coverage, shared HTTP rate limiting, richer request 
 Not allowed yet:
 
 ```text
-Production CD, autoscaled production services, distributed rate limiting, full observability stack, or failure-tested highly available Kubernetes deployment.
+Production CD, autoscaled production services, edge-grade DDoS protection, full observability stack, or failure-tested highly available Kubernetes deployment.
 ```

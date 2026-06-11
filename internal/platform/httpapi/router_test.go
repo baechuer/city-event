@@ -1,11 +1,15 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/observability"
@@ -207,6 +211,116 @@ func TestRateLimitRejectsRepeatedRequests(t *testing.T) {
 	}
 }
 
+func TestRateLimitUsesSharedStoreAcrossRouters(t *testing.T) {
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		values := map[string]string{
+			"RATE_LIMIT_BACKEND":  "redis",
+			"RATE_LIMIT_REQUESTS": "2",
+			"RATE_LIMIT_WINDOW":   "1m",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Service.Name = "rate-limit-shared-store-test"
+	store := newFakeRateLimitStore()
+
+	routerA := newBaseRouterWithRateLimitStore(cfg, nil, store)
+	routerA.Get("/limited", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	routerB := newBaseRouterWithRateLimitStore(cfg, nil, store)
+	routerB.Get("/limited", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	for i, router := range []http.Handler{routerA, routerB} {
+		req := httptest.NewRequest(http.MethodGet, "/limited", nil)
+		req.RemoteAddr = "203.0.113.30:5000"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d status = %d body=%s", i+1, rec.Code, rec.Body.String())
+		}
+	}
+
+	thirdReq := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	thirdReq.RemoteAddr = "203.0.113.30:5000"
+	third := httptest.NewRecorder()
+	routerB.ServeHTTP(third, thirdReq)
+	if third.Code != http.StatusTooManyRequests {
+		t.Fatalf("third request status = %d body=%s", third.Code, third.Body.String())
+	}
+	if got := third.Header().Get("Retry-After"); got == "" {
+		t.Fatalf("expected Retry-After header")
+	}
+}
+
+func TestRateLimitStoreErrorFailOpen(t *testing.T) {
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		values := map[string]string{
+			"RATE_LIMIT_BACKEND":         "redis",
+			"RATE_LIMIT_REDIS_FAIL_OPEN": "true",
+			"RATE_LIMIT_REQUESTS":        "1",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Service.Name = "rate-limit-fail-open-test"
+	router := newBaseRouterWithRateLimitStore(cfg, nil, &errorRateLimitStore{err: errors.New("redis unavailable")})
+	router.Get("/limited", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	req.RemoteAddr = "203.0.113.31:5000"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("fail-open request status = %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	router.ServeHTTP(metricsRec, metricsReq)
+	if !strings.Contains(metricsRec.Body.String(), `cityevents_rate_limit_store_errors_total{service="rate-limit-fail-open-test",backend="redis",mode="fail_open"} 1`) {
+		t.Fatalf("metrics body missing fail-open store error: %s", metricsRec.Body.String())
+	}
+}
+
+func TestRateLimitStoreErrorFailClosed(t *testing.T) {
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		values := map[string]string{
+			"RATE_LIMIT_BACKEND":         "redis",
+			"RATE_LIMIT_REDIS_FAIL_OPEN": "false",
+			"RATE_LIMIT_REQUESTS":        "1",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Service.Name = "rate-limit-fail-closed-test"
+	router := newBaseRouterWithRateLimitStore(cfg, nil, &errorRateLimitStore{err: errors.New("redis unavailable")})
+	router.Get("/limited", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	req.RemoteAddr = "203.0.113.32:5000"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("fail-closed request status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Retry-After"); got == "" {
+		t.Fatalf("expected Retry-After header")
+	}
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	router.ServeHTTP(metricsRec, metricsReq)
+	if !strings.Contains(metricsRec.Body.String(), `cityevents_rate_limit_store_errors_total{service="rate-limit-fail-closed-test",backend="redis",mode="fail_closed"} 1`) {
+		t.Fatalf("metrics body missing fail-closed store error: %s", metricsRec.Body.String())
+	}
+}
+
 func TestRateLimitSkipsHealthAndPreflight(t *testing.T) {
 	cfg, err := config.Load("api-gateway", func(key string) string {
 		values := map[string]string{
@@ -238,6 +352,33 @@ func TestRateLimitSkipsHealthAndPreflight(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("preflight status = %d", rec.Code)
 	}
+}
+
+type fakeRateLimitStore struct {
+	mu     sync.Mutex
+	counts map[string]int
+}
+
+func newFakeRateLimitStore() *fakeRateLimitStore {
+	return &fakeRateLimitStore{counts: map[string]int{}}
+}
+
+func (s *fakeRateLimitStore) Allow(_ context.Context, key string, limit int, window time.Duration) (bool, time.Duration, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.counts[key]++
+	if s.counts[key] <= limit {
+		return true, 0, nil
+	}
+	return false, window, nil
+}
+
+type errorRateLimitStore struct {
+	err error
+}
+
+func (s *errorRateLimitStore) Allow(context.Context, string, int, time.Duration) (bool, time.Duration, error) {
+	return false, 0, s.err
 }
 
 func TestOutboxAndConsumerMetrics(t *testing.T) {

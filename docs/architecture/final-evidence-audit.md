@@ -37,7 +37,7 @@ The rebuilt architecture uses:
 | Redis caching | Supported | feed service cache tests and fallback behavior; Redis is not source of truth |
 | Auth browser hardening | Supported with precise wording | short access-token TTL, in-memory frontend access token, rotating HttpOnly refresh cookie, double-submit CSRF token for refresh/logout, explicit credentialed CORS |
 | Access-token revocation cache | Supported | Postgres remains source of truth; Redis decorator caches revoked JWT IDs and falls back to Postgres on cache outage |
-| Rate limiting | Supported locally with caveat | shared fixed-window HTTP middleware, config/env controls, 429/Retry-After tests, rate-limit metric; current limiter is per process, not distributed |
+| Rate limiting | Supported with caveat | shared HTTP middleware, Redis-backed fixed-window counters for local/Kubernetes runtime config, memory fallback for tests, explicit fail-open/fail-closed behavior, 429/Retry-After tests, rate-limit and store-error metrics |
 | Notification side effects | Supported locally | notification decision tests, idempotent repository tests, provider failure tests, Mailpit SMTP integration |
 | Media worker | Supported locally | metadata repository tests, MinIO integration, worker state transition tests, failure-state tests |
 | Browser E2E | Supported locally | Playwright organizer publish and attendee join flow against the local stack |
@@ -103,7 +103,7 @@ Added Redis-backed feed caching and access-token revocation caching as non-autho
 Safe:
 
 ```text
-Implemented browser auth hardening with memory-only access tokens, rotating HttpOnly refresh tokens, double-submit CSRF protection for refresh/logout, explicit credentialed CORS, shared HTTP rate limiting, and Redis-assisted revocation checks backed by durable Postgres records.
+Implemented browser auth hardening with memory-only access tokens, rotating HttpOnly refresh tokens, double-submit CSRF protection for refresh/logout, explicit credentialed CORS, Redis-backed shared HTTP rate limiting, and Redis-assisted revocation checks backed by durable Postgres records.
 ```
 
 Safe:
@@ -171,7 +171,7 @@ Autoscaled production microservices.
 Avoid:
 
 ```text
-Distributed rate limiting.
+Edge-grade DDoS protection.
 ```
 
 ## Remaining Gaps
@@ -185,7 +185,7 @@ Highest priority gaps before stronger claims:
 - run a real TLS ingress smoke test with a valid `cityevents-tls` secret or cert-manager-issued certificate
 - repeat load tests in GitHub Actions with resource metrics before making throughput claims
 - add registry push and controlled deployment jobs after secrets and cluster target are available
-- replace per-pod rate limiting with Redis, ingress, or gateway-level distributed rate limiting before claiming distributed abuse protection
+- complement Redis-backed rate limiting with ingress or WAF controls before claiming edge-grade abuse protection
 - add OpenTelemetry collector, trace backend, Prometheus scraping, and Grafana dashboard if claiming production observability
 - replace the plain JavaScript frontend with the intended React/TypeScript/Vite frontend if the frontend is meant to be a primary claim
 

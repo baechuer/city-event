@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"net"
 	"net/http"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/observability"
+	"github.com/redis/go-redis/v9"
 )
 
 type rateLimitDecision struct {
@@ -19,6 +22,7 @@ type rateLimitDecision struct {
 	limit      int
 	retryAfter time.Duration
 	scope      string
+	storeErr   error
 }
 
 type rateLimitBucket struct {
@@ -26,45 +30,155 @@ type rateLimitBucket struct {
 	count int
 }
 
-type fixedWindowRateLimiter struct {
+type rateLimitStore interface {
+	Allow(ctx context.Context, key string, limit int, window time.Duration) (bool, time.Duration, error)
+}
+
+type memoryFixedWindowRateLimitStore struct {
 	mu      sync.Mutex
 	now     func() time.Time
-	window  time.Duration
 	buckets map[string]rateLimitBucket
 }
 
-func newFixedWindowRateLimiter(window time.Duration) *fixedWindowRateLimiter {
-	return &fixedWindowRateLimiter{
+func newMemoryFixedWindowRateLimitStore() *memoryFixedWindowRateLimitStore {
+	return &memoryFixedWindowRateLimitStore{
 		now:     time.Now,
-		window:  window,
 		buckets: map[string]rateLimitBucket{},
 	}
 }
 
-func (l *fixedWindowRateLimiter) allow(key string, limit int) (bool, time.Duration) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+func (s *memoryFixedWindowRateLimitStore) Allow(_ context.Context, key string, limit int, window time.Duration) (bool, time.Duration, error) {
+	if window <= 0 {
+		return false, 0, fmt.Errorf("rate limit window must be positive")
+	}
 
-	now := l.now()
-	bucket := l.buckets[key]
-	if bucket.start.IsZero() || now.Sub(bucket.start) >= l.window {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := s.now()
+	bucket := s.buckets[key]
+	if bucket.start.IsZero() || now.Sub(bucket.start) >= window {
 		bucket = rateLimitBucket{start: now}
 	}
 	bucket.count++
-	l.buckets[key] = bucket
+	s.buckets[key] = bucket
 
 	if bucket.count <= limit {
-		return true, 0
+		return true, 0, nil
 	}
-	retryAfter := bucket.start.Add(l.window).Sub(now)
+	retryAfter := bucket.start.Add(window).Sub(now)
 	if retryAfter < time.Second {
 		retryAfter = time.Second
 	}
-	return false, retryAfter
+	return false, retryAfter, nil
+}
+
+type redisRateLimitStore struct {
+	client  *redis.Client
+	timeout time.Duration
+}
+
+var redisRateLimitScript = redis.NewScript(`
+local current = redis.call("INCR", KEYS[1])
+if current == 1 then
+  redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+local ttl = redis.call("PTTL", KEYS[1])
+return {current, ttl}
+`)
+
+func newRedisRateLimitStore(redisURL string, timeout time.Duration) (rateLimitStore, error) {
+	options, err := redis.ParseURL(redisURL)
+	if err != nil {
+		return nil, err
+	}
+	return &redisRateLimitStore{client: redis.NewClient(options), timeout: timeout}, nil
+}
+
+func (s *redisRateLimitStore) Allow(ctx context.Context, key string, limit int, window time.Duration) (bool, time.Duration, error) {
+	if window <= 0 {
+		return false, 0, fmt.Errorf("rate limit window must be positive")
+	}
+	timeout := s.timeout
+	if timeout <= 0 {
+		timeout = 200 * time.Millisecond
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	result, err := redisRateLimitScript.Run(ctx, s.client, []string{key}, window.Milliseconds()).Result()
+	if err != nil {
+		return false, 0, err
+	}
+	values, ok := result.([]interface{})
+	if !ok || len(values) != 2 {
+		return false, 0, fmt.Errorf("unexpected redis rate limit response %T", result)
+	}
+	count, ok := redisScriptInt(values[0])
+	if !ok {
+		return false, 0, fmt.Errorf("unexpected redis rate limit count %T", values[0])
+	}
+	ttlMillis, ok := redisScriptInt(values[1])
+	if !ok {
+		return false, 0, fmt.Errorf("unexpected redis rate limit ttl %T", values[1])
+	}
+
+	if count <= int64(limit) {
+		return true, 0, nil
+	}
+	retryAfter := time.Duration(ttlMillis) * time.Millisecond
+	if ttlMillis < 0 {
+		retryAfter = window
+	}
+	if retryAfter < time.Second {
+		retryAfter = time.Second
+	}
+	return false, retryAfter, nil
+}
+
+func redisScriptInt(value any) (int64, bool) {
+	switch v := value.(type) {
+	case int64:
+		return v, true
+	case int:
+		return int64(v), true
+	case string:
+		parsed, err := strconv.ParseInt(v, 10, 64)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+type unavailableRateLimitStore struct {
+	err error
+}
+
+func (s unavailableRateLimitStore) Allow(context.Context, string, int, time.Duration) (bool, time.Duration, error) {
+	return false, 0, s.err
+}
+
+func newRateLimitStore(cfg config.Config) rateLimitStore {
+	switch cfg.RateLimitBackend {
+	case "redis":
+		store, err := newRedisRateLimitStore(cfg.RedisURL, cfg.RateLimitRedisTimeout)
+		if err != nil {
+			return unavailableRateLimitStore{err: err}
+		}
+		return store
+	default:
+		return newMemoryFixedWindowRateLimitStore()
+	}
 }
 
 func rateLimitMiddleware(cfg config.Config) func(http.Handler) http.Handler {
-	limiter := newFixedWindowRateLimiter(cfg.RateLimitWindow)
+	return rateLimitMiddlewareWithStore(cfg, newRateLimitStore(cfg))
+}
+
+func rateLimitMiddlewareWithStore(cfg config.Config, store rateLimitStore) func(http.Handler) http.Handler {
+	if store == nil {
+		store = newMemoryFixedWindowRateLimitStore()
+	}
 	return func(next http.Handler) http.Handler {
 		if !cfg.RateLimitEnabled {
 			return next
@@ -75,7 +189,19 @@ func rateLimitMiddleware(cfg config.Config) func(http.Handler) http.Handler {
 				return
 			}
 
-			decision := rateLimitDecisionFor(cfg, limiter, r)
+			decision := rateLimitDecisionFor(cfg, store, r)
+			if decision.storeErr != nil {
+				mode := rateLimitFailureMode(cfg)
+				observability.RecordRateLimitStoreError(cfg.Service.Name, cfg.RateLimitBackend, mode)
+				if cfg.RateLimitRedisFailOpen {
+					next.ServeHTTP(w, r)
+					return
+				}
+				decision.allowed = false
+				if decision.retryAfter <= 0 {
+					decision.retryAfter = time.Second
+				}
+			}
 			if decision.allowed {
 				next.ServeHTTP(w, r)
 				return
@@ -95,11 +221,31 @@ func rateLimitMiddleware(cfg config.Config) func(http.Handler) http.Handler {
 	}
 }
 
-func rateLimitDecisionFor(cfg config.Config, limiter *fixedWindowRateLimiter, r *http.Request) rateLimitDecision {
+func rateLimitDecisionFor(cfg config.Config, store rateLimitStore, r *http.Request) rateLimitDecision {
 	scope, limit := rateLimitScope(cfg, r)
-	key := strings.Join([]string{clientAddress(r), scope, r.Method, r.URL.Path}, "|")
-	allowed, retryAfter := limiter.allow(key, limit)
-	return rateLimitDecision{allowed: allowed, limit: limit, retryAfter: retryAfter, scope: scope}
+	key := rateLimitKey(cfg, r, scope)
+	allowed, retryAfter, err := store.Allow(r.Context(), key, limit, cfg.RateLimitWindow)
+	return rateLimitDecision{allowed: allowed, limit: limit, retryAfter: retryAfter, scope: scope, storeErr: err}
+}
+
+func rateLimitKey(cfg config.Config, r *http.Request, scope string) string {
+	return strings.Join([]string{
+		"cityevents",
+		"rate-limit",
+		cfg.Environment,
+		cfg.Service.Name,
+		clientAddress(r),
+		scope,
+		r.Method,
+		r.URL.Path,
+	}, "|")
+}
+
+func rateLimitFailureMode(cfg config.Config) string {
+	if cfg.RateLimitRedisFailOpen {
+		return "fail_open"
+	}
+	return "fail_closed"
 }
 
 func rateLimitScope(cfg config.Config, r *http.Request) (string, int) {

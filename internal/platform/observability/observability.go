@@ -35,17 +35,19 @@ func NewCorrelationID() string {
 
 var metrics = struct {
 	sync.Mutex
-	httpRequests        map[string]int
-	httpRequestDuration map[string]durationMetric
-	rateLimitedRequests map[string]int
-	outboxMessages      map[string]int
-	consumerMessages    map[string]int
+	httpRequests         map[string]int
+	httpRequestDuration  map[string]durationMetric
+	rateLimitedRequests  map[string]int
+	rateLimitStoreErrors map[string]int
+	outboxMessages       map[string]int
+	consumerMessages     map[string]int
 }{
-	httpRequests:        map[string]int{},
-	httpRequestDuration: map[string]durationMetric{},
-	rateLimitedRequests: map[string]int{},
-	outboxMessages:      map[string]int{},
-	consumerMessages:    map[string]int{},
+	httpRequests:         map[string]int{},
+	httpRequestDuration:  map[string]durationMetric{},
+	rateLimitedRequests:  map[string]int{},
+	rateLimitStoreErrors: map[string]int{},
+	outboxMessages:       map[string]int{},
+	consumerMessages:     map[string]int{},
 }
 
 type durationMetric struct {
@@ -82,6 +84,13 @@ func RecordRateLimitedRequest(service, scope string) {
 	defer metrics.Unlock()
 	key := fmt.Sprintf(`service="%s",scope="%s"`, labelValue(service), labelValue(scope))
 	metrics.rateLimitedRequests[key]++
+}
+
+func RecordRateLimitStoreError(service, backend, mode string) {
+	metrics.Lock()
+	defer metrics.Unlock()
+	key := fmt.Sprintf(`service="%s",backend="%s",mode="%s"`, labelValue(service), labelValue(backend), labelValue(mode))
+	metrics.rateLimitStoreErrors[key]++
 }
 
 func RecordOutboxMessage(routingKey, state string) {
@@ -126,6 +135,11 @@ func MetricsText() string {
 		"# TYPE cityevents_rate_limited_requests_total counter",
 	)
 	appendMetric("cityevents_rate_limited_requests_total", metrics.rateLimitedRequests)
+	lines = append(lines,
+		"# HELP cityevents_rate_limit_store_errors_total Total rate-limit store errors by backend and configured failure mode.",
+		"# TYPE cityevents_rate_limit_store_errors_total counter",
+	)
+	appendMetric("cityevents_rate_limit_store_errors_total", metrics.rateLimitStoreErrors)
 	lines = append(lines,
 		"# HELP cityevents_outbox_messages_total Outbox relay messages by routing key and state.",
 		"# TYPE cityevents_outbox_messages_total counter",

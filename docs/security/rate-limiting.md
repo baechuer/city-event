@@ -19,7 +19,10 @@ It is attached to `httpapi.NewBaseRouter`, so it applies consistently to service
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `RATE_LIMIT_ENABLED` | `true` | enable or disable middleware |
+| `RATE_LIMIT_BACKEND` | `memory` | `memory` for process-local counters, `redis` for shared counters |
 | `RATE_LIMIT_WINDOW` | `1m` | fixed-window duration |
+| `RATE_LIMIT_REDIS_TIMEOUT` | `200ms` | per-request Redis limiter timeout |
+| `RATE_LIMIT_REDIS_FAIL_OPEN` | `true` | allow traffic when Redis limiter storage errors occur |
 | `RATE_LIMIT_REQUESTS` | `600` | read/general request limit per client/path/window |
 | `RATE_LIMIT_AUTH_REQUESTS` | `60` | auth write limit per client/path/window |
 | `RATE_LIMIT_MUTATION_REQUESTS` | `240` | non-auth write limit per client/path/window |
@@ -46,6 +49,10 @@ When a request is rejected, the service returns HTTP `429` with:
 - `Retry-After` header
 - `cityevents_rate_limited_requests_total{service,scope}` metric increment
 
+When the Redis limiter backend errors, the service increments:
+
+- `cityevents_rate_limit_store_errors_total{service,backend,mode}`
+
 ## Tests
 
 Relevant tests:
@@ -55,22 +62,31 @@ Relevant tests:
 
 These tests verify configuration parsing, invalid config rejection, health/preflight exemptions, 429 behavior, `Retry-After`, and rate-limit metrics.
 
-## Limitations
+## Redis Backend
 
-The current limiter is in-memory per process. In Kubernetes with two replicas, each pod has independent counters. That is acceptable for local hardening evidence, but it is not distributed rate limiting.
+The middleware now supports a Redis-backed fixed-window store. Local launcher and
+Kubernetes config set `RATE_LIMIT_BACKEND=redis`, so replicas share counters
+through Redis instead of each pod enforcing an independent in-memory limit.
 
-The next implementation target is a Redis-backed shared limiter, tracked in
-`docs/architecture/phase-15-hardening-rubric.md`. The required security choice
-is explicit fail behavior:
+The Redis backend uses an atomic Lua script to increment the request key and set
+the first-request expiry in one Redis operation.
+
+The required security choice is explicit fail behavior:
 
 - fail open: preserve availability if Redis is down, but abuse protection
-  degrades to local fallback
+  degrades while the store is unavailable
 - fail closed: preserve strict rate-limit enforcement, but Redis outage can
   reject legitimate traffic
 
-For production, replace or complement this with one of:
+Current default is fail open.
 
-- Redis-backed shared counters
+## Limitations
+
+Redis-backed counters are distributed across service replicas that share the
+same Redis instance, but this is still not edge-grade DDoS protection.
+
+For production, complement this with one of:
+
 - NGINX ingress rate-limit annotations
 - Envoy/API-gateway rate limiting
 - managed WAF or edge gateway limits
