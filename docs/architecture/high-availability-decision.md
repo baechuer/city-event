@@ -79,18 +79,22 @@ Minimum tests:
 
 - delete one API pod during health traffic and verify requests continue through another ready pod
 - delete one worker during message processing and verify RabbitMQ redelivery plus idempotent handling
-- restart RabbitMQ during outbox publishing and verify outbox replay recovers unsent messages
-- restart Redis during feed reads and verify Postgres fallback prevents corrupt state
+- review the Actions-only Redis/RabbitMQ dependency-failure artifact, then
+  repeat those scenarios under higher message/request volume
 - run concurrent joins above event capacity and verify no overbooking
 - record exact commands, dates, environment, and observed results
 
-The repo now includes a guarded starter script:
+The repo now includes guarded starter scripts:
 
 ```bash
 bash ./scripts/failure-test-kubernetes.sh
 bash ./scripts/failure-test-kubernetes.sh --live --deployment api-gateway
 bash ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
+bash ./scripts/failure-test-dependencies.sh
 ```
+
+The live and dependency-failure commands are approved only through GitHub
+Actions heavy evidence.
 
 The first command is static and local-safe. The second and third commands are
 blocked outside GitHub Actions and only count as evidence when run by the manual

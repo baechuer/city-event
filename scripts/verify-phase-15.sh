@@ -46,6 +46,7 @@ for file in \
   docs/testing/heavy-evidence-runner-policy.md \
   scripts/repair-minikube.sh \
   scripts/k8s-live-smoke.sh \
+  scripts/failure-test-dependencies.sh \
   scripts/load-test-local.sh; do
   require_file "$file"
 done
@@ -57,6 +58,8 @@ require_contains .github/workflows/heavy-evidence.yml "profile: small"
 require_contains .github/workflows/heavy-evidence.yml "profile: medium"
 require_contains .github/workflows/heavy-evidence.yml "profile: stress"
 require_contains .github/workflows/heavy-evidence.yml "load-evidence-\${{ matrix.profile }}-\${{ matrix.users }}u"
+require_contains .github/workflows/heavy-evidence.yml "run_dependency_failures"
+require_contains .github/workflows/heavy-evidence.yml "dependency-failure-evidence"
 require_contains scripts/repair-minikube.sh "delete_profile=true"
 require_contains scripts/repair-minikube.sh "wait_for_cluster_access"
 require_contains scripts/k8s-live-smoke.sh "A completed run is local Kubernetes evidence"
@@ -66,6 +69,9 @@ require_contains scripts/k8s-live-smoke.sh "ensure_local_port_free"
 require_contains scripts/k8s-live-smoke.sh "require_github_actions_evidence_runner"
 require_contains scripts/repair-minikube.sh "require_github_actions_evidence_runner"
 require_contains scripts/load-test-local.sh "require_github_actions_evidence_runner"
+require_contains scripts/failure-test-dependencies.sh "require_github_actions_evidence_runner"
+require_contains scripts/failure-test-dependencies.sh "tmp/failure-tests"
+require_contains scripts/failure-test-dependencies.sh "RabbitMQ outage scenario"
 require_contains scripts/load-test-local.sh "Join latency p50 seconds"
 require_contains scripts/load-test-local.sh "Join latency p99 seconds"
 require_contains scripts/load-test-local.sh "Join throughput requests/second"

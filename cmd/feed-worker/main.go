@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/logging"
@@ -41,18 +42,47 @@ func run() int {
 		return 1
 	}
 
+	return runConsumerLoop(ctx, cfg, logger, pool)
+}
+
+func runConsumerLoop(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool) int {
+	backoff := time.Second
+	for {
+		if err := runConsumerSession(ctx, cfg, logger, pool); err != nil {
+			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
+				logger.Info("feed worker stopped")
+				return 0
+			}
+			logger.Error("feed worker session failed; reconnecting", slog.String("error", err.Error()), slog.Duration("backoff", backoff))
+		}
+		if !sleepContext(ctx, backoff) {
+			logger.Info("feed worker stopped")
+			return 0
+		}
+	}
+}
+
+func runConsumerSession(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool) error {
 	conn, err := amqp.Dial(cfg.RabbitMQURL)
 	if err != nil {
-		logger.Error("rabbitmq connection failed", slog.String("error", err.Error()))
-		return 1
+		return err
 	}
 	defer conn.Close()
 
 	consumer := feedprojection.NewConsumer(conn, feedprojection.NewProjector(pool), logger)
-	if err := consumer.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		logger.Error("feed worker failed", slog.String("error", err.Error()))
-		return 1
+	if err := consumer.Run(ctx); err != nil {
+		return err
 	}
-	logger.Info("feed worker stopped")
-	return 0
+	return errors.New("feed consumer stopped")
+}
+
+func sleepContext(ctx context.Context, duration time.Duration) bool {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }

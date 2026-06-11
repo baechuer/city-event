@@ -339,6 +339,17 @@ This is CI correctness and regression evidence, not a production throughput
 benchmark. The script is blocked on the local workstation by
 `docs/testing/heavy-evidence-runner-policy.md`.
 
+## Run Dependency Failure Evidence
+
+Dependency failure evidence is also manual GitHub Actions-only. The
+`dependency-failure-evidence` job runs `scripts/failure-test-dependencies.sh`,
+which starts the local CI stack, stops Redis, verifies fallback/fail-open
+behavior, stops RabbitMQ, verifies outbox persistence, restarts RabbitMQ, and
+waits for projection recovery.
+
+This produces `tmp/failure-tests/<run-id>/summary.md` in the uploaded artifact.
+It supports a recovery-path discussion, not a production HA claim.
+
 ## Run Local Infrastructure
 
 ```bash

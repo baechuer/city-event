@@ -2,7 +2,7 @@
 
 ## Primary Project Summary
 
-CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows, Redis-backed caching, idempotent consumers, local media processing, Redis-backed shared HTTP rate limiting, W3C trace-context propagation, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
+CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows with reconnecting relay/workers, Redis-backed caching, idempotent consumers, local media processing, Redis-backed shared HTTP rate limiting, W3C trace-context propagation, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and GitHub-Actions-only Kubernetes/load/failure evidence tooling.
 
 ## Recommended Resume Bullets
 
@@ -84,6 +84,7 @@ Do not say:
 | observability | correlation ID middleware, metrics endpoint, request histograms, debugging walkthrough |
 | Kubernetes readiness | `deploy/kubernetes/`, including ingress, replicas, PodDisruptionBudgets, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-11.sh`, `scripts/failure-test-kubernetes.sh`, `scripts/k8s-live-smoke.sh` |
 | load evidence | `scripts/load-test-local.sh`, `docs/testing/load-testing.md`, `.github/workflows/heavy-evidence.yml`, uploaded `load-evidence-small-40u`, `load-evidence-medium-80u`, and `load-evidence-stress-160u` artifacts after the manual Actions run |
+| dependency failure evidence | `scripts/failure-test-dependencies.sh`, `docs/testing/failure-testing.md`, uploaded `dependency-failure-evidence` artifact after the manual Actions run |
 
 ## Current Limitation Statement
 
@@ -97,4 +98,10 @@ Load-test wording:
 
 ```text
 I added a GitHub-Actions-only gateway-level load evidence matrix that registers users, creates an event, performs concurrent joins, records latency/throughput/status/dependency snapshots, and verifies capacity/waitlist invariants plus eventual feed projection. I do not treat that as a production throughput benchmark, and I would review the Actions artifacts before using the stronger wording.
+```
+
+Failure-evidence wording:
+
+```text
+I added RabbitMQ reconnect loops and an Actions-only dependency-failure harness for Redis fallback and RabbitMQ outage recovery paths. I would only cite this as tested behavior after reviewing the uploaded Actions artifact, and it still would not equal production high availability.
 ```

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -44,23 +45,15 @@ func run() int {
 		return 1
 	}
 
-	conn, err := amqp.Dial(cfg.RabbitMQURL)
-	if err != nil {
-		logger.Error("rabbitmq connection failed", slog.String("error", err.Error()))
-		return 1
-	}
-	defer conn.Close()
-
-	publisher, err := messaging.NewConfirmingPublisher(conn)
-	if err != nil {
-		logger.Error("rabbitmq publisher setup failed", slog.String("error", err.Error()))
-		return 1
-	}
-	defer publisher.Close()
-
-	relay := outboxrelay.NewRelay(outboxrelay.NewStore(pool), publisher)
 	batchSize := envInt("OUTBOX_RELAY_BATCH_SIZE", outboxrelay.DefaultBatchSize)
 	if truthy(os.Getenv("OUTBOX_RELAY_RUN_ONCE")) {
+		publisher, cleanup, err := newPublisher(cfg.RabbitMQURL)
+		if err != nil {
+			logger.Error("rabbitmq publisher setup failed", slog.String("error", err.Error()))
+			return 1
+		}
+		defer cleanup()
+		relay := outboxrelay.NewRelay(outboxrelay.NewStore(pool), publisher)
 		published, err := relay.PublishBatch(ctx, batchSize)
 		if err != nil {
 			logger.Error("outbox publish batch failed", slog.Int("published", published), slog.String("error", err.Error()))
@@ -71,6 +64,54 @@ func run() int {
 	}
 
 	interval := envDuration("OUTBOX_RELAY_POLL_INTERVAL", time.Second)
+	reconnectBackoff := envDuration("RABBITMQ_RECONNECT_BACKOFF", time.Second)
+	return runRelayLoop(ctx, cfg, logger, pool, batchSize, interval, reconnectBackoff)
+}
+
+func newPublisher(rabbitURL string) (*messaging.ConfirmingPublisher, func(), error) {
+	conn, err := amqp.Dial(rabbitURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	publisher, err := messaging.NewConfirmingPublisher(conn)
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+	cleanup := func() {
+		_ = publisher.Close()
+		_ = conn.Close()
+	}
+	return publisher, cleanup, nil
+}
+
+func runRelayLoop(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, batchSize int, interval time.Duration, reconnectBackoff time.Duration) int {
+	if reconnectBackoff <= 0 {
+		reconnectBackoff = time.Second
+	}
+	for {
+		if err := runRelaySession(ctx, cfg, logger, pool, batchSize, interval); err != nil {
+			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
+				logger.Info("outbox relay stopped")
+				return 0
+			}
+			logger.Error("outbox relay session failed; reconnecting", slog.String("error", err.Error()), slog.Duration("backoff", reconnectBackoff))
+		}
+		if !sleepContext(ctx, reconnectBackoff) {
+			logger.Info("outbox relay stopped")
+			return 0
+		}
+	}
+}
+
+func runRelaySession(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, batchSize int, interval time.Duration) error {
+	publisher, cleanup, err := newPublisher(cfg.RabbitMQURL)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	relay := outboxrelay.NewRelay(outboxrelay.NewStore(pool), publisher)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -78,16 +119,27 @@ func run() int {
 		published, err := relay.PublishBatch(ctx, batchSize)
 		if err != nil {
 			logger.Error("outbox publish batch failed", slog.Int("published", published), slog.String("error", err.Error()))
+			return err
 		} else if published > 0 {
 			logger.Info("outbox publish batch completed", slog.Int("published", published))
 		}
 
 		select {
 		case <-ctx.Done():
-			logger.Info("outbox relay stopped")
-			return 0
+			return ctx.Err()
 		case <-ticker.C:
 		}
+	}
+}
+
+func sleepContext(ctx context.Context, duration time.Duration) bool {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
 	}
 }
 

@@ -13,6 +13,11 @@ on:
         required: true
         type: boolean
         default: true
+      run_dependency_failures:
+        description: Run Redis/RabbitMQ dependency failure evidence against the local CI stack
+        required: true
+        type: boolean
+        default: true
 
 jobs:
   kubernetes-live-smoke:
@@ -106,4 +111,43 @@ jobs:
         with:
           name: load-evidence-${{ matrix.profile }}-${{ matrix.users }}u
           path: tmp/load-test-local/**
+          if-no-files-found: ignore
+
+  dependency-failure-evidence:
+    if: ${{ inputs.run_dependency_failures }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run dependency failure evidence
+        run: bash ./scripts/failure-test-dependencies.sh
+
+      - name: Stop local stack
+        if: always()
+        run: bash ./scripts/stop-local.sh --with-infrastructure || true
+
+      - name: Upload dependency failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-failure-evidence
+          path: tmp/failure-tests/**
           if-no-files-found: ignore

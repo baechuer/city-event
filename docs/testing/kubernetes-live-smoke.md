@@ -122,8 +122,8 @@ The next evidence level should add:
 
 - continuous request load while deleting an API pod
 - worker deletion during queued message processing
-- RabbitMQ restart during outbox relay publishing
-- Redis outage during feed reads and token-revocation checks
+- review the `dependency-failure-evidence` Actions artifact for Redis/RabbitMQ
+  outage evidence, then repeat under higher volume
 - Postgres outage and recovery behavior
 - TLS ingress smoke with a real `cityevents-tls` secret
 - multi-node scheduling evidence

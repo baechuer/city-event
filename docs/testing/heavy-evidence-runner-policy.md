@@ -23,6 +23,7 @@ The following scripts are blocked outside GitHub Actions:
 - `scripts/repair-minikube.sh`
 - `scripts/failure-test-kubernetes.sh --live`
 - `scripts/load-test-local.sh`
+- `scripts/failure-test-dependencies.sh`
 
 Static verification scripts may still run locally. They must not start
 Minikube, mutate a Kubernetes cluster, run a gateway load test, or stress Docker
@@ -48,6 +49,8 @@ Before a heavy-evidence claim is resume-safe, capture:
 - uploaded evidence artifact
 - generated `summary.md`
 - dependency snapshots from the load evidence artifact, when present
+- Redis/RabbitMQ failure scenario results from the dependency failure artifact,
+  when present
 - whether the result changes a resume-safe claim
 
 ## Local Safety Gate
