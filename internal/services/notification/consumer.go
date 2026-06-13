@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/baechuer/cityevents/internal/platform/messaging"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -32,6 +33,10 @@ func (c *Consumer) Run(ctx context.Context) error {
 	if err := messaging.DeclareTopology(ch); err != nil {
 		return err
 	}
+	if err := ch.Confirm(false); err != nil {
+		return err
+	}
+	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
 	if err := ch.Qos(10, 0, false); err != nil {
 		return err
 	}
@@ -50,7 +55,14 @@ func (c *Consumer) Run(ctx context.Context) error {
 			}
 			if err := c.handleDelivery(ctx, delivery); err != nil {
 				c.logger.Error("notification message failed", slog.String("message_id", delivery.MessageId), slog.String("error", err.Error()))
-				_ = delivery.Nack(false, true)
+				action, retryErr := messaging.PublishFailedDelivery(ctx, ch, confirms, messaging.NotificationQueue, delivery, err)
+				if retryErr != nil {
+					c.logger.Error("notification retry publish failed", slog.String("message_id", delivery.MessageId), slog.String("error", retryErr.Error()))
+					_ = delivery.Nack(false, true)
+					continue
+				}
+				observability.RecordConsumerMessage(DefaultConsumerName, messaging.DeliveryRoutingKey(delivery), string(action))
+				_ = delivery.Ack(false)
 				continue
 			}
 			_ = delivery.Ack(false)

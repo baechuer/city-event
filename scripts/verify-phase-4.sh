@@ -28,7 +28,11 @@ wait_for_compose_health postgres 120
 wait_for_compose_health rabbitmq 120
 
 log "Integration tests"
-run_go test -count=1 -tags=integration ./...
+run_go test -count=1 -tags=integration \
+  ./internal/platform/messaging \
+  ./internal/services/eventregistration \
+  ./internal/services/feedprojection \
+  ./internal/services/outboxrelay
 
 if [[ "$skip_build" == true ]]; then
   echo "Worker build skipped."

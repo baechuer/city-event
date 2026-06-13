@@ -394,7 +394,10 @@ func (s *errorRateLimitStore) Allow(context.Context, string, int, time.Duration)
 func TestOutboxAndConsumerMetrics(t *testing.T) {
 	observability.RecordOutboxMessage("join.confirmed", "pending")
 	observability.RecordOutboxMessage("join.confirmed", "sent")
+	observability.RecordOutboxMessage("join.confirmed", "dead")
 	observability.RecordConsumerMessage("feed-projection", "join.confirmed", "processed")
+	observability.RecordConsumerMessage("feed-projection", "join.confirmed", "retried")
+	observability.RecordConsumerMessage("feed-projection", "join.confirmed", "dead_lettered")
 	text := observability.MetricsText()
 	if !strings.Contains(text, "cityevents_outbox_messages_total") || !strings.Contains(text, `routing_key="join.confirmed",state="pending"`) {
 		t.Fatalf("outbox metric missing: %s", text)
@@ -402,7 +405,16 @@ func TestOutboxAndConsumerMetrics(t *testing.T) {
 	if !strings.Contains(text, "cityevents_outbox_messages_total") || !strings.Contains(text, `routing_key="join.confirmed",state="sent"`) {
 		t.Fatalf("outbox metric missing: %s", text)
 	}
+	if !strings.Contains(text, "cityevents_outbox_messages_total") || !strings.Contains(text, `routing_key="join.confirmed",state="dead"`) {
+		t.Fatalf("outbox metric missing: %s", text)
+	}
 	if !strings.Contains(text, "cityevents_consumer_messages_total") || !strings.Contains(text, `consumer="feed-projection",routing_key="join.confirmed",state="processed"`) {
+		t.Fatalf("consumer metric missing: %s", text)
+	}
+	if !strings.Contains(text, "cityevents_consumer_messages_total") || !strings.Contains(text, `consumer="feed-projection",routing_key="join.confirmed",state="retried"`) {
+		t.Fatalf("consumer metric missing: %s", text)
+	}
+	if !strings.Contains(text, "cityevents_consumer_messages_total") || !strings.Contains(text, `consumer="feed-projection",routing_key="join.confirmed",state="dead_lettered"`) {
 		t.Fatalf("consumer metric missing: %s", text)
 	}
 }

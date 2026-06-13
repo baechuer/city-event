@@ -247,6 +247,7 @@ cleanup() {
   local exit_code="$1"
   set +e
   snapshot_compose "cleanup"
+  "$REPO_ROOT/scripts/inspect-async-ops.sh" --output-dir "$run_dir/async-ops-inspection" >/dev/null 2>&1 || true
   if [[ "$exit_code" != "0" ]]; then
     record_result "script" "failed" "exit_code=$exit_code"
   fi

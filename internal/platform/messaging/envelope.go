@@ -10,6 +10,8 @@ import (
 const (
 	EventExchange               = "cityevents.events"
 	DeadLetterExchange          = "cityevents.dlx"
+	RetryExchange               = "cityevents.retry"
+	RetryReturnExchange         = "cityevents.retry.return"
 	FeedQueue                   = "cityevents.feed.projection"
 	FeedDeadLetterQueue         = "cityevents.feed.projection.dlq"
 	NotificationQueue           = "cityevents.notification.delivery"

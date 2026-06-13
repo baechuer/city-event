@@ -37,7 +37,7 @@ This audit uses current public guidance as the bar:
 | Backend separation | Go services are separated under `cmd/` and `internal/services/`; shared platform code lives under `internal/platform/`. |
 | Auth security | Short-lived access tokens, memory-only frontend access token handling, rotating HttpOnly refresh cookies, CSRF protection for refresh/logout, bcrypt password hashing, JWT/RBAC gateway boundary. |
 | Event consistency | Event registration owns capacity, waitlist, cancellation, promotion, idempotency, row-level locking, and transactional outbox writes. |
-| Messaging reliability | RabbitMQ publisher confirms, persistent messages, retryable outbox rows, idempotent consumers, and reconnecting relay/workers. |
+| Messaging reliability | RabbitMQ publisher confirms, persistent messages, increasing-delay outbox retries with terminal `DEAD` rows, bounded consumer retry queues with DLQs, idempotent consumers, and reconnecting relay/workers. |
 | Redis use | Redis is used as a cache/accelerator, not source of truth; feed and revocation fallback behavior is tested. |
 | Rate limiting | Shared Redis-backed fixed-window limiter exists with explicit fail-open/fail-closed behavior and tests. |
 | Kubernetes readiness | Deployments, Services, ConfigMap, Secret template, Ingress, readiness/liveness probes, resource requests/limits, two replicas, and PodDisruptionBudgets exist. |
@@ -57,6 +57,7 @@ This audit uses current public guidance as the bar:
 | P1 | Observability is not production-grade | Metrics/logs/tracing are useful, but there is no collector, dashboards, alerting, SLOs, or central log retention. | Add OpenTelemetry SDK spans/exporter, Collector, Prometheus/Grafana dashboards, log aggregation, alerts, and runbooks. |
 | P1 | Security testing is not complete | Existing auth/RBAC/CSRF tests are good, but there is no full ASVS checklist, SAST, dependency scanning, container scanning, secret scanning, or DAST baseline. | Add `govulncheck`, `gosec`, npm audit/dependency review, Trivy/Grype image scan, GitHub secret scanning, and OWASP ZAP baseline. |
 | P1 | Database lifecycle is incomplete | Migrations are local/scripted; production needs rollout/rollback and backup safety. | Add Kubernetes migration Job, migration locking, backup policy, restore test, and rollback plan. |
+| P1 | DLQ operations are partial | DLQs, terminal outbox rows, read-only inspection, and guarded replay/requeue scripts exist, but production still needs alerting, dashboards, and reviewed replay evidence. | Add DLQ dashboards, Prometheus alerts, operator approval flow, and recorded replay drills on an isolated runner. |
 | P1 | Frontend deployment is not represented in Kubernetes | API ingress exists, but a production frontend host/CDN/deployment path is not defined. | Decide frontend hosting: static CDN, object storage + CDN, or Kubernetes web deployment; add CSP/security headers. |
 | P1 | Admin/audit controls need hardening | Roles exist, but privileged actions need stronger audit trails and operational controls. | Add immutable audit records for role changes, event cancellation, admin dejoin/cancel actions, and production admin bootstrap procedure. |
 

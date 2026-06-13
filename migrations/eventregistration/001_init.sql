@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS outbox_messages (
     aggregate_id TEXT NOT NULL,
     routing_key TEXT NOT NULL,
     payload JSONB NOT NULL,
-    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SENT', 'FAILED')),
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SENT', 'FAILED', 'DEAD')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     sent_at TIMESTAMPTZ
@@ -48,4 +48,4 @@ CREATE TABLE IF NOT EXISTS outbox_messages (
 
 CREATE INDEX IF NOT EXISTS idx_outbox_messages_pending
     ON outbox_messages(status, available_at, created_at)
-    WHERE status = 'PENDING';
+    WHERE status IN ('PENDING', 'FAILED');

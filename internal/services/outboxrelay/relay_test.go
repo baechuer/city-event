@@ -56,12 +56,26 @@ func TestOutboxRecordEnvelopeRejectsInvalidPayload(t *testing.T) {
 	}
 }
 
-func TestRetryBackoffIsBounded(t *testing.T) {
+func TestRetryBackoffIncreasesAndCaps(t *testing.T) {
 	if retryBackoff(1) <= 0 {
 		t.Fatal("expected positive backoff")
 	}
-	if retryBackoff(100) != retryBackoff(6) {
+	for attempts := 2; attempts <= len(outboxRetryBackoffs); attempts++ {
+		if retryBackoff(attempts) <= retryBackoff(attempts-1) {
+			t.Fatalf("backoff at attempt %d = %s, previous = %s", attempts, retryBackoff(attempts), retryBackoff(attempts-1))
+		}
+	}
+	if retryBackoff(100) != outboxRetryBackoffs[len(outboxRetryBackoffs)-1] {
 		t.Fatal("expected high attempts to be capped")
+	}
+}
+
+func TestShouldMarkOutboxDeadAtAttemptLimit(t *testing.T) {
+	if shouldMarkOutboxDead(MaxOutboxPublishAttempts - 1) {
+		t.Fatal("expected penultimate attempt to remain retryable")
+	}
+	if !shouldMarkOutboxDead(MaxOutboxPublishAttempts) {
+		t.Fatal("expected max attempt to be terminal")
 	}
 }
 

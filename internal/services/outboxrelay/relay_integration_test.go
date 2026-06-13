@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"github.com/baechuer/cityevents/internal/platform/messaging"
 	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/baechuer/cityevents/internal/services/eventregistration"
@@ -233,6 +234,43 @@ func TestRelayMarksFailedPublishRetryable(t *testing.T) {
 	}
 }
 
+func TestRelayMarksOutboxDeadAfterAttemptLimit(t *testing.T) {
+	ctx := context.Background()
+	pool, _ := setupPhase4Integration(t, ctx)
+	eventSvc := eventregistration.NewService(eventregistration.NewPostgresRepository(pool))
+	created := createRelayEvent(t, ctx, eventSvc, "organizer-1")
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE outbox_messages
+		SET status = 'FAILED', attempts = $2, available_at = now()
+		WHERE aggregate_id = $1
+	`, created.Event.ID, MaxOutboxPublishAttempts-1); err != nil {
+		t.Fatalf("prime outbox attempts: %v", err)
+	}
+
+	relay := NewRelay(NewStore(pool), &failingPublisher{err: errors.New("poison publish")})
+	published, err := relay.PublishBatch(ctx, 1)
+	if err == nil {
+		t.Fatal("expected publish batch to fail")
+	}
+	if published != 0 {
+		t.Fatalf("published = %d, want 0", published)
+	}
+
+	var status, lastError string
+	var attempts int
+	if err := pool.QueryRow(ctx, `
+		SELECT status, attempts, last_error
+		FROM outbox_messages
+		WHERE aggregate_id = $1
+	`, created.Event.ID).Scan(&status, &attempts, &lastError); err != nil {
+		t.Fatalf("read outbox: %v", err)
+	}
+	if status != "DEAD" || attempts != MaxOutboxPublishAttempts || lastError == "" {
+		t.Fatalf("unexpected dead state status=%s attempts=%d lastError=%q", status, attempts, lastError)
+	}
+}
+
 type countingPublisher struct {
 	mu    sync.Mutex
 	count int
@@ -308,6 +346,7 @@ func applyPhase4Migrations(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 	for _, path := range []string{
 		filepath.Join("..", "..", "..", "migrations", "eventregistration", "001_init.sql"),
 		filepath.Join("..", "..", "..", "migrations", "eventregistration", "002_outbox_relay.sql"),
+		filepath.Join("..", "..", "..", "migrations", "eventregistration", "003_outbox_dead_state.sql"),
 		filepath.Join("..", "..", "..", "migrations", "feed", "001_init.sql"),
 	} {
 		raw, err := os.ReadFile(path)
@@ -348,6 +387,7 @@ func createRelayEvent(t *testing.T, ctx context.Context, svc *eventregistration.
 	t.Helper()
 	event, err := svc.CreateEvent(ctx, eventregistration.CreateEventCommand{
 		OrganizerID: organizerID,
+		Role:        identity.RoleOrganizer,
 		Title:       "Phase 4 Event",
 		Description: "RabbitMQ relay test",
 		City:        "Sydney",

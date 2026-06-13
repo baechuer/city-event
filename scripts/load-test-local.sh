@@ -222,6 +222,7 @@ dependency_snapshot() {
 
     echo "## Postgres"
     docker compose exec -T postgres psql -U cityevents -d cityevents -c "select count(*) as active_connections from pg_stat_activity;" || true
+    docker compose exec -T postgres psql -U cityevents -d cityevents -c "select status, count(*) from outbox_messages group by status order by status;" || true
     echo
 
     echo "## RabbitMQ Queues"

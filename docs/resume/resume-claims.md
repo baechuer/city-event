@@ -2,7 +2,7 @@
 
 ## Primary Project Summary
 
-CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows with reconnecting relay/workers, Redis-backed caching, idempotent consumers, local media processing, Redis-backed shared HTTP rate limiting, W3C trace-context propagation, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and GitHub-Actions-only Kubernetes/load/failure evidence tooling.
+CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows with bounded retry/DLQ handling and reconnecting relay/workers, Redis-backed caching, idempotent consumers, local media processing, Redis-backed shared HTTP rate limiting, W3C trace-context propagation, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and GitHub-Actions-only Kubernetes/load/failure evidence tooling.
 
 ## Recommended Resume Bullets
 
@@ -11,9 +11,10 @@ Use these bullets as the strongest current version:
 - Built a Go microservices event platform covering authentication, event publishing, event joining, waitlists, feed reads, notification records, and media processing.
 - Added gateway JWT middleware with short-lived access tokens, rotating HttpOnly refresh tokens, double-submit CSRF protection for cookie refresh/logout, `USER`/`ORGANIZER`/`ADMIN` roles, seeded admin bootstrapping, and role-gated event publishing/admin operations.
 - Designed the event-registration service as the consistency boundary, using PostgreSQL transactions, row-level locking, unique constraints, and idempotent join behavior to prevent overbooking under tested concurrency.
-- Implemented RabbitMQ-based asynchronous workflows with a transactional outbox, persistent messages, publisher confirms, retryable outbox failures, and idempotent consumers for feed and notification side effects.
+- Implemented RabbitMQ-based asynchronous workflows with a transactional outbox, persistent messages, publisher confirms, increasing-delay outbox retry, bounded consumer retry/DLQs, and idempotent consumers for feed and notification side effects.
 - Added Redis-backed feed caching and access-token revocation caching as non-authoritative fast paths with durable Postgres fallback.
 - Added correlation IDs, W3C trace-context propagation across HTTP/RabbitMQ metadata, structured logs, Prometheus-style request counters, latency histograms, rate-limit counters, and a debugging walkthrough to trace HTTP requests through outbox, RabbitMQ, feed projection, and notification records.
+- Added guarded async operations tooling to inspect outbox/DLQ backlog, copy RabbitMQ DLQ messages for reprocessing, and requeue terminal outbox rows after root-cause remediation.
 - Added Redis-backed shared HTTP rate limiting for auth, mutation, and read endpoints with tested 429 responses, fail-open/fail-closed configuration, and explicit edge-protection caveats.
 - Added GitHub Actions gates and a Playwright browser E2E flow covering organizer publishing and attendee joining against the local stack.
 - Prepared services for Kubernetes deployment with Docker builds, Deployments, Services, ConfigMaps, Secret templates, health probes, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, GitHub-Actions-only Minikube smoke/load evidence tooling, and a documented high-availability roadmap.
@@ -23,7 +24,7 @@ Use these bullets as the strongest current version:
 Use this if space is limited:
 
 ```text
-Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, Redis-backed rate limiting, trace-context propagation, request metrics, Playwright E2E coverage, CI gates, Kubernetes-ready replicated manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
+Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows with bounded retry/DLQs, Redis caching, idempotent consumers, Redis-backed rate limiting, trace-context propagation, request metrics, Playwright E2E coverage, CI gates, Kubernetes-ready replicated manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
 ```
 
 ## Interview Framing
@@ -73,7 +74,8 @@ Do not say:
 | gateway JWT/RBAC | `internal/services/gateway/`, `internal/services/auth/`, role-gated event-registration tests |
 | event registration correctness | event-registration unit and integration tests |
 | no overbooking under tested concurrency | concurrent event-registration integration tests |
-| async decoupling | outbox relay, RabbitMQ topology, feed and notification consumers |
+| async decoupling | outbox relay, RabbitMQ topology, feed and notification consumers, bounded retry/DLQ policy |
+| async operations | `scripts/inspect-async-ops.sh`, `scripts/copy-rabbitmq-dlq.sh`, `scripts/requeue-dead-outbox.sh`, `docs/operations/async-failure-runbook.md` |
 | idempotent business effects | processed-message tables and duplicate-message tests |
 | Redis cache | feed cache tests, revocation-cache decorator tests, and fallback tests |
 | local notifications | Mailpit SMTP integration and provider failure tests |

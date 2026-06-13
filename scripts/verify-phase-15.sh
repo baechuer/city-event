@@ -47,7 +47,10 @@ for file in \
   scripts/repair-minikube.sh \
   scripts/k8s-live-smoke.sh \
   scripts/failure-test-dependencies.sh \
-  scripts/load-test-local.sh; do
+  scripts/load-test-local.sh \
+  scripts/inspect-async-ops.sh \
+  scripts/requeue-dead-outbox.sh \
+  scripts/copy-rabbitmq-dlq.sh; do
   require_file "$file"
 done
 
@@ -72,10 +75,16 @@ require_contains scripts/load-test-local.sh "require_github_actions_evidence_run
 require_contains scripts/failure-test-dependencies.sh "require_github_actions_evidence_runner"
 require_contains scripts/failure-test-dependencies.sh "tmp/failure-tests"
 require_contains scripts/failure-test-dependencies.sh "RabbitMQ outage scenario"
+require_contains scripts/failure-test-dependencies.sh "inspect-async-ops.sh"
 require_contains scripts/load-test-local.sh "Join latency p50 seconds"
 require_contains scripts/load-test-local.sh "Join latency p99 seconds"
 require_contains scripts/load-test-local.sh "Join throughput requests/second"
 require_contains scripts/load-test-local.sh "dependency_snapshot"
+require_contains scripts/load-test-local.sh "select status, count(*) from outbox_messages"
+require_contains scripts/inspect-async-ops.sh "read-only"
+require_contains scripts/requeue-dead-outbox.sh "CITYEVENTS_ALLOW_LOCAL_REPLAY"
+require_contains scripts/copy-rabbitmq-dlq.sh "ack_requeue_true"
+require_contains scripts/copy-rabbitmq-dlq.sh "CITYEVENTS_ALLOW_LOCAL_REPLAY"
 require_contains docs/testing/heavy-evidence-runner-policy.md "Heavy evidence must not run from the local workstation"
 require_contains docs/testing/heavy-evidence-runner-policy.md "scripts/repair-minikube.sh"
 require_not_contains scripts/k8s-live-smoke.sh "Stop-Process"

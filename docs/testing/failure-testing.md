@@ -68,10 +68,15 @@ checks:
 - Redis stopped while bearer-token logout still persists revocation in Postgres
 - RabbitMQ stopped while event creation still commits and leaves retryable outbox work
 - RabbitMQ restarted while relay and consumers reconnect and the event reaches the feed projection
+- bounded consumer retry/DLQ behavior and terminal outbox `DEAD` behavior are covered by unit tests and integration-tag tests; live DLQ population/replay evidence is still a future failure drill
+- async operations inspection is written to `async-ops-inspection/` during cleanup to help distinguish outbox backlog, RabbitMQ backlog, retry queues, DLQs, and consumer lag
 
 The RabbitMQ recovery check depends on the relay, feed worker, and notification
 worker reconnect loops. If it fails, the correct conclusion is not "HA failed";
 it is a concrete broker-recovery bug to fix before stronger resume wording.
+
+Failure-case reasoning is recorded in
+`docs/testing/action-evidence-validation.md`.
 
 ## Required Evidence Before Claiming HA
 
@@ -93,6 +98,9 @@ Still required for a strong claim:
 - API pod deletion while traffic continues
 - worker pod deletion during message processing
 - repeated RabbitMQ restart evidence under higher message volume
+- force a poison consumer message through all retry queues and verify DLQ placement plus alert/replay procedure
+- force outbox publish failures until the eighth recorded failure and verify the row becomes `DEAD`
+- run the guarded DLQ copy-back and outbox requeue helpers in isolated evidence runs after deliberately fixing the injected root cause
 - repeated Redis outage evidence under higher request volume
 - Postgres outage and recovery behavior
 - concurrent joins above capacity during or after worker failure

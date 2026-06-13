@@ -74,7 +74,11 @@ Each run writes:
 
 The summary includes p50, p95, p99, max latency, join throughput, success
 rate, HTTP status counts, domain status counts, and dependency snapshots where
-Docker provides them.
+Docker provides them. Dependency snapshots include Postgres active connections,
+outbox status counts, RabbitMQ queue depth, and Redis stats.
+
+Failure-case reasoning is recorded in
+`docs/testing/action-evidence-validation.md`.
 
 ## What It Does Not Prove
 

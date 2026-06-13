@@ -46,6 +46,7 @@ migrations=(
   "migrations/auth/001_init.sql"
   "migrations/eventregistration/001_init.sql"
   "migrations/eventregistration/002_outbox_relay.sql"
+  "migrations/eventregistration/003_outbox_dead_state.sql"
   "migrations/feed/001_init.sql"
   "migrations/notification/001_init.sql"
   "migrations/media/001_init.sql"

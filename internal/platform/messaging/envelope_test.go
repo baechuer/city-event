@@ -73,3 +73,58 @@ func TestContextWithAMQPTraceHeaders(t *testing.T) {
 		t.Fatalf("unexpected trace context: %+v", trace)
 	}
 }
+
+func TestConsumerRetryDelaysIncrease(t *testing.T) {
+	delays := ConsumerRetryDelays()
+	if len(delays) != MaxConsumerRetries {
+		t.Fatalf("retry delay count = %d, want %d", len(delays), MaxConsumerRetries)
+	}
+	for i := 1; i < len(delays); i++ {
+		if delays[i] <= delays[i-1] {
+			t.Fatalf("retry delay %d = %s, previous = %s", i, delays[i], delays[i-1])
+		}
+	}
+	delays[0] = 0
+	if ConsumerRetryDelays()[0] == 0 {
+		t.Fatal("expected retry delay slice to be defensive copy")
+	}
+}
+
+func TestDeliveryRetryCountParsesCommonHeaderTypes(t *testing.T) {
+	cases := []struct {
+		name    string
+		headers amqp.Table
+		want    int
+	}{
+		{name: "nil", headers: nil, want: 0},
+		{name: "int32", headers: amqp.Table{RetryCountHeader: int32(3)}, want: 3},
+		{name: "int64", headers: amqp.Table{RetryCountHeader: int64(4)}, want: 4},
+		{name: "string", headers: amqp.Table{RetryCountHeader: "5"}, want: 5},
+		{name: "negative", headers: amqp.Table{RetryCountHeader: int32(-1)}, want: 0},
+		{name: "invalid", headers: amqp.Table{RetryCountHeader: "bad"}, want: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := DeliveryRetryCount(tc.headers); got != tc.want {
+				t.Fatalf("retry count = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDeliveryRoutingKeyPrefersOriginalRoutingHeader(t *testing.T) {
+	delivery := amqp.Delivery{
+		RoutingKey: FeedQueue,
+		Headers: amqp.Table{
+			OriginalRoutingHeader: "join.confirmed",
+		},
+	}
+	if got := DeliveryRoutingKey(delivery); got != "join.confirmed" {
+		t.Fatalf("routing key = %s, want join.confirmed", got)
+	}
+
+	delivery.Headers = nil
+	if got := DeliveryRoutingKey(delivery); got != FeedQueue {
+		t.Fatalf("routing key fallback = %s, want %s", got, FeedQueue)
+	}
+}

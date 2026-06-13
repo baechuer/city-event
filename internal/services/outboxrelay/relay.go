@@ -14,7 +14,24 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const DefaultBatchSize = 100
+const (
+	DefaultBatchSize          = 100
+	MaxOutboxPublishAttempts  = 8
+	OutboxPublishDeadState    = "dead"
+	OutboxPublishFailedState  = "failed"
+	OutboxPublishPendingState = "pending"
+	OutboxPublishSentState    = "sent"
+)
+
+var outboxRetryBackoffs = []time.Duration{
+	1 * time.Second,
+	4 * time.Second,
+	15 * time.Second,
+	1 * time.Minute,
+	5 * time.Minute,
+	15 * time.Minute,
+	1 * time.Hour,
+}
 
 type Publisher interface {
 	Publish(context.Context, string, messaging.Envelope) error
@@ -43,30 +60,40 @@ func (r *Relay) PublishBatch(ctx context.Context, limit int) (int, error) {
 	return r.store.withBatch(ctx, limit, r.now(), func(ctx context.Context, tx pgx.Tx, records []OutboxRecord) (int, error) {
 		published := 0
 		for _, record := range records {
-			observability.RecordOutboxMessage(record.RoutingKey, "pending")
+			observability.RecordOutboxMessage(record.RoutingKey, OutboxPublishPendingState)
 			envelope, err := record.Envelope()
 			if err != nil {
-				if markErr := markFailed(ctx, tx, record.ID, record.Attempts+1, r.now().Add(r.backoff(record.Attempts+1)), err); markErr != nil {
+				state, markErr := r.markPublishFailure(ctx, tx, record, err)
+				if markErr != nil {
 					return published, markErr
 				}
-				observability.RecordOutboxMessage(record.RoutingKey, "failed")
+				observability.RecordOutboxMessage(record.RoutingKey, state)
 				return published, err
 			}
 			if err := r.publisher.Publish(ctx, record.RoutingKey, envelope); err != nil {
-				if markErr := markFailed(ctx, tx, record.ID, record.Attempts+1, r.now().Add(r.backoff(record.Attempts+1)), err); markErr != nil {
+				state, markErr := r.markPublishFailure(ctx, tx, record, err)
+				if markErr != nil {
 					return published, markErr
 				}
-				observability.RecordOutboxMessage(record.RoutingKey, "failed")
+				observability.RecordOutboxMessage(record.RoutingKey, state)
 				return published, err
 			}
 			if err := markSent(ctx, tx, record.ID); err != nil {
 				return published, err
 			}
-			observability.RecordOutboxMessage(record.RoutingKey, "sent")
+			observability.RecordOutboxMessage(record.RoutingKey, OutboxPublishSentState)
 			published++
 		}
 		return published, nil
 	})
+}
+
+func (r *Relay) markPublishFailure(ctx context.Context, tx pgx.Tx, record OutboxRecord, cause error) (string, error) {
+	attempts := record.Attempts + 1
+	if shouldMarkOutboxDead(attempts) {
+		return OutboxPublishDeadState, markDead(ctx, tx, record.ID, attempts, cause)
+	}
+	return OutboxPublishFailedState, markFailed(ctx, tx, record.ID, attempts, r.now().Add(r.backoff(attempts)), cause)
 }
 
 type Store struct {
@@ -167,15 +194,11 @@ func markSent(ctx context.Context, tx pgx.Tx, id string) error {
 }
 
 func markFailed(ctx context.Context, tx pgx.Tx, id string, attempts int, availableAt time.Time, cause error) error {
-	message := strings.TrimSpace(cause.Error())
-	if len(message) > 500 {
-		message = message[:500]
-	}
 	tag, err := tx.Exec(ctx, `
 		UPDATE outbox_messages
 		SET status = 'FAILED', attempts = $2, available_at = $3, last_error = $4
 		WHERE id = $1
-	`, id, attempts, availableAt.UTC(), message)
+	`, id, attempts, availableAt.UTC(), failureMessage(cause))
 	if err != nil {
 		return err
 	}
@@ -185,14 +208,44 @@ func markFailed(ctx context.Context, tx pgx.Tx, id string, attempts int, availab
 	return nil
 }
 
+func markDead(ctx context.Context, tx pgx.Tx, id string, attempts int, cause error) error {
+	tag, err := tx.Exec(ctx, `
+		UPDATE outbox_messages
+		SET status = 'DEAD', attempts = $2, available_at = now(), last_error = $3
+		WHERE id = $1
+	`, id, attempts, failureMessage(cause))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return fmt.Errorf("outbox row %s was not marked dead", id)
+	}
+	return nil
+}
+
 func retryBackoff(attempts int) time.Duration {
 	if attempts <= 0 {
-		return time.Second
+		return outboxRetryBackoffs[0]
 	}
-	if attempts > 6 {
-		attempts = 6
+	if attempts > len(outboxRetryBackoffs) {
+		return outboxRetryBackoffs[len(outboxRetryBackoffs)-1]
 	}
-	return time.Duration(attempts*attempts) * time.Second
+	return outboxRetryBackoffs[attempts-1]
+}
+
+func shouldMarkOutboxDead(attempts int) bool {
+	return attempts >= MaxOutboxPublishAttempts
+}
+
+func failureMessage(cause error) string {
+	if cause == nil {
+		return ""
+	}
+	message := strings.TrimSpace(cause.Error())
+	if len(message) > 500 {
+		return message[:500]
+	}
+	return message
 }
 
 func rollback(ctx context.Context, tx pgx.Tx) {

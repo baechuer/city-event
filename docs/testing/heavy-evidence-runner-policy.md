@@ -29,6 +29,18 @@ Static verification scripts may still run locally. They must not start
 Minikube, mutate a Kubernetes cluster, run a gateway load test, or stress Docker
 Desktop.
 
+Guarded replay scripts may run locally in dry-run mode. Their mutating `--apply`
+mode requires either GitHub Actions or an explicit local override:
+
+```bash
+CITYEVENTS_ALLOW_LOCAL_REPLAY=true
+```
+
+The guarded replay scripts are:
+
+- `scripts/copy-rabbitmq-dlq.sh`
+- `scripts/requeue-dead-outbox.sh`
+
 ## Reason
 
 Minikube, Docker Desktop, WSL networking, multiple service images, Kubernetes
@@ -51,6 +63,7 @@ Before a heavy-evidence claim is resume-safe, capture:
 - dependency snapshots from the load evidence artifact, when present
 - Redis/RabbitMQ failure scenario results from the dependency failure artifact,
   when present
+- async operations inspection from `async-ops-inspection/`, when present
 - whether the result changes a resume-safe claim
 
 ## Local Safety Gate

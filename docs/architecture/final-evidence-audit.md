@@ -32,7 +32,7 @@ The rebuilt architecture uses:
 | Strong event-registration consistency | Supported | `event-registration-service` owns event creation, capacity, waitlist, cancellation, promotion, and outbox writes; concurrent join and cancellation integration tests |
 | No overbooking under tested concurrency | Supported | `TestPostgresConcurrentJoinCapacityInvariant`, `TestPostgresConcurrentSameUserJoinCreatesOneActiveRegistration`, `TestPostgresConcurrentCancelDoesNotOverPromote` |
 | Asynchronous decoupling | Supported | transactional outbox, outbox relay, RabbitMQ topology, feed projection, notification consumer |
-| Reliable messaging semantics | Supported with precise wording | persistent RabbitMQ publishing, publisher confirms, retryable outbox failure state, durable consumer dedupe tables, relay/consumer reconnect loops |
+| Reliable messaging semantics | Supported with precise wording | persistent RabbitMQ publishing, publisher confirms, increasing-delay outbox retry with terminal `DEAD` state, bounded RabbitMQ consumer retries with DLQs, durable consumer dedupe tables, relay/consumer reconnect loops |
 | Exactly-once consumption | Not supported | RabbitMQ and the app use at-least-once delivery plus idempotent business effects |
 | Redis caching | Supported | feed service cache tests and fallback behavior; Redis is not source of truth |
 | Auth browser hardening | Supported with precise wording | short access-token TTL, in-memory frontend access token, rotating HttpOnly refresh cookie, double-submit CSRF token for refresh/logout, explicit credentialed CORS |
@@ -44,7 +44,7 @@ The rebuilt architecture uses:
 | CI gates | Supported | GitHub Actions workflow for Go tests, frontend tests, phase verification, service image builds, and browser E2E |
 | Observability/debugging | Supported with caveat | correlation IDs, W3C trace-context propagation across HTTP and RabbitMQ headers, structured request logs, `/metrics`, request counters, latency histograms, rate-limit counters, outbox correlation propagation, debugging walkthrough |
 | Load/correctness smoke | CI-only evidence pending | `scripts/load-test-local.sh` verifies gateway-level auth, event creation, concurrent joins, capacity/waitlist invariant, feed projection, latency percentiles, throughput, status counts, and dependency snapshots; Phase 15 blocks future runs outside GitHub Actions, and the manual `Heavy Evidence` workflow now runs 40/80/160-user matrix artifacts |
-| Dependency failure evidence | CI-only evidence pending | `scripts/failure-test-dependencies.sh` verifies Redis fallback/fail-open behavior and RabbitMQ outage/recovery through the gateway and outbox path, but must be run only by the manual `Heavy Evidence` workflow |
+| Dependency failure evidence | CI-only evidence pending | `scripts/failure-test-dependencies.sh` verifies Redis fallback/fail-open behavior and RabbitMQ outage/recovery through the gateway and outbox path, and records async-ops inspection artifacts, but must be run only by the manual `Heavy Evidence` workflow |
 | Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/Ingress/probes/resource limits/replicas/PDBs, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-13.sh`, `scripts/verify-phase-14.sh` |
 | Kubernetes live smoke | Tooling supported; live run blocked locally | `scripts/k8s-live-smoke.sh --start-minikube --run-failure`; future accepted evidence must come from the manual GitHub Actions `Heavy Evidence` workflow |
 | High availability | Deferred | `docs/architecture/high-availability-decision.md`; manifests have replicas/PDBs and local smoke tooling, but production HA dependencies, multi-node evidence, continuous traffic failure tests, and autoscaling are not present |
@@ -93,7 +93,7 @@ Implemented a concurrency-safe event-registration service using PostgreSQL trans
 Safe:
 
 ```text
-Implemented RabbitMQ-based asynchronous workflows with a transactional outbox, persistent publishing, publisher confirms, retryable failure state, and idempotent consumers for feed and notification side effects.
+Implemented RabbitMQ-based asynchronous workflows with a transactional outbox, persistent publishing, publisher confirms, bounded retry/DLQ handling, and idempotent consumers for feed and notification side effects.
 ```
 
 Safe after the Actions artifact is reviewed:
@@ -130,6 +130,12 @@ Safe:
 
 ```text
 Added GitHub-Actions-only gateway load evidence tooling that runs 40/80/160-user matrix artifacts and verifies concurrent joins preserve capacity/waitlist invariants while feed projection catches up eventually.
+```
+
+Safe:
+
+```text
+Added guarded async operations tooling for inspecting outbox/DLQ backlog, copying RabbitMQ DLQ messages for reprocessing, and requeueing terminal outbox rows after root-cause remediation.
 ```
 
 Safe:
@@ -190,6 +196,7 @@ Highest priority gaps before stronger claims:
 - add continuous traffic during Kubernetes pod deletion, not only post-replacement readiness
 - add production-grade dependency HA: managed Postgres, RabbitMQ quorum queues or cluster, managed Redis or Redis Cluster
 - review Actions dependency-failure artifacts, then extend failure tests to pod deletion under traffic, worker restart under load, repeated RabbitMQ restart, repeated Redis outage, and Postgres outage
+- add DLQ alerts, dashboards, and reviewed replay drills before claiming production-grade message operations
 - run a real TLS ingress smoke test with a valid `cityevents-tls` secret or cert-manager-issued certificate
 - run the 40/80/160-user GitHub Actions load matrix and review artifacts before making throughput claims
 - add registry push and controlled deployment jobs after secrets and cluster target are available
