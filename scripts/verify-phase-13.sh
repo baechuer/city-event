@@ -50,11 +50,7 @@ for file in \
   frontend/e2e/cityevents.spec.mjs \
   internal/platform/httpapi/rate_limit.go \
   deploy/kubernetes/poddisruptionbudgets.yaml \
-  scripts/failure-test-kubernetes.sh \
-  docs/architecture/phase-13-ci-e2e-observability.md \
-  docs/testing/browser-e2e.md \
-  docs/testing/failure-testing.md \
-  docs/security/rate-limiting.md; do
+  scripts/failure-test-kubernetes.sh; do
   require_file "$file"
 done
 

@@ -44,9 +44,7 @@ for file in \
   deploy/kubernetes/local/kustomization.yaml \
   deploy/kubernetes/local/dependencies.yaml \
   deploy/kubernetes/local/secret.local.patch.yaml \
-  scripts/k8s-live-smoke.sh \
-  docs/architecture/phase-14-kubernetes-live-smoke.md \
-  docs/testing/kubernetes-live-smoke.md; do
+  scripts/k8s-live-smoke.sh; do
   require_file "$file"
 done
 
@@ -63,8 +61,7 @@ require_contains scripts/k8s-live-smoke.sh "kubectl_cmd kustomize --load-restric
 require_contains scripts/k8s-live-smoke.sh "psql -U cityevents -d cityevents"
 require_contains scripts/k8s-live-smoke.sh "port-forward service/api-gateway"
 require_contains scripts/k8s-live-smoke.sh "run_failure=true"
-require_contains docs/architecture/phase-14-kubernetes-live-smoke.md "single-instance backing services"
-require_contains docs/testing/kubernetes-live-smoke.md "not a production HA test"
+require_contains scripts/k8s-live-smoke.sh "single-instance backing services"
 
 log "Bash syntax"
 bash -n scripts/*.sh scripts/lib/*.sh

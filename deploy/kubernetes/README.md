@@ -2,7 +2,8 @@
 
 These manifests prepare CityEvents for Kubernetes deployment. They include two replicas per workload, PodDisruptionBudgets, security hardening patches, HPA intent, topology spread, and NetworkPolicies, but they do not prove high availability.
 
-The current HA decision is documented in `../../docs/architecture/high-availability-decision.md`.
+Detailed HA audits and rubrics are kept locally under the ignored
+`project-center/` folder, not in the public repository.
 
 ## Build Images
 

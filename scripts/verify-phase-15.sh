@@ -42,11 +42,6 @@ log "Phase 14 baseline verification"
 log "Phase 15 file coverage"
 for file in \
   .github/workflows/heavy-evidence.yml \
-  docs/architecture/phase-15-hardening-rubric.md \
-  docs/architecture/kubernetes-hardening.md \
-  docs/operations/alerts-and-dashboards.md \
-  docs/operations/opentelemetry-tracing.md \
-  docs/security/security-hardening.md \
   deploy/observability/prometheus-rules.yaml \
   deploy/observability/grafana/cityevents-async-ops-dashboard.json \
   deploy/observability/otel-collector.yaml \
@@ -55,7 +50,6 @@ for file in \
   deploy/kubernetes/security-hardening.patch.yaml \
   deploy/kubernetes/topology-spread.patch.yaml \
   .github/workflows/security.yml \
-  docs/testing/heavy-evidence-runner-policy.md \
   scripts/repair-minikube.sh \
   scripts/k8s-live-smoke.sh \
   scripts/failure-test-dependencies.sh \
@@ -66,12 +60,6 @@ for file in \
   require_file "$file"
 done
 
-require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 15: Kubernetes Live Evidence"
-require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 18: Redis Distributed Rate Limiting"
-require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 21: DLQ Alerts And Dashboard"
-require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 22: Security Hardening"
-require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 23: Kubernetes Hardening"
-require_contains docs/architecture/phase-15-hardening-rubric.md "p50, p95, p99"
 require_contains deploy/observability/prometheus-rules.yaml "CityEventsConsumerDeadLettered"
 require_contains deploy/observability/prometheus-rules.yaml "CityEventsOutboxDeadRows"
 require_contains deploy/observability/prometheus-rules.yaml "rabbitmq_queue_messages_ready"
@@ -96,10 +84,6 @@ require_contains deploy/kubernetes/security-hardening.patch.yaml "drop:"
 require_contains deploy/kubernetes/topology-spread.patch.yaml "topologySpreadConstraints"
 require_contains deploy/kubernetes/hpa.yaml "HorizontalPodAutoscaler"
 require_contains deploy/kubernetes/network-policies.yaml "default-deny"
-require_contains docs/operations/alerts-and-dashboards.md "Alertmanager routes a test alert"
-require_contains docs/operations/opentelemetry-tracing.md "not full OpenTelemetry span instrumentation yet"
-require_contains docs/security/security-hardening.md "CodeQL"
-require_contains docs/architecture/kubernetes-hardening.md "NetworkPolicies require a CNI"
 require_contains .github/workflows/heavy-evidence.yml "profile: small"
 require_contains .github/workflows/heavy-evidence.yml "profile: medium"
 require_contains .github/workflows/heavy-evidence.yml "profile: stress"
@@ -128,8 +112,9 @@ require_contains scripts/inspect-async-ops.sh "read-only"
 require_contains scripts/requeue-dead-outbox.sh "CITYEVENTS_ALLOW_LOCAL_REPLAY"
 require_contains scripts/copy-rabbitmq-dlq.sh "ack_requeue_true"
 require_contains scripts/copy-rabbitmq-dlq.sh "CITYEVENTS_ALLOW_LOCAL_REPLAY"
-require_contains docs/testing/heavy-evidence-runner-policy.md "Heavy evidence must not run from the local workstation"
-require_contains docs/testing/heavy-evidence-runner-policy.md "scripts/repair-minikube.sh"
+require_contains scripts/k8s-live-smoke.sh "require_github_actions_evidence_runner"
+require_contains scripts/load-test-local.sh "require_github_actions_evidence_runner"
+require_contains scripts/failure-test-dependencies.sh "require_github_actions_evidence_runner"
 require_not_contains scripts/k8s-live-smoke.sh "Stop-Process"
 require_not_contains scripts/k8s-live-smoke.sh "Get-CimInstance Win32_Process"
 

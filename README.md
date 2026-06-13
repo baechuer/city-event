@@ -30,13 +30,13 @@ Services emit correlation IDs, structured request logs, Prometheus-style request
 
 Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, ingress routing, resource limits, two replicas per workload, and PodDisruptionBudgets. A local overlay and Minikube smoke script exist for live evidence, but heavy evidence is blocked on the local workstation and must run through the manual GitHub Actions `Heavy Evidence` workflow. They do not prove high availability. Production HA still requires multi-node behavior, continuous traffic under failure, autoscaling policy, and highly available backing services.
 
-High availability is intentionally documented as a later stage in `docs/architecture/high-availability-decision.md`.
-
-Final evidence and resume wording are documented in `docs/architecture/final-evidence-audit.md` and `docs/resume/resume-claims.md`.
+High availability remains a later-stage claim. This public README keeps the
+claim boundary visible; detailed audits, rubrics, and resume notes are kept
+locally under the ignored `project-center/` folder.
 
 ## Local Requirements
 
-- Go 1.25.5
+- Go 1.25.11
 - Docker Desktop with Docker Compose v2
 - Bash, such as Git Bash or WSL on Windows
 
@@ -336,8 +336,8 @@ executes a matrix of 40, 80, and 160 attendee runs, each with its own uploaded
 `load-evidence-*` artifact.
 
 This is CI correctness and regression evidence, not a production throughput
-benchmark. The script is blocked on the local workstation by
-`docs/testing/heavy-evidence-runner-policy.md`.
+benchmark. The heavy scripts are blocked on the local workstation by guards in
+`scripts/lib/common.sh`.
 
 ## Run Dependency Failure Evidence
 
