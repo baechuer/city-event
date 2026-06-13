@@ -8,6 +8,15 @@ exactly-once consumption or production high availability.
 
 ## First Response
 
+If Prometheus alerts are enabled, start from the alert:
+
+| Alert | First Check |
+| --- | --- |
+| `CityEventsConsumerDeadLettered` | Inspect RabbitMQ DLQs before replaying. |
+| `CityEventsOutboxDeadRows` | Inspect terminal outbox rows before requeueing. |
+| `CityEventsAsyncRetrySpike` | Check broker, DB, and consumer logs for retry storms. |
+| `CityEventsRabbitMQDLQDepth` | Requires RabbitMQ exporter; inspect queue depth and oldest messages. |
+
 1. Inspect state before changing anything:
 
    ```bash

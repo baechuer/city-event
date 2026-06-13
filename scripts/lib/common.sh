@@ -40,6 +40,20 @@ run_go() {
 }
 
 run_docker() {
+  if command -v docker >/dev/null 2>&1 && docker version >/dev/null 2>&1; then
+    docker "$@"
+    return
+  fi
+  if command -v docker.exe >/dev/null 2>&1 && docker.exe version >/dev/null 2>&1; then
+    docker.exe "$@"
+    return
+  fi
+  if command -v cmd.exe >/dev/null 2>&1; then
+    # Intentionally unquoted for the same reason as run_go: current call sites
+    # pass simple Docker arguments and cmd.exe receives them reliably this way.
+    cmd.exe /c docker $*
+    return
+  fi
   docker "$@"
 }
 

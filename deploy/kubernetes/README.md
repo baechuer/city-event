@@ -1,6 +1,6 @@
 # Kubernetes Readiness
 
-These manifests prepare CityEvents for Kubernetes deployment. They include two replicas per workload and PodDisruptionBudgets, but they do not prove high availability.
+These manifests prepare CityEvents for Kubernetes deployment. They include two replicas per workload, PodDisruptionBudgets, security hardening patches, HPA intent, topology spread, and NetworkPolicies, but they do not prove high availability.
 
 The current HA decision is documented in `../../docs/architecture/high-availability-decision.md`.
 
@@ -65,7 +65,21 @@ production dependency architecture.
 
 If you switch to a public hostname, update `ingress.yaml`, `configmap.yaml` `CORS_ALLOWED_ORIGINS`, and `cert-manager-certificate.example.yaml` together.
 
-Ingress is not high availability by itself. It only exposes HTTP routing. The manifests now include replicated app pods and PodDisruptionBudgets, and the local overlay can be smoke-tested in Minikube, but HA still needs autoscaling or an explicit scaling policy, multi-node scheduling evidence, highly available data stores, continuous traffic under failure, and recorded dependency failure tests.
+Ingress is not high availability by itself. It only exposes HTTP routing. The manifests now include replicated app pods, PodDisruptionBudgets, HPA manifests, topology spread, security contexts, and NetworkPolicies, and the local overlay can be smoke-tested in Minikube, but HA still needs metrics-server-backed autoscaling evidence, multi-node scheduling evidence, highly available data stores, continuous traffic under failure, and recorded dependency failure tests.
+
+## Hardening
+
+The base Kustomization includes:
+
+- `security-hardening.patch.yaml` for non-root app pods, dropped capabilities,
+  read-only root filesystems, writable `/tmp`, RuntimeDefault seccomp, and
+  disabled service account token automount.
+- `topology-spread.patch.yaml` to prefer replica spreading across hosts and
+  zones while remaining schedulable in single-node Minikube.
+- `hpa.yaml` for CPU-based autoscaling intent. This requires metrics-server.
+- `network-policies.yaml` for default deny, same-namespace traffic, DNS egress,
+  and ingress-controller access to the gateway. Enforcement requires a CNI that
+  implements NetworkPolicy.
 
 ## Failure Testing
 
@@ -92,7 +106,7 @@ bash ./scripts/k8s-live-smoke.sh --start-minikube --run-failure
 Allowed:
 
 ```text
-Kubernetes-ready service manifests with two replicas per workload, PodDisruptionBudgets, health probes, resource limits, configuration separation, forced HTTPS ingress routing, and a cert-manager certificate example.
+Kubernetes-ready service manifests with two replicas per workload, PodDisruptionBudgets, health probes, resource limits, configuration separation, forced HTTPS ingress routing, cert-manager certificate example, security contexts, HPA intent, topology spread, and NetworkPolicies.
 ```
 
 Not allowed yet:

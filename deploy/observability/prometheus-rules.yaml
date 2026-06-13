@@ -1,0 +1,60 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cityevents-alerts
+  namespace: cityevents
+  labels:
+    app.kubernetes.io/name: cityevents
+    app.kubernetes.io/component: observability
+spec:
+  groups:
+    - name: cityevents.async
+      rules:
+        - alert: CityEventsConsumerDeadLettered
+          expr: increase(cityevents_consumer_messages_total{state="dead_lettered"}[15m]) > 0
+          for: 2m
+          labels:
+            severity: warning
+            area: async
+          annotations:
+            summary: CityEvents consumer sent messages to a DLQ.
+            description: A consumer exhausted its retry budget. Inspect RabbitMQ DLQs and the async failure runbook before replay.
+        - alert: CityEventsOutboxDeadRows
+          expr: increase(cityevents_outbox_messages_total{state="dead"}[15m]) > 0
+          for: 2m
+          labels:
+            severity: warning
+            area: async
+          annotations:
+            summary: CityEvents outbox messages reached terminal DEAD state.
+            description: Producer-side publishing exhausted the retry budget. Inspect Postgres outbox rows and fix root cause before requeue.
+        - alert: CityEventsAsyncRetrySpike
+          expr: increase(cityevents_consumer_messages_total{state="retrying"}[30m]) + increase(cityevents_outbox_messages_total{state="failed"}[30m]) > 25
+          for: 5m
+          labels:
+            severity: warning
+            area: async
+          annotations:
+            summary: CityEvents async retry volume is elevated.
+            description: Retry traffic is growing. Check broker connectivity, consumer logs, dependency health, and poison-message patterns.
+        - alert: CityEventsRateLimitStoreErrors
+          expr: increase(cityevents_rate_limit_store_errors_total[10m]) > 0
+          for: 2m
+          labels:
+            severity: warning
+            area: security
+          annotations:
+            summary: CityEvents rate limiter store errors detected.
+            description: Redis-backed rate limiting is failing and following the configured fail-open/fail-closed mode.
+    - name: cityevents.exporter-backed
+      rules:
+        - alert: CityEventsRabbitMQDLQDepth
+          expr: sum(rabbitmq_queue_messages_ready{queue=~"cityevents\\..*\\.dlq"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+            area: async
+            requires_exporter: rabbitmq
+          annotations:
+            summary: RabbitMQ DLQ depth is non-zero.
+            description: Requires RabbitMQ exporter metrics. Inspect DLQ messages and replay only after root cause is fixed.

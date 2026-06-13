@@ -43,6 +43,18 @@ log "Phase 15 file coverage"
 for file in \
   .github/workflows/heavy-evidence.yml \
   docs/architecture/phase-15-hardening-rubric.md \
+  docs/architecture/kubernetes-hardening.md \
+  docs/operations/alerts-and-dashboards.md \
+  docs/operations/opentelemetry-tracing.md \
+  docs/security/security-hardening.md \
+  deploy/observability/prometheus-rules.yaml \
+  deploy/observability/grafana/cityevents-async-ops-dashboard.json \
+  deploy/observability/otel-collector.yaml \
+  deploy/kubernetes/hpa.yaml \
+  deploy/kubernetes/network-policies.yaml \
+  deploy/kubernetes/security-hardening.patch.yaml \
+  deploy/kubernetes/topology-spread.patch.yaml \
+  .github/workflows/security.yml \
   docs/testing/heavy-evidence-runner-policy.md \
   scripts/repair-minikube.sh \
   scripts/k8s-live-smoke.sh \
@@ -56,7 +68,38 @@ done
 
 require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 15: Kubernetes Live Evidence"
 require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 18: Redis Distributed Rate Limiting"
+require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 21: DLQ Alerts And Dashboard"
+require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 22: Security Hardening"
+require_contains docs/architecture/phase-15-hardening-rubric.md "Phase 23: Kubernetes Hardening"
 require_contains docs/architecture/phase-15-hardening-rubric.md "p50, p95, p99"
+require_contains deploy/observability/prometheus-rules.yaml "CityEventsConsumerDeadLettered"
+require_contains deploy/observability/prometheus-rules.yaml "CityEventsOutboxDeadRows"
+require_contains deploy/observability/prometheus-rules.yaml "rabbitmq_queue_messages_ready"
+require_contains deploy/observability/grafana/cityevents-async-ops-dashboard.json "CityEvents Async Operations"
+require_contains deploy/observability/grafana/cityevents-async-ops-dashboard.json "RabbitMQ DLQ Depth (Exporter Required)"
+require_contains deploy/observability/otel-collector.yaml "otlp"
+require_contains deploy/observability/otel-collector.yaml "pipelines:"
+require_contains .github/workflows/security.yml "govulncheck"
+require_contains .github/workflows/security.yml "npm audit --omit=dev --audit-level=high"
+require_contains .github/workflows/security.yml "github/codeql-action/analyze"
+require_contains deploy/kubernetes/kustomization.yaml "hpa.yaml"
+require_contains deploy/kubernetes/kustomization.yaml "network-policies.yaml"
+require_contains deploy/kubernetes/kustomization.yaml "security-hardening.patch.yaml"
+require_contains deploy/kubernetes/kustomization.yaml "topology-spread.patch.yaml"
+require_contains deploy/kubernetes/local/kustomization.yaml "../hpa.yaml"
+require_contains deploy/kubernetes/local/kustomization.yaml "../network-policies.yaml"
+require_contains deploy/kubernetes/local/kustomization.yaml "../security-hardening.patch.yaml"
+require_contains deploy/kubernetes/local/kustomization.yaml "../topology-spread.patch.yaml"
+require_contains deploy/kubernetes/security-hardening.patch.yaml "automountServiceAccountToken: false"
+require_contains deploy/kubernetes/security-hardening.patch.yaml "readOnlyRootFilesystem: true"
+require_contains deploy/kubernetes/security-hardening.patch.yaml "drop:"
+require_contains deploy/kubernetes/topology-spread.patch.yaml "topologySpreadConstraints"
+require_contains deploy/kubernetes/hpa.yaml "HorizontalPodAutoscaler"
+require_contains deploy/kubernetes/network-policies.yaml "default-deny"
+require_contains docs/operations/alerts-and-dashboards.md "Alertmanager routes a test alert"
+require_contains docs/operations/opentelemetry-tracing.md "not full OpenTelemetry span instrumentation yet"
+require_contains docs/security/security-hardening.md "CodeQL"
+require_contains docs/architecture/kubernetes-hardening.md "NetworkPolicies require a CNI"
 require_contains .github/workflows/heavy-evidence.yml "profile: small"
 require_contains .github/workflows/heavy-evidence.yml "profile: medium"
 require_contains .github/workflows/heavy-evidence.yml "profile: stress"

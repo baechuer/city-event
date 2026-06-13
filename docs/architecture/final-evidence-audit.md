@@ -22,6 +22,7 @@ The rebuilt architecture uses:
 - GitHub Actions for CI/build gates
 - Playwright for browser E2E testing
 - Kubernetes manifests and a local overlay for replicated deployment readiness
+- Prometheus/Grafana/OpenTelemetry configuration for observability hardening
 
 ## Evidence Matrix
 
@@ -41,11 +42,11 @@ The rebuilt architecture uses:
 | Notification side effects | Supported locally | notification decision tests, idempotent repository tests, provider failure tests, Mailpit SMTP integration |
 | Media worker | Supported locally | metadata repository tests, MinIO integration, worker state transition tests, failure-state tests |
 | Browser E2E | Supported locally | Playwright organizer publish and attendee join flow against the local stack |
-| CI gates | Supported | GitHub Actions workflow for Go tests, frontend tests, phase verification, service image builds, and browser E2E |
-| Observability/debugging | Supported with caveat | correlation IDs, W3C trace-context propagation across HTTP and RabbitMQ headers, structured request logs, `/metrics`, request counters, latency histograms, rate-limit counters, outbox correlation propagation, debugging walkthrough |
+| CI gates | Supported | GitHub Actions workflow for Go tests, frontend tests, phase verification, service image builds, browser E2E, govulncheck, frontend production dependency audit, and CodeQL |
+| Observability/debugging | Supported with caveat | correlation IDs, W3C trace-context propagation across HTTP and RabbitMQ headers, structured request logs, `/metrics`, request counters, latency histograms, rate-limit counters, outbox correlation propagation, debugging walkthrough, Prometheus alert rules, Grafana dashboard config, OpenTelemetry Collector config |
 | Load/correctness smoke | CI-only evidence pending | `scripts/load-test-local.sh` verifies gateway-level auth, event creation, concurrent joins, capacity/waitlist invariant, feed projection, latency percentiles, throughput, status counts, and dependency snapshots; Phase 15 blocks future runs outside GitHub Actions, and the manual `Heavy Evidence` workflow now runs 40/80/160-user matrix artifacts |
 | Dependency failure evidence | CI-only evidence pending | `scripts/failure-test-dependencies.sh` verifies Redis fallback/fail-open behavior and RabbitMQ outage/recovery through the gateway and outbox path, and records async-ops inspection artifacts, but must be run only by the manual `Heavy Evidence` workflow |
-| Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/Ingress/probes/resource limits/replicas/PDBs, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-13.sh`, `scripts/verify-phase-14.sh` |
+| Kubernetes readiness | Supported | Dockerfile, Kubernetes Deployments/Services/ConfigMap/Secret template/Ingress/probes/resource limits/replicas/PDBs/HPA intent/NetworkPolicies/security-context patches/topology spread, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-13.sh`, `scripts/verify-phase-14.sh` |
 | Kubernetes live smoke | Tooling supported; live run blocked locally | `scripts/k8s-live-smoke.sh --start-minikube --run-failure`; future accepted evidence must come from the manual GitHub Actions `Heavy Evidence` workflow |
 | High availability | Deferred | `docs/architecture/high-availability-decision.md`; manifests have replicas/PDBs and local smoke tooling, but production HA dependencies, multi-node evidence, continuous traffic failure tests, and autoscaling are not present |
 | Production deployment | Not supported | no verified live cluster run, managed secrets, production database, or failure-test evidence; TLS is manifest/example coverage only |
@@ -123,7 +124,13 @@ Added correlation IDs, W3C trace-context propagation across HTTP and RabbitMQ he
 Safe:
 
 ```text
-Added GitHub Actions gates and Playwright browser E2E coverage for the organizer publish and attendee join workflow.
+Added Prometheus alert rules, a Grafana async-operations dashboard, and OpenTelemetry Collector configuration for staging observability validation.
+```
+
+Safe:
+
+```text
+Added GitHub Actions gates for tests, container builds, browser E2E, Go vulnerability reachability, frontend production dependency audit, and CodeQL.
 ```
 
 Safe:
@@ -141,7 +148,7 @@ Added guarded async operations tooling for inspecting outbox/DLQ backlog, copyin
 Safe:
 
 ```text
-Prepared the services for Kubernetes deployment with container builds, Deployments, Services, health probes, configuration separation, Secret templates, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, a GitHub-Actions-only Minikube smoke-test overlay, and documented high-availability requirements.
+Prepared the services for Kubernetes deployment with container builds, Deployments, Services, health probes, configuration separation, Secret templates, resource limits, two replicas per workload, PodDisruptionBudgets, HPA intent, NetworkPolicies, security-context patches, topology spread, forced HTTPS ingress routing, a cert-manager certificate example, a GitHub-Actions-only Minikube smoke-test overlay, and documented high-availability requirements.
 ```
 
 ## Claims To Avoid
@@ -196,12 +203,12 @@ Highest priority gaps before stronger claims:
 - add continuous traffic during Kubernetes pod deletion, not only post-replacement readiness
 - add production-grade dependency HA: managed Postgres, RabbitMQ quorum queues or cluster, managed Redis or Redis Cluster
 - review Actions dependency-failure artifacts, then extend failure tests to pod deletion under traffic, worker restart under load, repeated RabbitMQ restart, repeated Redis outage, and Postgres outage
-- add DLQ alerts, dashboards, and reviewed replay drills before claiming production-grade message operations
+- deploy DLQ alerts/dashboard and run reviewed replay drills before claiming production-grade message operations
 - run a real TLS ingress smoke test with a valid `cityevents-tls` secret or cert-manager-issued certificate
 - run the 40/80/160-user GitHub Actions load matrix and review artifacts before making throughput claims
-- add registry push and controlled deployment jobs after secrets and cluster target are available
+- add registry push, image scanning, and controlled deployment jobs after secrets and cluster target are available
 - complement Redis-backed rate limiting with ingress or WAF controls before claiming edge-grade abuse protection
-- add OpenTelemetry SDK spans, collector, trace backend, Prometheus scraping, and Grafana dashboard if claiming production observability
+- add OpenTelemetry SDK spans, trace backend, Prometheus scraping, Alertmanager delivery, and live Grafana evidence if claiming production observability
 - replace the plain JavaScript frontend with the intended React/TypeScript/Vite frontend if the frontend is meant to be a primary claim
 
 ## Final Verdict

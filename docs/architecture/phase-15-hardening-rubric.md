@@ -11,6 +11,9 @@ It prevents drift while implementing:
 - Redis-backed distributed rate limiting
 - load-test evidence
 - frontend hardening
+- DLQ alerting and dashboarding
+- security hardening
+- Kubernetes hardening
 
 Each item is only resume-safe after the matching code, tests, scripts, and
 recorded evidence exist.
@@ -128,12 +131,16 @@ Failure-tested production high availability.
 - Propagate trace metadata in RabbitMQ message headers.
 - Provide local collector and dashboard configuration files.
 - Keep existing `/metrics` Prometheus text endpoint.
+- Add alert and dashboard configuration for DLQ/outbox/rate-limit/latency
+  signals.
 
 ### Done Evidence
 
 - Unit tests verify trace headers are accepted and propagated.
 - RabbitMQ publishing includes trace headers when context is present.
 - Docs explain how to run a collector and where traces/metrics appear.
+- Docs explain which observability files are manifest-ready versus live
+  production evidence.
 
 ### Quantitative Gate
 
@@ -275,6 +282,128 @@ Not allowed:
 
 ```text
 Production frontend performance benchmark.
+```
+
+## Phase 21: DLQ Alerts And Dashboard
+
+### Required Functionality
+
+- Add Prometheus alert rules for consumer DLQ events, outbox `DEAD` events,
+  async retry spikes, and Redis rate-limit store errors.
+- Add a Grafana dashboard for consumer outcomes, outbox outcomes, DLQ events,
+  HTTP latency, and RabbitMQ DLQ depth.
+- Clearly mark exporter-backed RabbitMQ queue-depth signals as requiring a
+  RabbitMQ exporter.
+- Link alert response to the async failure runbook.
+
+### Done Evidence
+
+- `deploy/observability/prometheus-rules.yaml` exists.
+- `deploy/observability/grafana/cityevents-async-ops-dashboard.json` exists.
+- `docs/operations/alerts-and-dashboards.md` records the acceptance rubric and
+  production evidence boundary.
+- `scripts/verify-phase-15.sh` statically checks the files.
+
+### Quantitative Gate
+
+- A single DLQ or outbox `DEAD` event produces a non-zero counter increase.
+- Alert rules use bounded windows, currently 10-30 minutes.
+- Dashboard has panels for both app-native counters and exporter-backed queue
+  depth.
+
+### Claim Boundary
+
+Allowed:
+
+```text
+Added Prometheus alert rules and Grafana dashboard configuration for CityEvents async failure signals.
+```
+
+Not allowed until deployed and tested:
+
+```text
+Production alerting is live.
+```
+
+## Phase 22: Security Hardening
+
+### Required Functionality
+
+- Add CI security gates for Go vulnerability reachability, frontend production
+  dependency audit, and CodeQL analysis.
+- Document existing JWT, refresh-token, CSRF, RBAC, rate-limit, and TLS
+  controls.
+- Keep remaining security work explicit and claim-bounded.
+
+### Done Evidence
+
+- `.github/workflows/security.yml` exists.
+- `docs/security/security-hardening.md` records current controls, gates,
+  remaining work, and claim boundary.
+- `scripts/verify-phase-15.sh` checks the workflow and doc.
+
+### Quantitative Gate
+
+- `govulncheck ./...` runs in CI.
+- `npm audit --omit=dev --audit-level=high` runs in CI.
+- CodeQL analyzes Go and JavaScript/TypeScript.
+
+### Claim Boundary
+
+Allowed:
+
+```text
+Added CI security gates and documented current security controls.
+```
+
+Not allowed until full evidence exists:
+
+```text
+Production security reviewed.
+```
+
+## Phase 23: Kubernetes Hardening
+
+### Required Functionality
+
+- Add security-context patches for app workloads.
+- Disable service account token automount for workloads that do not call the
+  Kubernetes API.
+- Add HPA manifests for HTTP-facing app workloads.
+- Add topology spread constraints.
+- Add NetworkPolicies for default deny, same-namespace app traffic, DNS egress,
+  and ingress-controller access to the gateway.
+
+### Done Evidence
+
+- `deploy/kubernetes/kustomization.yaml` includes HPA and NetworkPolicy
+  resources.
+- Kustomize applies `security-hardening.patch.yaml` and
+  `topology-spread.patch.yaml`.
+- `docs/architecture/kubernetes-hardening.md` records limitations around
+  metrics-server, CNI enforcement, and multi-node proof.
+- Static verification checks all hardening files.
+
+### Quantitative Gate
+
+- Base and local overlays render with `kubectl kustomize` when kubectl is
+  installed.
+- App containers run as non-root, drop all Linux capabilities, block privilege
+  escalation, use read-only root filesystems, and mount writable `/tmp`.
+- HPA minimum replicas remain at least 2.
+
+### Claim Boundary
+
+Allowed:
+
+```text
+Added Kubernetes hardening manifests for security context, token restriction, HPA intent, topology spread, and NetworkPolicies.
+```
+
+Not allowed until live cluster evidence exists:
+
+```text
+Production Kubernetes hardening is validated.
 ```
 
 ## Anti-Drift Rule

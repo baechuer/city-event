@@ -64,6 +64,8 @@ Before a heavy-evidence claim is resume-safe, capture:
 - Redis/RabbitMQ failure scenario results from the dependency failure artifact,
   when present
 - async operations inspection from `async-ops-inspection/`, when present
+- alert/dashboard validation screenshots or exported JSON, when present
+- HPA/topology/NetworkPolicy validation output, when present
 - whether the result changes a resume-safe claim
 
 ## Local Safety Gate

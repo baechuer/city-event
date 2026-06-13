@@ -5,9 +5,13 @@ resources:
   - ../configmap.yaml
   - ../secret.example.yaml
   - ../deployments.yaml
+  - ../hpa.yaml
+  - ../network-policies.yaml
   - ../poddisruptionbudgets.yaml
   - ../services.yaml
   - ../ingress.yaml
   - dependencies.yaml
 patches:
+  - path: ../security-hardening.patch.yaml
+  - path: ../topology-spread.patch.yaml
   - path: secret.local.patch.yaml

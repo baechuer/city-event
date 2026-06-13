@@ -2,7 +2,7 @@
 
 ## Primary Project Summary
 
-CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows with bounded retry/DLQ handling and reconnecting relay/workers, Redis-backed caching, idempotent consumers, local media processing, Redis-backed shared HTTP rate limiting, W3C trace-context propagation, Prometheus-style request metrics, Playwright browser E2E coverage, GitHub Actions CI gates, Kubernetes-ready replicated deployment manifests, and GitHub-Actions-only Kubernetes/load/failure evidence tooling.
+CityEvents is a Go microservices platform for local event discovery and registration. It demonstrates gateway-mediated JWT authentication, rotating refresh-token sessions, CSRF-protected cookie refresh, role-based access control, a transactional core service, RabbitMQ-based asynchronous workflows with bounded retry/DLQ handling and reconnecting relay/workers, Redis-backed caching, idempotent consumers, local media processing, Redis-backed shared HTTP rate limiting, W3C trace-context propagation, Prometheus-style request metrics, alert/dashboard configuration, Playwright browser E2E coverage, GitHub Actions CI/security gates, Kubernetes-ready replicated deployment manifests, and GitHub-Actions-only Kubernetes/load/failure evidence tooling.
 
 ## Recommended Resume Bullets
 
@@ -13,18 +13,18 @@ Use these bullets as the strongest current version:
 - Designed the event-registration service as the consistency boundary, using PostgreSQL transactions, row-level locking, unique constraints, and idempotent join behavior to prevent overbooking under tested concurrency.
 - Implemented RabbitMQ-based asynchronous workflows with a transactional outbox, persistent messages, publisher confirms, increasing-delay outbox retry, bounded consumer retry/DLQs, and idempotent consumers for feed and notification side effects.
 - Added Redis-backed feed caching and access-token revocation caching as non-authoritative fast paths with durable Postgres fallback.
-- Added correlation IDs, W3C trace-context propagation across HTTP/RabbitMQ metadata, structured logs, Prometheus-style request counters, latency histograms, rate-limit counters, and a debugging walkthrough to trace HTTP requests through outbox, RabbitMQ, feed projection, and notification records.
+- Added correlation IDs, W3C trace-context propagation across HTTP/RabbitMQ metadata, structured logs, Prometheus-style request counters, latency histograms, rate-limit counters, Prometheus alert rules, Grafana dashboard config, OpenTelemetry Collector config, and a debugging walkthrough to trace HTTP requests through outbox, RabbitMQ, feed projection, and notification records.
 - Added guarded async operations tooling to inspect outbox/DLQ backlog, copy RabbitMQ DLQ messages for reprocessing, and requeue terminal outbox rows after root-cause remediation.
 - Added Redis-backed shared HTTP rate limiting for auth, mutation, and read endpoints with tested 429 responses, fail-open/fail-closed configuration, and explicit edge-protection caveats.
-- Added GitHub Actions gates and a Playwright browser E2E flow covering organizer publishing and attendee joining against the local stack.
-- Prepared services for Kubernetes deployment with Docker builds, Deployments, Services, ConfigMaps, Secret templates, health probes, resource limits, two replicas per workload, PodDisruptionBudgets, forced HTTPS ingress routing, a cert-manager certificate example, GitHub-Actions-only Minikube smoke/load evidence tooling, and a documented high-availability roadmap.
+- Added GitHub Actions test/build/browser gates, security gates for govulncheck/frontend production audit/CodeQL, and a Playwright browser E2E flow covering organizer publishing and attendee joining against the local stack.
+- Prepared services for Kubernetes deployment with Docker builds, Deployments, Services, ConfigMaps, Secret templates, health probes, resource limits, two replicas per workload, PodDisruptionBudgets, HPA intent, NetworkPolicies, security contexts, topology spread, forced HTTPS ingress routing, a cert-manager certificate example, GitHub-Actions-only Minikube smoke/load evidence tooling, and a documented high-availability roadmap.
 
 ## Short Version
 
 Use this if space is limited:
 
 ```text
-Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows with bounded retry/DLQs, Redis caching, idempotent consumers, Redis-backed rate limiting, trace-context propagation, request metrics, Playwright E2E coverage, CI gates, Kubernetes-ready replicated manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
+Built CityEvents, a Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows with bounded retry/DLQs, Redis caching, idempotent consumers, Redis-backed rate limiting, trace-context propagation, request metrics, alert/dashboard config, Playwright E2E coverage, CI/security gates, Kubernetes-ready replicated manifests, and GitHub-Actions-only Kubernetes/load evidence tooling.
 ```
 
 ## Interview Framing
@@ -65,6 +65,8 @@ Do not say:
 - production deployed
 - autoscaled production microservices
 - full OpenTelemetry/Grafana observability stack
+- production alerting is live
+- production security reviewed
 
 ## Evidence Map
 
@@ -82,9 +84,9 @@ Do not say:
 | media processing | MinIO integration and worker failure tests |
 | rate limiting | `internal/platform/httpapi/rate_limit.go`, router tests, `docs/security/rate-limiting.md` |
 | browser E2E | `frontend/e2e/cityevents.spec.mjs`, `docs/testing/browser-e2e.md` |
-| CI gates | `.github/workflows/ci.yml`, `scripts/verify-phase-14.sh` |
-| observability | correlation ID middleware, metrics endpoint, request histograms, debugging walkthrough |
-| Kubernetes readiness | `deploy/kubernetes/`, including ingress, replicas, PodDisruptionBudgets, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-11.sh`, `scripts/failure-test-kubernetes.sh`, `scripts/k8s-live-smoke.sh` |
+| CI gates | `.github/workflows/ci.yml`, `.github/workflows/security.yml`, `scripts/verify-phase-15.sh` |
+| observability | correlation ID middleware, metrics endpoint, request histograms, debugging walkthrough, `deploy/observability/`, `docs/operations/alerts-and-dashboards.md`, `docs/operations/opentelemetry-tracing.md` |
+| Kubernetes readiness | `deploy/kubernetes/`, including ingress, replicas, PodDisruptionBudgets, HPA, NetworkPolicies, security-context patches, topology spread, local overlay, `scripts/verify-phase-10.sh`, `scripts/verify-phase-11.sh`, `scripts/failure-test-kubernetes.sh`, `scripts/k8s-live-smoke.sh` |
 | load evidence | `scripts/load-test-local.sh`, `docs/testing/load-testing.md`, `.github/workflows/heavy-evidence.yml`, uploaded `load-evidence-small-40u`, `load-evidence-medium-80u`, and `load-evidence-stress-160u` artifacts after the manual Actions run |
 | dependency failure evidence | `scripts/failure-test-dependencies.sh`, `docs/testing/failure-testing.md`, uploaded `dependency-failure-evidence` artifact after the manual Actions run |
 
