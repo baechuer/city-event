@@ -25,6 +25,9 @@ move beyond a portfolio/staging candidate.
 
 These are CI security gates, not a complete security program.
 
+The Go toolchain is pinned to `1.25.11` so `govulncheck` does not report the
+standard-library vulnerabilities present in earlier Go `1.25.x` patch releases.
+
 ## Remaining Work
 
 - Add secret scanning in the repository settings or a dedicated scanner.
