@@ -99,6 +99,35 @@ run_node() {
   "$node" "$@"
 }
 
+http_curl() {
+  if command -v curl.exe >/dev/null 2>&1; then
+    curl.exe "$@"
+    return
+  fi
+  curl "$@"
+}
+
+http_null_target() {
+  if command -v curl.exe >/dev/null 2>&1; then
+    echo "NUL"
+    return
+  fi
+  echo "/dev/null"
+}
+
+windows_binary_path() {
+  local path="$1"
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$path"
+    return
+  fi
+  if command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$path"
+    return
+  fi
+  echo "$path"
+}
+
 require_file() {
   [[ -e "$1" ]] || die "required file is missing: $1"
 }
@@ -168,7 +197,7 @@ wait_for_http() {
   local timeout_seconds="${2:-20}"
   local deadline=$((SECONDS + timeout_seconds))
   while (( SECONDS < deadline )); do
-    if curl -fsS --max-time 2 "$url" >/dev/null 2>&1; then
+    if http_curl -fsS --max-time 2 "$url" >/dev/null 2>&1; then
       return 0
     fi
     sleep 0.3

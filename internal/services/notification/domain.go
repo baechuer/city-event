@@ -15,9 +15,10 @@ const (
 	DefaultConsumerName = "notification-delivery"
 	DevEmailDomain      = "cityevents.local"
 
-	StatusPending = "PENDING"
-	StatusSent    = "SENT"
-	StatusFailed  = "FAILED"
+	StatusPending    = "PENDING"
+	StatusProcessing = "PROCESSING"
+	StatusSent       = "SENT"
+	StatusFailed     = "FAILED"
 )
 
 var (
@@ -26,17 +27,21 @@ var (
 )
 
 type Notification struct {
-	ID              string
-	MessageID       string
-	RecipientUserID string
-	RecipientEmail  string
-	RoutingKey      string
-	Subject         string
-	Body            string
-	Status          string
-	LastError       string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID               string
+	MessageID        string
+	RecipientUserID  string
+	RecipientEmail   string
+	RoutingKey       string
+	Subject          string
+	Body             string
+	Status           string
+	LastError        string
+	IdempotencyKey   string
+	DeliveryAttempts int
+	NextAttemptAt    time.Time
+	LockedUntil      *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type Delivery struct {

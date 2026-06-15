@@ -6,8 +6,12 @@ CREATE TABLE IF NOT EXISTS notifications (
     routing_key TEXT NOT NULL,
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('PENDING', 'SENT', 'FAILED')),
+    status TEXT NOT NULL CHECK (status IN ('PENDING', 'PROCESSING', 'SENT', 'FAILED')),
     last_error TEXT NOT NULL DEFAULT '',
+    idempotency_key TEXT NOT NULL DEFAULT '',
+    delivery_attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    locked_until TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -38,7 +38,7 @@ wait_for_compose_health redis 120
 wait_for_compose_health minio 120
 
 log "Integration tests"
-run_go test -count=1 -tags=integration ./...
+run_go test -count=1 -p 1 -tags=integration ./...
 
 log "Debug walkthrough check"
 walkthrough="project-center/20-audits/debugging-walkthrough.md"

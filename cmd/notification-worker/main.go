@@ -42,13 +42,16 @@ func run() int {
 		return 1
 	}
 
-	return runConsumerLoop(ctx, cfg, logger, pool)
+	repo := notification.NewRepository(pool)
+	go runDeliveryLoop(ctx, logger, notification.NewDeliveryWorker(repo, notification.NewSMTPProvider(cfg.SMTPAddr)))
+
+	return runConsumerLoop(ctx, cfg, logger, repo)
 }
 
-func runConsumerLoop(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool) int {
+func runConsumerLoop(ctx context.Context, cfg config.Config, logger *slog.Logger, repo *notification.Repository) int {
 	backoff := time.Second
 	for {
-		if err := runConsumerSession(ctx, cfg, logger, pool); err != nil {
+		if err := runConsumerSession(ctx, cfg, logger, repo); err != nil {
 			if errors.Is(err, context.Canceled) || ctx.Err() != nil {
 				logger.Info("notification worker stopped")
 				return 0
@@ -62,18 +65,38 @@ func runConsumerLoop(ctx context.Context, cfg config.Config, logger *slog.Logger
 	}
 }
 
-func runConsumerSession(ctx context.Context, cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool) error {
+func runConsumerSession(ctx context.Context, cfg config.Config, logger *slog.Logger, repo *notification.Repository) error {
 	conn, err := amqp.Dial(cfg.RabbitMQURL)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	consumer := notification.NewConsumer(conn, notification.NewRepository(pool), notification.NewSMTPProvider(cfg.SMTPAddr), logger)
+	consumer := notification.NewConsumer(conn, repo, logger)
 	if err := consumer.Run(ctx); err != nil {
 		return err
 	}
 	return errors.New("notification consumer stopped")
+}
+
+func runDeliveryLoop(ctx context.Context, logger *slog.Logger, worker *notification.DeliveryWorker) {
+	for {
+		processed, err := worker.ProcessOne(ctx)
+		if errors.Is(err, context.Canceled) || ctx.Err() != nil {
+			logger.Info("notification delivery stopped")
+			return
+		}
+		if err != nil {
+			logger.Error("notification delivery failed", slog.String("error", err.Error()))
+		}
+		if processed {
+			continue
+		}
+		if !sleepContext(ctx, time.Second) {
+			logger.Info("notification delivery stopped")
+			return
+		}
+	}
 }
 
 func sleepContext(ctx context.Context, duration time.Duration) bool {

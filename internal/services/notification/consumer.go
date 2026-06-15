@@ -10,17 +10,16 @@ import (
 )
 
 type Consumer struct {
-	conn     *amqp.Connection
-	repo     *Repository
-	provider Provider
-	logger   *slog.Logger
+	conn   *amqp.Connection
+	repo   *Repository
+	logger *slog.Logger
 }
 
-func NewConsumer(conn *amqp.Connection, repo *Repository, provider Provider, logger *slog.Logger) *Consumer {
+func NewConsumer(conn *amqp.Connection, repo *Repository, logger *slog.Logger) *Consumer {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Consumer{conn: conn, repo: repo, provider: provider, logger: logger}
+	return &Consumer{conn: conn, repo: repo, logger: logger}
 }
 
 func (c *Consumer) Run(ctx context.Context) error {
@@ -76,6 +75,6 @@ func (c *Consumer) handleDelivery(ctx context.Context, delivery amqp.Delivery) e
 	if err != nil {
 		return err
 	}
-	_, err = c.repo.ProcessEnvelope(ctx, envelope, c.provider)
+	_, err = c.repo.ProcessEnvelope(ctx, envelope)
 	return err
 }

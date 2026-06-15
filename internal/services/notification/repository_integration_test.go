@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -22,17 +23,37 @@ func TestNotificationRepositoryIdempotentSuccess(t *testing.T) {
 	pool := setupNotificationPostgres(t, ctx)
 	repo := NewRepository(pool)
 	provider := &fakeProvider{}
+	worker := NewDeliveryWorker(repo, provider)
 	envelope := testNotificationEnvelope(t, "msg-1", "join.confirmed", map[string]any{"userId": "user-1", "eventId": "event-1"})
 
-	first, err := repo.ProcessEnvelope(ctx, envelope, provider)
+	first, err := repo.ProcessEnvelope(ctx, envelope)
 	if err != nil {
 		t.Fatalf("process first: %v", err)
 	}
-	if first.Notification.Status != StatusSent {
-		t.Fatalf("status = %s, want sent", first.Notification.Status)
+	if first.Notification.Status != StatusPending {
+		t.Fatalf("status = %s, want pending", first.Notification.Status)
+	}
+	assertNotificationCounts(t, ctx, repo, 1, 0, 1)
+	if provider.Count() != 0 {
+		t.Fatalf("provider sends before delivery worker = %d, want 0", provider.Count())
+	}
+
+	processed, err := worker.ProcessOne(ctx)
+	if err != nil {
+		t.Fatalf("delivery worker: %v", err)
+	}
+	if !processed {
+		t.Fatal("delivery worker processed no notification")
+	}
+	delivered, err := repo.GetByMessageID(ctx, envelope.MessageID)
+	if err != nil {
+		t.Fatalf("get delivered notification: %v", err)
+	}
+	if delivered.Status != StatusSent {
+		t.Fatalf("status = %s, want sent", delivered.Status)
 	}
 	for i := 0; i < 10; i++ {
-		result, err := repo.ProcessEnvelope(ctx, envelope, provider)
+		result, err := repo.ProcessEnvelope(ctx, envelope)
 		if err != nil {
 			t.Fatalf("duplicate process %d: %v", i, err)
 		}
@@ -44,6 +65,9 @@ func TestNotificationRepositoryIdempotentSuccess(t *testing.T) {
 	if provider.Count() != 1 {
 		t.Fatalf("provider sends = %d, want 1", provider.Count())
 	}
+	if provider.FirstIdempotencyKey() != envelope.MessageID {
+		t.Fatalf("provider idempotency key = %q, want %q", provider.FirstIdempotencyKey(), envelope.MessageID)
+	}
 }
 
 func TestNotificationRepositoryProviderFailureRecordsFailed(t *testing.T) {
@@ -51,14 +75,68 @@ func TestNotificationRepositoryProviderFailureRecordsFailed(t *testing.T) {
 	pool := setupNotificationPostgres(t, ctx)
 	repo := NewRepository(pool)
 	provider := &fakeProvider{err: errors.New("smtp down")}
+	worker := NewDeliveryWorker(repo, provider)
 	envelope := testNotificationEnvelope(t, "msg-1", "join.waitlisted", map[string]any{"userId": "user-1", "eventId": "event-1"})
 
-	result, err := repo.ProcessEnvelope(ctx, envelope, provider)
+	result, err := repo.ProcessEnvelope(ctx, envelope)
 	if err != nil {
 		t.Fatalf("process envelope: %v", err)
 	}
-	if result.Notification.Status != StatusFailed || result.Notification.LastError == "" {
-		t.Fatalf("notification = %+v, want failed with error", result.Notification)
+	if result.Notification.Status != StatusPending {
+		t.Fatalf("notification = %+v, want pending before delivery", result.Notification)
+	}
+	processed, err := worker.ProcessOne(ctx)
+	if err == nil {
+		t.Fatal("delivery worker error = nil, want provider failure")
+	}
+	if !processed {
+		t.Fatal("delivery worker processed no notification")
+	}
+	failed, err := repo.GetByMessageID(ctx, envelope.MessageID)
+	if err != nil {
+		t.Fatalf("get failed notification: %v", err)
+	}
+	if failed.Status != StatusFailed || failed.LastError == "" {
+		t.Fatalf("notification = %+v, want failed with error", failed)
+	}
+	if failed.DeliveryAttempts != 1 {
+		t.Fatalf("delivery attempts = %d, want 1", failed.DeliveryAttempts)
+	}
+	if !failed.NextAttemptAt.After(time.Now().UTC()) {
+		t.Fatalf("next attempt at = %s, want future retry", failed.NextAttemptAt)
+	}
+	assertNotificationCounts(t, ctx, repo, 1, 1, 1)
+}
+
+func TestNotificationRepositoryRejectsStaleDeliveryClaim(t *testing.T) {
+	ctx := context.Background()
+	pool := setupNotificationPostgres(t, ctx)
+	repo := NewRepository(pool)
+	envelope := testNotificationEnvelope(t, "msg-stale", "join.confirmed", map[string]any{"userId": "user-1", "eventId": "event-1"})
+
+	if _, err := repo.ProcessEnvelope(ctx, envelope); err != nil {
+		t.Fatalf("process envelope: %v", err)
+	}
+	start := time.Now().UTC()
+	firstClaim, ok, err := repo.ClaimNextDelivery(ctx, start, time.Millisecond)
+	if err != nil {
+		t.Fatalf("first claim: %v", err)
+	}
+	if !ok {
+		t.Fatal("first claim found no notification")
+	}
+	secondClaim, ok, err := repo.ClaimNextDelivery(ctx, start.Add(2*time.Millisecond), time.Minute)
+	if err != nil {
+		t.Fatalf("second claim: %v", err)
+	}
+	if !ok {
+		t.Fatal("second claim found no expired notification")
+	}
+	if _, err := repo.MarkDeliverySent(ctx, secondClaim, ProviderResult{ProviderMessageID: "provider-msg-2"}, start.Add(3*time.Millisecond)); err != nil {
+		t.Fatalf("mark second claim sent: %v", err)
+	}
+	if _, err := repo.MarkDeliverySent(ctx, firstClaim, ProviderResult{ProviderMessageID: "provider-msg-1"}, start.Add(4*time.Millisecond)); !errors.Is(err, ErrStaleDeliveryClaim) {
+		t.Fatalf("mark first stale claim err = %v, want ErrStaleDeliveryClaim", err)
 	}
 	assertNotificationCounts(t, ctx, repo, 1, 1, 1)
 }
@@ -68,13 +146,23 @@ func TestNotificationRepositoryHundredMessages(t *testing.T) {
 	pool := setupNotificationPostgres(t, ctx)
 	repo := NewRepository(pool)
 	provider := &fakeProvider{}
+	worker := NewDeliveryWorker(repo, provider)
 	for i := 0; i < 100; i++ {
 		envelope := testNotificationEnvelope(t, fmt.Sprintf("msg-%03d", i), "join.promoted", map[string]any{
 			"userId":  fmt.Sprintf("user-%03d", i),
 			"eventId": "event-1",
 		})
-		if _, err := repo.ProcessEnvelope(ctx, envelope, provider); err != nil {
+		if _, err := repo.ProcessEnvelope(ctx, envelope); err != nil {
 			t.Fatalf("process %d: %v", i, err)
+		}
+	}
+	for i := 0; i < 100; i++ {
+		processed, err := worker.ProcessOne(ctx)
+		if err != nil {
+			t.Fatalf("delivery %d: %v", i, err)
+		}
+		if !processed {
+			t.Fatalf("delivery %d processed no notification", i)
 		}
 	}
 	assertNotificationCounts(t, ctx, repo, 100, 100, 100)
@@ -86,6 +174,7 @@ func TestNotificationRabbitMQConsumePath(t *testing.T) {
 	conn := setupNotificationRabbit(t)
 	repo := NewRepository(pool)
 	provider := &fakeProvider{}
+	worker := NewDeliveryWorker(repo, provider)
 
 	publisher, err := messaging.NewConfirmingPublisher(conn)
 	if err != nil {
@@ -105,8 +194,15 @@ func TestNotificationRabbitMQConsumePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
-	if _, err := repo.ProcessEnvelope(ctx, decoded, provider); err != nil {
+	if _, err := repo.ProcessEnvelope(ctx, decoded); err != nil {
 		t.Fatalf("process delivery: %v", err)
+	}
+	processed, err := worker.ProcessOne(ctx)
+	if err != nil {
+		t.Fatalf("delivery worker: %v", err)
+	}
+	if !processed {
+		t.Fatal("delivery worker processed no notification")
 	}
 	_ = delivery.Ack(false)
 	assertNotificationCounts(t, ctx, repo, 1, 1, 1)
@@ -119,10 +215,11 @@ func TestSMTPProviderAcceptsMailpitDelivery(t *testing.T) {
 	}
 	provider := NewSMTPProvider(addr)
 	_, err := provider.Send(context.Background(), Message{
-		ID:      "smtp-test",
-		To:      "user-1@cityevents.local",
-		Subject: "Phase 6 SMTP smoke",
-		Body:    "This message verifies local Mailpit SMTP acceptance.",
+		ID:             "smtp-test",
+		IdempotencyKey: "smtp-test-idempotency",
+		To:             "user-1@cityevents.local",
+		Subject:        "Phase 6 SMTP smoke",
+		Body:           "This message verifies local Mailpit SMTP acceptance.",
 	})
 	if err != nil {
 		t.Fatalf("send mailpit message: %v", err)
@@ -149,6 +246,15 @@ func (p *fakeProvider) Count() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return len(p.sends)
+}
+
+func (p *fakeProvider) FirstIdempotencyKey() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.sends) == 0 {
+		return ""
+	}
+	return p.sends[0].IdempotencyKey
 }
 
 func setupNotificationPostgres(t *testing.T, ctx context.Context) *pgxpool.Pool {
@@ -178,13 +284,19 @@ func setupNotificationPostgres(t *testing.T, ctx context.Context) *pgxpool.Pool 
 	`); err != nil {
 		t.Fatalf("reset notification tables: %v", err)
 	}
-	path := filepath.Join("..", "..", "..", "migrations", "notification", "001_init.sql")
-	raw, err := os.ReadFile(path)
+	paths, err := filepath.Glob(filepath.Join("..", "..", "..", "migrations", "notification", "*.sql"))
 	if err != nil {
-		t.Fatalf("read migration: %v", err)
+		t.Fatalf("glob migrations: %v", err)
 	}
-	if _, err := pool.Exec(ctx, string(raw)); err != nil {
-		t.Fatalf("apply migration: %v", err)
+	sort.Strings(paths)
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", path, err)
+		}
+		if _, err := pool.Exec(ctx, string(raw)); err != nil {
+			t.Fatalf("apply migration %s: %v", path, err)
+		}
 	}
 	return pool
 }

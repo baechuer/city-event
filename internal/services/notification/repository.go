@@ -21,13 +21,25 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool, consumerName: DefaultConsumerName}
 }
 
+const DefaultDeliveryLease = 30 * time.Second
+const MaxDeliveryAttempts = 5
+
+var ErrStaleDeliveryClaim = errors.New("notification delivery claim is stale")
+
+var deliveryRetryBackoffs = []time.Duration{
+	5 * time.Second,
+	30 * time.Second,
+	2 * time.Minute,
+	10 * time.Minute,
+}
+
 type ProcessResult struct {
 	Notification Notification
 	Duplicate    bool
 	Ignored      bool
 }
 
-func (r *Repository) ProcessEnvelope(ctx context.Context, envelope messaging.Envelope, provider Provider) (ProcessResult, error) {
+func (r *Repository) ProcessEnvelope(ctx context.Context, envelope messaging.Envelope) (ProcessResult, error) {
 	if err := envelope.Validate(); err != nil {
 		return ProcessResult{}, err
 	}
@@ -73,40 +85,12 @@ func (r *Repository) ProcessEnvelope(ctx context.Context, envelope messaging.Env
 		Subject:         decision.Subject,
 		Body:            decision.Body,
 		Status:          StatusPending,
+		IdempotencyKey:  envelope.MessageID,
+		NextAttemptAt:   now,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
 	if err := insertNotification(ctx, tx, notification); err != nil {
-		return ProcessResult{}, err
-	}
-
-	result, sendErr := provider.Send(ctx, Message{
-		ID:      notification.ID,
-		To:      notification.RecipientEmail,
-		Subject: notification.Subject,
-		Body:    notification.Body,
-	})
-	if sendErr != nil {
-		notification.Status = StatusFailed
-		notification.LastError = trimError(sendErr)
-	} else {
-		notification.Status = StatusSent
-	}
-	notification.UpdatedAt = time.Now().UTC()
-
-	if err := updateStatus(ctx, tx, notification); err != nil {
-		return ProcessResult{}, err
-	}
-	delivery := Delivery{
-		ID:                NewID(),
-		NotificationID:    notification.ID,
-		Provider:          "smtp",
-		Status:            notification.Status,
-		ProviderMessageID: result.ProviderMessageID,
-		Error:             notification.LastError,
-		CreatedAt:         notification.UpdatedAt,
-	}
-	if err := insertDelivery(ctx, tx, delivery); err != nil {
 		return ProcessResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -114,6 +98,168 @@ func (r *Repository) ProcessEnvelope(ctx context.Context, envelope messaging.Env
 	}
 	observability.RecordConsumerMessage(r.consumerName, envelope.RoutingKey, "processed")
 	return ProcessResult{Notification: notification}, nil
+}
+
+type DeliveryWorker struct {
+	repo     *Repository
+	provider Provider
+	now      func() time.Time
+	lease    time.Duration
+}
+
+func NewDeliveryWorker(repo *Repository, provider Provider) *DeliveryWorker {
+	return &DeliveryWorker{
+		repo:     repo,
+		provider: provider,
+		now:      time.Now,
+		lease:    DefaultDeliveryLease,
+	}
+}
+
+func (w *DeliveryWorker) ProcessOne(ctx context.Context) (bool, error) {
+	now := w.now().UTC()
+	notification, ok, err := w.repo.ClaimNextDelivery(ctx, now, w.lease)
+	if err != nil || !ok {
+		return ok, err
+	}
+	result, sendErr := w.provider.Send(ctx, Message{
+		ID:             notification.ID,
+		IdempotencyKey: notification.IdempotencyKey,
+		To:             notification.RecipientEmail,
+		Subject:        notification.Subject,
+		Body:           notification.Body,
+	})
+	if sendErr != nil {
+		if _, err := w.repo.MarkDeliveryFailed(ctx, notification, sendErr, w.now().UTC()); err != nil {
+			return true, errors.Join(sendErr, err)
+		}
+		return true, sendErr
+	}
+	if _, err := w.repo.MarkDeliverySent(ctx, notification, result, w.now().UTC()); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+func (r *Repository) ClaimNextDelivery(ctx context.Context, now time.Time, lease time.Duration) (Notification, bool, error) {
+	if lease <= 0 {
+		lease = DefaultDeliveryLease
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Notification{}, false, err
+	}
+	defer rollback(ctx, tx)
+
+	notification, err := scanNotification(tx.QueryRow(ctx, `
+		SELECT id, message_id, recipient_user_id, recipient_email, routing_key, subject, body, status, last_error, idempotency_key, delivery_attempts, next_attempt_at, locked_until, created_at, updated_at
+		FROM notifications
+		WHERE delivery_attempts < $2
+		  AND (
+		    (status IN ('PENDING', 'FAILED') AND next_attempt_at <= $1)
+		    OR (status = 'PROCESSING' AND locked_until <= $1)
+		  )
+		ORDER BY created_at ASC, id ASC
+		LIMIT 1
+		FOR UPDATE SKIP LOCKED
+	`, now.UTC(), MaxDeliveryAttempts))
+	if errors.Is(err, pgx.ErrNoRows) {
+		if err := tx.Commit(ctx); err != nil {
+			return Notification{}, false, err
+		}
+		return Notification{}, false, nil
+	}
+	if err != nil {
+		return Notification{}, false, err
+	}
+
+	lockedUntil := now.UTC().Add(lease)
+	tag, err := tx.Exec(ctx, `
+		UPDATE notifications
+		SET status = 'PROCESSING', delivery_attempts = delivery_attempts + 1, locked_until = $2, updated_at = $3
+		WHERE id = $1
+	`, notification.ID, lockedUntil, now.UTC())
+	if err != nil {
+		return Notification{}, false, err
+	}
+	if tag.RowsAffected() != 1 {
+		return Notification{}, false, errors.New("notification delivery claim affected no rows")
+	}
+	notification.Status = StatusProcessing
+	notification.DeliveryAttempts++
+	notification.LockedUntil = &lockedUntil
+	notification.UpdatedAt = now.UTC()
+	if err := tx.Commit(ctx); err != nil {
+		return Notification{}, false, err
+	}
+	return notification, true, nil
+}
+
+func (r *Repository) MarkDeliverySent(ctx context.Context, notification Notification, result ProviderResult, now time.Time) (Notification, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Notification{}, err
+	}
+	defer rollback(ctx, tx)
+	claimLockedUntil := notification.LockedUntil
+	notification.Status = StatusSent
+	notification.LastError = ""
+	notification.UpdatedAt = now.UTC()
+	notification.LockedUntil = nil
+	if err := updateDeliveryState(ctx, tx, notification, notification.NextAttemptAt, claimLockedUntil); err != nil {
+		return Notification{}, err
+	}
+	delivery := Delivery{
+		ID:                NewID(),
+		NotificationID:    notification.ID,
+		Provider:          "smtp",
+		Status:            StatusSent,
+		ProviderMessageID: result.ProviderMessageID,
+		CreatedAt:         notification.UpdatedAt,
+	}
+	if err := insertDelivery(ctx, tx, delivery); err != nil {
+		return Notification{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Notification{}, err
+	}
+	return notification, nil
+}
+
+func (r *Repository) MarkDeliveryFailed(ctx context.Context, notification Notification, cause error, now time.Time) (Notification, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Notification{}, err
+	}
+	defer rollback(ctx, tx)
+	claimLockedUntil := notification.LockedUntil
+	notification.Status = StatusFailed
+	notification.LastError = trimError(cause)
+	notification.UpdatedAt = now.UTC()
+	notification.LockedUntil = nil
+	nextAttemptAt := now.UTC().Add(deliveryBackoff(notification.DeliveryAttempts))
+	if notification.DeliveryAttempts >= MaxDeliveryAttempts {
+		nextAttemptAt = now.UTC()
+	}
+	notification.NextAttemptAt = nextAttemptAt
+	if err := updateDeliveryState(ctx, tx, notification, nextAttemptAt, claimLockedUntil); err != nil {
+		return Notification{}, err
+	}
+	delivery := Delivery{
+		ID:             NewID(),
+		NotificationID: notification.ID,
+		Provider:       "smtp",
+		Status:         StatusFailed,
+		Error:          notification.LastError,
+		CreatedAt:      notification.UpdatedAt,
+	}
+	if err := insertDelivery(ctx, tx, delivery); err != nil {
+		return Notification{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Notification{}, err
+	}
+	return notification, nil
 }
 
 func (r *Repository) NotificationCount(ctx context.Context) (int, error) {
@@ -136,7 +282,7 @@ func (r *Repository) ProcessedCount(ctx context.Context) (int, error) {
 
 func (r *Repository) GetByMessageID(ctx context.Context, messageID string) (Notification, error) {
 	return scanNotification(r.pool.QueryRow(ctx, `
-		SELECT id, message_id, recipient_user_id, recipient_email, routing_key, subject, body, status, last_error, created_at, updated_at
+		SELECT id, message_id, recipient_user_id, recipient_email, routing_key, subject, body, status, last_error, idempotency_key, delivery_attempts, next_attempt_at, locked_until, created_at, updated_at
 		FROM notifications
 		WHERE message_id = $1
 	`, strings.TrimSpace(messageID)))
@@ -156,18 +302,26 @@ func claimMessage(ctx context.Context, tx pgx.Tx, consumerName string, envelope 
 
 func insertNotification(ctx context.Context, tx pgx.Tx, notification Notification) error {
 	_, err := tx.Exec(ctx, `
-		INSERT INTO notifications (id, message_id, recipient_user_id, recipient_email, routing_key, subject, body, status, last_error, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	`, notification.ID, notification.MessageID, notification.RecipientUserID, notification.RecipientEmail, notification.RoutingKey, notification.Subject, notification.Body, notification.Status, notification.LastError, notification.CreatedAt, notification.UpdatedAt)
+		INSERT INTO notifications (id, message_id, recipient_user_id, recipient_email, routing_key, subject, body, status, last_error, idempotency_key, delivery_attempts, next_attempt_at, locked_until, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, notification.ID, notification.MessageID, notification.RecipientUserID, notification.RecipientEmail, notification.RoutingKey, notification.Subject, notification.Body, notification.Status, notification.LastError, notification.IdempotencyKey, notification.DeliveryAttempts, notification.NextAttemptAt, notification.LockedUntil, notification.CreatedAt, notification.UpdatedAt)
 	return err
 }
 
-func updateStatus(ctx context.Context, tx pgx.Tx, notification Notification) error {
-	_, err := tx.Exec(ctx, `
+func updateDeliveryState(ctx context.Context, tx pgx.Tx, notification Notification, nextAttemptAt time.Time, claimLockedUntil *time.Time) error {
+	tag, err := tx.Exec(ctx, `
 		UPDATE notifications
-		SET status = $2, last_error = $3, updated_at = $4
+		SET status = $2, last_error = $3, next_attempt_at = $4, locked_until = NULL, updated_at = $5
 		WHERE id = $1
-	`, notification.ID, notification.Status, notification.LastError, notification.UpdatedAt)
+		  AND status = 'PROCESSING'
+		  AND locked_until = $6
+	`, notification.ID, notification.Status, notification.LastError, nextAttemptAt.UTC(), notification.UpdatedAt, claimLockedUntil)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrStaleDeliveryClaim
+	}
 	return err
 }
 
@@ -181,7 +335,7 @@ func insertDelivery(ctx context.Context, tx pgx.Tx, delivery Delivery) error {
 
 func (r *Repository) findByMessageIDTx(ctx context.Context, tx pgx.Tx, messageID string) (Notification, error) {
 	return scanNotification(tx.QueryRow(ctx, `
-		SELECT id, message_id, recipient_user_id, recipient_email, routing_key, subject, body, status, last_error, created_at, updated_at
+		SELECT id, message_id, recipient_user_id, recipient_email, routing_key, subject, body, status, last_error, idempotency_key, delivery_attempts, next_attempt_at, locked_until, created_at, updated_at
 		FROM notifications
 		WHERE message_id = $1
 	`, messageID))
@@ -193,8 +347,18 @@ type scanner interface {
 
 func scanNotification(row scanner) (Notification, error) {
 	var notification Notification
-	err := row.Scan(&notification.ID, &notification.MessageID, &notification.RecipientUserID, &notification.RecipientEmail, &notification.RoutingKey, &notification.Subject, &notification.Body, &notification.Status, &notification.LastError, &notification.CreatedAt, &notification.UpdatedAt)
+	err := row.Scan(&notification.ID, &notification.MessageID, &notification.RecipientUserID, &notification.RecipientEmail, &notification.RoutingKey, &notification.Subject, &notification.Body, &notification.Status, &notification.LastError, &notification.IdempotencyKey, &notification.DeliveryAttempts, &notification.NextAttemptAt, &notification.LockedUntil, &notification.CreatedAt, &notification.UpdatedAt)
 	return notification, err
+}
+
+func deliveryBackoff(attempts int) time.Duration {
+	if attempts <= 0 {
+		return deliveryRetryBackoffs[0]
+	}
+	if attempts > len(deliveryRetryBackoffs) {
+		return deliveryRetryBackoffs[len(deliveryRetryBackoffs)-1]
+	}
+	return deliveryRetryBackoffs[attempts-1]
 }
 
 func trimError(err error) string {

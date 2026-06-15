@@ -16,13 +16,19 @@ done
 cd "$REPO_ROOT"
 setup_go_cache
 
-services=(
+http_services=(
   api-gateway
   auth-service
   event-registration-service
   feed-service
   notification-service
   media-service
+)
+
+worker_services=(
+  outbox-relay
+  feed-worker
+  notification-worker
   media-worker
 )
 
@@ -33,17 +39,26 @@ log "Docker Compose config"
 run_docker compose config --quiet
 
 log "Service startup checks"
-previous_startup_check="${CITYEVENTS_STARTUP_CHECK_ONLY-}"
-export CITYEVENTS_STARTUP_CHECK_ONLY=true
-for service in "${services[@]}"; do
+run_startup_check() {
+  local service="$1"
+  if command -v cmd.exe >/dev/null 2>&1; then
+    cmd.exe /d /c "set CITYEVENTS_STARTUP_CHECK_ONLY=true&& go run ./cmd/$service"
+    return
+  fi
+  CITYEVENTS_STARTUP_CHECK_ONLY=true run_go run "./cmd/$service"
+}
+
+for service in "${http_services[@]}"; do
   echo "checking $service"
-  run_go run "./cmd/$service"
+  run_startup_check "$service"
 done
-if [[ -n "${previous_startup_check}" ]]; then
-  export CITYEVENTS_STARTUP_CHECK_ONLY="$previous_startup_check"
-else
-  unset CITYEVENTS_STARTUP_CHECK_ONLY
-fi
+
+log "Worker binary build checks"
+mkdir -p tmp
+for service in "${worker_services[@]}"; do
+  echo "building $service"
+  run_go build -o "tmp/$service.exe" "./cmd/$service"
+done
 
 log "Docker daemon check"
 if docker_output="$(run_docker info --format '{{.ServerVersion}}' 2>&1)"; then

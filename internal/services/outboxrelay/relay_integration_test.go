@@ -242,7 +242,7 @@ func TestRelayMarksOutboxDeadAfterAttemptLimit(t *testing.T) {
 
 	if _, err := pool.Exec(ctx, `
 		UPDATE outbox_messages
-		SET status = 'FAILED', attempts = $2, available_at = now()
+		SET status = 'FAILED', attempts = $2, available_at = now() - interval '1 second'
 		WHERE aggregate_id = $1
 	`, created.Event.ID, MaxOutboxPublishAttempts-1); err != nil {
 		t.Fatalf("prime outbox attempts: %v", err)
