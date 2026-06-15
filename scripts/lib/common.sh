@@ -99,6 +99,22 @@ run_node() {
   "$node" "$@"
 }
 
+run_npm() {
+  if command -v npm >/dev/null 2>&1; then
+    npm "$@"
+    return
+  fi
+  if command -v npm.cmd >/dev/null 2>&1; then
+    npm.cmd "$@"
+    return
+  fi
+  if command -v cmd.exe >/dev/null 2>&1; then
+    cmd.exe /c npm $*
+    return
+  fi
+  die "npm was not found. Install Node/npm or use the bundled Codex runtime."
+}
+
 http_curl() {
   if command -v curl.exe >/dev/null 2>&1; then
     curl.exe "$@"

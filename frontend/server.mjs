@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = __dirname;
+const root = path.join(__dirname, 'dist');
 const port = Number(process.argv[2] || 18088);
 const apiBase = cleanBase(process.env.CITYEVENTS_API_BASE || 'http://127.0.0.1:8080');
 const serviceBases = {
@@ -21,6 +21,7 @@ const types = {
   '.jpeg': 'image/jpeg',
   '.png': 'image/png',
   '.webp': 'image/webp',
+  '.map': 'application/json; charset=utf-8',
 };
 
 http.createServer((req, res) => {
@@ -31,6 +32,11 @@ http.createServer((req, res) => {
       'Cache-Control': 'no-store',
     });
     res.end(`window.CITYEVENTS_CONFIG = ${JSON.stringify({ apiBase, ...serviceBases })};\n`);
+    return;
+  }
+  if (!fs.existsSync(root)) {
+    res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('frontend/dist is missing. Run npm --prefix frontend run build first.');
     return;
   }
   const requested = url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\/+/, '');

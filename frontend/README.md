@@ -1,6 +1,6 @@
 # CityEvents Frontend
 
-The frontend is a dependency-light browser app. Runtime behavior remains plain JavaScript, and Phase 13 adds Playwright for browser E2E coverage.
+The frontend is a React + TypeScript app built with Vite. It keeps the browser-facing API contract stable through runtime `/config.js`, so the compiled bundle does not hardcode the gateway origin.
 
 Run locally:
 
@@ -40,11 +40,22 @@ For frontend-only static serving, after separately starting backend services:
 ./scripts/serve-frontend.sh
 ```
 
+Useful frontend commands:
+
+```bash
+cd frontend
+npm ci
+npm run typecheck
+npm run test
+npm run build
+npm run verify
+```
+
 Run browser E2E:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run e2e
 ```
 

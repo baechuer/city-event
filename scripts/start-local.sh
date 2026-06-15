@@ -16,7 +16,7 @@ Starts the local CityEvents demo stack:
   - Idempotent Postgres migrations for all local service schemas
   - Go HTTP services: gateway, auth, event registration, feed, notification, media
   - Go async workers: outbox relay, feed worker, notification worker, media worker
-  - Static frontend at http://127.0.0.1:18088
+  - Built React/TypeScript frontend at http://127.0.0.1:18088
 
 Options:
   --frontend-port PORT  Frontend port to bind. Default: 18088
@@ -228,6 +228,7 @@ apply_postgres_migrations() {
     "migrations/eventregistration/003_outbox_dead_state.sql"
     "migrations/feed/001_init.sql"
     "migrations/notification/001_init.sql"
+    "migrations/notification/002_delivery_intents.sql"
     "migrations/media/001_init.sql"
   )
 
@@ -288,6 +289,8 @@ start_frontend() {
   local log_file="$logs_dir/frontend.log"
   : >"$log_file"
 
+  build_frontend
+
   log "Start frontend"
   if has_node_runtime; then
     if start_frontend_node "$log_file"; then
@@ -315,6 +318,22 @@ start_frontend() {
 
   show_log_tail "frontend" "$log_file"
   die "frontend exited unexpectedly. If port $frontend_port is occupied, run ./scripts/stop-local.sh or choose another port with --frontend-port."
+}
+
+build_frontend() {
+  if [[ ! -d "$REPO_ROOT/frontend/node_modules/react" || ! -d "$REPO_ROOT/frontend/node_modules/vite" ]]; then
+    log "Install frontend dependencies"
+    (
+      cd "$REPO_ROOT/frontend"
+      run_npm ci
+    )
+  fi
+
+  log "Build frontend"
+  (
+    cd "$REPO_ROOT/frontend"
+    run_npm run build
+  )
 }
 
 start_frontend_node() {

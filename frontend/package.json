@@ -3,12 +3,26 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite --host 127.0.0.1",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
-    "test": "node --test src/api.test.mjs src/state.test.mjs",
-    "verify": "node --test src/api.test.mjs src/state.test.mjs"
+    "test": "tsx --test src/api.test.ts src/state.test.ts",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0"
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^24.10.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16"
   }
 }

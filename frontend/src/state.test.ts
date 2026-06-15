@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canCancel, canJoin, createInitialState, formatDateTime, normalizeAuthResult, statusLabel } from './state.js';
+import { canCancel, canJoin, createInitialState, formatDateTime, normalizeAuthResult, statusLabel } from './state';
 
 test('initial state is empty and stable', () => {
   const state = createInitialState();
