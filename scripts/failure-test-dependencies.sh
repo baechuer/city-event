@@ -237,7 +237,7 @@ write_summary() {
       printf '| %s | %s | %s |\n' "$scenario" "$status" "$detail"
     done <"$results_file"
     echo
-    echo "## Claim Boundary"
+    echo "## Evidence Scope"
     echo
     echo "This evidence can support broker/cache recovery-path discussion after the Actions artifacts are reviewed. It does not prove production high availability."
   } >"$summary_file"

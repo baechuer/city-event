@@ -296,6 +296,13 @@ The platform includes:
 - OpenTelemetry collector configuration,
 - read-only inspection scripts and guarded repair scripts.
 
+For debugging, a request can be followed by `X-Correlation-ID` and
+`traceparent` through the gateway, service logs, RabbitMQ messages, and worker
+logs. For async workflows, the main database checkpoints are
+`outbox_messages`, `feed_events`, and `notifications`, which makes it possible
+to explain whether a request is waiting for relay publish, broker delivery, or
+consumer processing.
+
 ## Testing And Evidence
 
 The repo includes layered verification:

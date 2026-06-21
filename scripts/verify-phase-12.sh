@@ -24,17 +24,19 @@ fi
 log "Public evidence boundary checks"
 require_file README.md
 
-require_contains README.md "Verify Final Evidence Audit"
-require_contains README.md "Claim Boundary"
-require_contains README.md "Exactly-once RabbitMQ consumption"
-require_contains README.md "guaranteed no message loss"
+require_contains README.md "RabbitMQ And Transactional Outbox"
+require_contains README.md "This is an at-least-once messaging design"
+require_contains README.md "effectively-once"
+require_contains README.md "business effects"
+require_contains README.md "broker dedupe is still not the same as end-to-end exactly-once business effects"
+require_contains README.md "manifests alone are not the same as a production"
 
 log "Public README safe-claim sanity checks"
-allowed="$(sed -n '/^Allowed wording:/,/^Not yet allowed:/p' README.md)"
-grep -Fq "exactly-once" <<<"$allowed" && die "Allowed README wording contains exactly-once"
-grep -Fq "guaranteed" <<<"$allowed" && die "Allowed README wording contains guaranteed"
-grep -Fq "highly available" <<<"$allowed" && die "Allowed README wording contains highly available"
-grep -Fq "production deployed" <<<"$allowed" && die "Allowed README wording contains production deployed"
+require_not_contains README.md "Exactly-once RabbitMQ consumption"
+require_not_contains README.md "guaranteed no message loss"
+require_not_contains README.md "production deployed"
+require_not_contains README.md "fully highly available"
+require_not_contains README.md "zero data loss under all failures"
 
 log "Native smoke"
 run_git -c core.autocrlf=false diff --check

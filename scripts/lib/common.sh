@@ -108,8 +108,8 @@ run_npm() {
     npm.cmd "$@"
     return
   fi
-  if command -v cmd.exe >/dev/null 2>&1 && cmd.exe /c "where npm" >/dev/null 2>&1; then
-    cmd.exe /c npm $*
+  if command -v cmd.exe >/dev/null 2>&1 && MSYS2_ARG_CONV_EXCL="*" cmd.exe /C where npm >/dev/null 2>&1; then
+    MSYS2_ARG_CONV_EXCL="*" cmd.exe /C npm "$@"
     return
   fi
   die "npm was not found. Install Node/npm or use the bundled Codex runtime."

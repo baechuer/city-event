@@ -13,14 +13,15 @@ require_file README.md
 require_file deploy/kubernetes/README.md
 require_file deploy/kubernetes/deployments.yaml
 
-require_contains README.md "Phase 11"
-require_contains README.md "They do not prove high availability"
-require_contains README.md "Verify High Availability Decision"
-require_contains README.md "Not yet allowed"
-require_contains README.md "highly available Kubernetes deployment"
+require_contains README.md "Kubernetes Manifests As Deployment Readiness"
+require_contains README.md "manifests alone are not the same as a production"
+require_contains README.md "real multi-node cluster"
+require_contains README.md "replicas, probes, ConfigMaps, Secret examples, ingress, PDBs, HPA intent"
 
-require_contains deploy/kubernetes/README.md "do not prove high availability"
-require_contains deploy/kubernetes/README.md "High availability still requires"
+require_contains deploy/kubernetes/README.md "Hardening Demonstrated"
+require_contains deploy/kubernetes/README.md "Ingress plus replicas are an important deployment foundation"
+require_contains deploy/kubernetes/README.md "managed backing services"
+require_contains deploy/kubernetes/README.md "real multi-node cluster"
 
 [[ "$(count_occurrences deploy/kubernetes/deployments.yaml "replicas: 2")" -eq 10 ]] || die "Phase 11 expects ten replicated readiness Deployments."
 require_not_contains deploy/kubernetes/deployments.yaml "kind: HorizontalPodAutoscaler"

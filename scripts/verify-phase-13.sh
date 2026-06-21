@@ -70,11 +70,11 @@ log "Kubernetes failure-test static gate"
 bash "$REPO_ROOT/scripts/failure-test-kubernetes.sh"
 
 log "Frontend unit checks"
-(cd frontend && npm run verify)
+(cd frontend && run_npm run verify)
 
 if [[ "$run_e2e" == true ]]; then
   log "Playwright browser E2E"
-  (cd frontend && npm run e2e)
+  (cd frontend && run_npm run e2e)
 else
   echo "Playwright E2E skipped. Run ./scripts/verify-phase-13.sh --run-e2e to start the local stack and execute it."
 fi

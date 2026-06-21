@@ -40,11 +40,9 @@ wait_for_compose_health minio 120
 log "Integration tests"
 run_go test -count=1 -p 1 -tags=integration ./...
 
-log "Debug walkthrough check"
-walkthrough="project-center/20-audits/debugging-walkthrough.md"
-require_file "$walkthrough"
+log "Public traceability documentation check"
 for term in X-Correlation-ID outbox_messages feed_events notifications; do
-  require_contains "$walkthrough" "$term"
+  require_contains README.md "$term"
 done
 
 echo "Phase 9 verification completed."
