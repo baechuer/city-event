@@ -258,18 +258,20 @@ write_summary() {
     echo
     echo "| Scenario | Status | Detail |"
     echo "| --- | --- | --- |"
-    while IFS=$'\t' read -r scenario status detail; do
-      [[ -n "$scenario" ]] || continue
-      printf '| %s | %s | %s |\n' "$scenario" "$status" "$detail"
+    local scenario_name scenario_status scenario_detail
+    while IFS=$'\t' read -r scenario_name scenario_status scenario_detail; do
+      [[ -n "$scenario_name" ]] || continue
+      printf '| %s | %s | %s |\n' "$scenario_name" "$scenario_status" "$scenario_detail"
     done <"$results_file"
     echo
     echo "## Recovery Metrics"
     echo
     echo "| Metric | Value |"
     echo "| --- | ---: |"
-    while IFS=$'\t' read -r metric value; do
-      [[ "$metric" != "metric" && -n "$metric" ]] || continue
-      printf '| %s | %s |\n' "$metric" "$value"
+    local metric_name metric_value
+    while IFS=$'\t' read -r metric_name metric_value; do
+      [[ "$metric_name" != "metric" && -n "$metric_name" ]] || continue
+      printf '| %s | %s |\n' "$metric_name" "$metric_value"
     done <"$metrics_file"
     echo
     echo "## Evidence Scope"
@@ -291,7 +293,7 @@ cleanup() {
   write_summary "$exit_code"
 }
 
-trap 'status=$?; cleanup "$status"; exit "$status"' EXIT
+trap '__cityevents_exit_code=$?; cleanup "$__cityevents_exit_code"; exit "$__cityevents_exit_code"' EXIT
 
 if [[ "$start_stack" == true ]]; then
   log "Start local stack"

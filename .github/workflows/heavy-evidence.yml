@@ -116,6 +116,10 @@ jobs:
             --max-outbox-dead 0 \
             --max-dlq-depth 0 \
             --feed-timeout-seconds 30
+        env:
+          RATE_LIMIT_AUTH_REQUESTS: 1000
+          RATE_LIMIT_MUTATION_REQUESTS: 1000
+          RATE_LIMIT_REQUESTS: 2000
 
       - name: Stop local stack
         if: always()
@@ -164,6 +168,10 @@ jobs:
             --max-outbox-dead 0 \
             --max-dlq-depth 0 \
             --feed-timeout-seconds 30
+        env:
+          RATE_LIMIT_AUTH_REQUESTS: 1000
+          RATE_LIMIT_MUTATION_REQUESTS: 1000
+          RATE_LIMIT_REQUESTS: 2000
 
       - name: Stop local stack
         if: always()

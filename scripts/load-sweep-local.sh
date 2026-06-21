@@ -220,7 +220,7 @@ for spec in "${profile_specs[@]}"; do
   log "Run load sweep profile $profile users=$users capacity=$capacity concurrency=$concurrency"
   profile_log="$run_dir/$profile.log"
   set +e
-  "$REPO_ROOT/scripts/load-test-local.sh" \
+  bash "$REPO_ROOT/scripts/load-test-local.sh" \
     --base-url "$base_url" \
     --run-label "sweep-$profile" \
     --users "$users" \
@@ -322,11 +322,11 @@ fi
 
 ## Interpretation
 
-`Max stable RPS candidate` is the highest observed throughput among profiles
+Max stable RPS candidate is the highest observed throughput among profiles
 where every load-test gate passed. It is a CI evidence number, not a production
 capacity guarantee.
 
-`Saturation point` is the first configured profile whose load-test gates failed.
+Saturation point is the first configured profile whose load-test gates failed.
 If it says "not reached within tested profiles", the tested range was not high
 enough to identify the bottleneck.
 
