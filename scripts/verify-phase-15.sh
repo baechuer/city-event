@@ -121,6 +121,8 @@ require_contains scripts/failure-test-dependencies.sh "postgres_outage_partial_u
 require_contains scripts/failure-test-dependencies.sh "postgres-outage-no-partial-writes"
 require_contains scripts/failure-test-dependencies.sh "__cityevents_exit_code"
 require_contains scripts/load-sweep-local.sh "bash \"\$REPO_ROOT/scripts/load-test-local.sh\""
+require_contains scripts/load-sweep-local.sh "wait_for_log_contains"
+require_contains scripts/load-sweep-local.sh "CityEvents local stack is running."
 require_contains scripts/route-correctness-evidence.sh "Route Correctness Evidence Summary"
 require_contains scripts/route-correctness-evidence.sh "TestAuthHandlersRegisterValidationAndDuplicate"
 require_contains scripts/route-correctness-evidence.sh "TestEventHandlersWorkflow"

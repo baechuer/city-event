@@ -158,6 +158,20 @@ wait_for_url() {
   return 1
 }
 
+wait_for_log_contains() {
+  local file="$1"
+  local pattern="$2"
+  local timeout_seconds="${3:-120}"
+  local deadline=$((SECONDS + timeout_seconds))
+  while (( SECONDS < deadline )); do
+    if [[ -f "$file" ]] && grep -Fq "$pattern" "$file"; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
 metric_value() {
   local file="$1"
   local key="$2"
@@ -197,6 +211,21 @@ trap 'stop_started_stack' EXIT
 if ! wait_for_url "$base_url/readyz" 120; then
   tail -n 120 "$run_dir/start-local.log" >&2 || true
   die "local stack did not become ready for load sweep."
+fi
+for url in \
+  "http://127.0.0.1:8081/readyz" \
+  "http://127.0.0.1:8082/readyz" \
+  "http://127.0.0.1:8083/readyz" \
+  "http://127.0.0.1:8084/readyz" \
+  "http://127.0.0.1:8085/readyz"; do
+  if ! wait_for_url "$url" 60; then
+    tail -n 120 "$run_dir/start-local.log" >&2 || true
+    die "local service did not become ready for load sweep: $url"
+  fi
+done
+if ! wait_for_log_contains "$run_dir/start-local.log" "CityEvents local stack is running." 120; then
+  tail -n 120 "$run_dir/start-local.log" >&2 || true
+  die "local stack startup did not reach the running sentinel for load sweep."
 fi
 
 highest_passing_profile="none"
