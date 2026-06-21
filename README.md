@@ -327,8 +327,8 @@ The repo includes layered verification:
 - Docker image build matrix.
 - Kubernetes static manifest checks.
 - GitHub Actions CI and security workflows.
-- Manual heavy-evidence workflow for Minikube smoke, load evidence, and
-  dependency failure evidence.
+- Manual heavy-evidence workflow for Minikube smoke, load evidence, load
+  sweep, and dependency failure evidence.
 
 Recent CI coverage includes:
 
@@ -338,6 +338,20 @@ CI: Go tests, frontend verify, Docker Compose validation, phase gates,
 
 Security: govulncheck, npm production dependency audit, CodeQL
 ```
+
+### Evidence Snapshot
+
+These numbers come from GitHub Actions controlled evidence runs, not production
+traffic:
+
+| Area | Evidence |
+| --- | --- |
+| 100-concurrent join workload | 100 users joined through the API gateway with capacity 50: 50 confirmed, 50 waitlisted, 100/100 expected HTTP 200, 0 unexpected 5xx, p95 0.504s, p99 0.539s, feed projection catch-up 0.106s. |
+| Load sweep | Five profiles passed through 200 concurrent joins. The highest observed stable throughput in the configured sweep was 46.47 requests/second; saturation was not reached within the tested profiles. |
+| Async health | Under the 100-concurrent workload, outbox `DEAD` rows were 0, RabbitMQ DLQ depth was 0, and retry queue depth was 0. |
+| Dependency failure | RabbitMQ outage evidence persisted an outbox row while the broker was down and recovered it from `PENDING` to `SENT`; Redis outage paths returned configured fallback responses; Postgres outage tests produced safe failures with 0 partial user/event rows after restore. |
+| Kubernetes smoke | Minikube evidence applied the local overlay, ran migrations, passed the gateway workflow, deleted an `api-gateway` pod, and verified readiness after replacement. |
+| Route/security gates | Route evidence checked 27 route markers with 0 failures; security evidence checked 38 gates covering safe errors, CSRF, JWT/RBAC, rate limiting, CORS, metrics auth, revocation fallback, and gateway spoofed-header stripping. |
 
 ## Run Locally
 
