@@ -12,23 +12,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-same-namespace
-  namespace: cityevents
-spec:
-  podSelector: {}
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector: {}
-  egress:
-    - to:
-        - podSelector: {}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
   name: allow-dns-egress
   namespace: cityevents
 spec:
@@ -65,3 +48,405 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-egress-to-http-services
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: api-gateway
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - auth-service
+                  - event-registration-service
+                  - feed-service
+                  - media-service
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-http-service-ingress
+  namespace: cityevents
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - auth-service
+          - event-registration-service
+          - feed-service
+          - media-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: api-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-event-media-to-auth-service
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: auth-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - event-registration-service
+                  - media-service
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-auth-introspection-egress
+  namespace: cityevents
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - event-registration-service
+          - media-service
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: auth-service
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-media-service-to-event-service
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: event-registration-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: media-service
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-media-service-event-egress
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: media-service
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: event-registration-service
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apps-to-postgres
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - auth-service
+                  - event-registration-service
+                  - feed-service
+                  - notification-service
+                  - media-service
+                  - outbox-relay
+                  - feed-worker
+                  - notification-worker
+                  - media-worker
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-egress
+  namespace: cityevents
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - auth-service
+          - event-registration-service
+          - feed-service
+          - notification-service
+          - media-service
+          - outbox-relay
+          - feed-worker
+          - notification-worker
+          - media-worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apps-to-redis
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - api-gateway
+                  - auth-service
+                  - event-registration-service
+                  - feed-service
+                  - notification-service
+                  - media-service
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-egress
+  namespace: cityevents
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - api-gateway
+          - auth-service
+          - event-registration-service
+          - feed-service
+          - notification-service
+          - media-service
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-rabbitmq-amqp
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: rabbitmq
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - outbox-relay
+                  - feed-worker
+                  - notification-worker
+      ports:
+        - protocol: TCP
+          port: 5672
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-rabbitmq-egress
+  namespace: cityevents
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - outbox-relay
+          - feed-worker
+          - notification-worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: rabbitmq
+      ports:
+        - protocol: TCP
+          port: 5672
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-minio-api
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: minio
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - media-service
+                  - media-worker
+      ports:
+        - protocol: TCP
+          port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-minio-egress
+  namespace: cityevents
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - media-service
+          - media-worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: minio
+      ports:
+        - protocol: TCP
+          port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-notification-worker-to-mailpit
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: mailpit
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: notification-worker
+      ports:
+        - protocol: TCP
+          port: 1025
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mailpit-egress
+  namespace: cityevents
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: notification-worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: mailpit
+      ports:
+        - protocol: TCP
+          port: 1025

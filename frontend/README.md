@@ -14,7 +14,7 @@ the CityEvents customer and admin workflows. It talks to the public
 - Role-aware publish gating for `ORGANIZER` and `ADMIN`.
 - Admin role update form.
 - Organizer/admin attendee moderation.
-- Media upload-intent workflow for live events.
+- Organizer/admin media upload-intent workflow for live events.
 - Runtime API gateway configuration through `/config.js`.
 
 ## Runtime Flow
@@ -155,7 +155,8 @@ npm run e2e
 The Playwright E2E starts the full local stack through
 `../scripts/start-local.sh` unless `CITYEVENTS_E2E_SKIP_WEBSERVER=true` is set.
 It verifies registration, admin promotion, UI login, publishing, joining, and
-metrics.
+metrics. When testing a non-local target, set `METRICS_BEARER_TOKEN` so the
+metrics assertion can scrape protected metrics.
 
 For headed debugging:
 
@@ -168,6 +169,6 @@ npm run e2e:headed
 
 The UI focuses on the workflows that best demonstrate the backend architecture:
 discovery, authentication, role-aware publishing, RSVP state, moderation, and
-media upload intent. Natural next additions would be richer account settings,
-event image upload UX, a larger admin dashboard, formal accessibility evidence,
-analytics, and broader responsive screenshot coverage.
+organizer/admin media upload intent. Natural next additions would be richer
+account settings, event image upload UX, a larger admin dashboard, formal
+accessibility evidence, analytics, and broader responsive screenshot coverage.

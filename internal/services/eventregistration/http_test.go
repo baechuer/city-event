@@ -2,7 +2,9 @@ package eventregistration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -114,6 +116,32 @@ func TestEventHandlersValidationAndAuthorization(t *testing.T) {
 	}
 }
 
+func TestEventHandlersRejectTokenDeniedByAuthService(t *testing.T) {
+	router, _ := testEventRouterWithIntrospector(t, testEventIntrospector{
+		denyUserIDs: map[string]bool{"organizer-1": true},
+	})
+
+	startsAt := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
+	body := `{"title":"Tech","description":"Monthly meetup","city":"Sydney","venue":"Town Hall","startsAt":"` + startsAt + `","capacity":10}`
+	resp := doEventJSON(router, http.MethodPost, "/v1/events", body, "organizer-1", organizerHeaders())
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked token status = %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestEventHandlersUseCurrentRoleFromAuthService(t *testing.T) {
+	router, _ := testEventRouterWithIntrospector(t, testEventIntrospector{
+		roleByUserID: map[string]identity.Role{"organizer-1": identity.RoleUser},
+	})
+
+	startsAt := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
+	body := `{"title":"Tech","description":"Monthly meetup","city":"Sydney","venue":"Town Hall","startsAt":"` + startsAt + `","capacity":10}`
+	resp := doEventJSON(router, http.MethodPost, "/v1/events", body, "organizer-1", organizerHeaders())
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("stale organizer token status = %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
 func TestEventHandlersOrganizerAndAdminCanCancelAttendee(t *testing.T) {
 	router, _ := testEventRouter(t)
 	created := createEventViaHTTP(t, router, "organizer-1", 1)
@@ -195,13 +223,18 @@ func createEventViaHTTP(t *testing.T, router http.Handler, organizerID string, c
 
 func testEventRouter(t *testing.T) (http.Handler, *MemoryRepository) {
 	t.Helper()
+	return testEventRouterWithIntrospector(t, testEventIntrospector{})
+}
+
+func testEventRouterWithIntrospector(t *testing.T, introspector authn.Introspector) (http.Handler, *MemoryRepository) {
+	t.Helper()
 	repo := NewMemoryRepository()
 	svc := NewService(repo)
 	cfg, err := config.Load("event-registration-service", nil)
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	return NewHTTPHandler(cfg, nil, svc), repo
+	return NewHTTPHandlerWithIntrospector(cfg, nil, svc, introspector), repo
 }
 
 func doEventJSON(handler http.Handler, method, path, body, userID string, headers map[string]string) *httptest.ResponseRecorder {
@@ -252,4 +285,32 @@ func decodeBody(t *testing.T, body []byte, target any) {
 	if err := json.Unmarshal(body, target); err != nil {
 		t.Fatalf("decode body %s: %v", string(body), err)
 	}
+}
+
+type testEventIntrospector struct {
+	denyUserIDs  map[string]bool
+	roleByUserID map[string]identity.Role
+}
+
+func (i testEventIntrospector) Introspect(_ context.Context, token string) (authn.Subject, error) {
+	manager := authn.NewTokenManager("dev-secret-change-me", "cityevents", time.Hour)
+	claims, err := manager.Verify(token)
+	if err != nil {
+		return authn.Subject{}, err
+	}
+	if i.denyUserIDs[claims.UserID] {
+		return authn.Subject{}, authn.ErrInvalidToken
+	}
+	role := claims.Role
+	if currentRole, ok := i.roleByUserID[claims.UserID]; ok {
+		role = currentRole
+	}
+	if !identity.ValidRole(role) {
+		return authn.Subject{}, errors.New("invalid role")
+	}
+	return authn.Subject{
+		UserID: claims.UserID,
+		Email:  claims.Email,
+		Role:   role,
+	}, nil
 }

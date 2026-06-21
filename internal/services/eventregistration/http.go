@@ -20,8 +20,9 @@ import (
 const eventJSONLimitBytes = 128 * 1024
 
 type Handler struct {
-	service *Service
-	tokens  authn.TokenManager
+	service      *Service
+	tokens       authn.TokenManager
+	introspector authn.Introspector
 }
 
 func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (http.Handler, func(context.Context) error, error) {
@@ -45,10 +46,23 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 }
 
 func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) http.Handler {
+	var introspector authn.Introspector
+	introspector, err := authn.NewHTTPIntrospector(cfg.AuthServiceURL, nil)
+	if err != nil {
+		introspector = denyIntrospector{}
+	}
+	return NewHTTPHandlerWithIntrospector(cfg, logger, service, introspector)
+}
+
+func NewHTTPHandlerWithIntrospector(cfg config.Config, logger *slog.Logger, service *Service, introspector authn.Introspector) http.Handler {
 	r := httpapi.NewBaseRouter(cfg, logger)
+	if introspector == nil {
+		introspector = denyIntrospector{}
+	}
 	handler := &Handler{
-		service: service,
-		tokens:  authn.NewTokenManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL),
+		service:      service,
+		tokens:       authn.NewTokenManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL),
+		introspector: introspector,
 	}
 
 	r.Post("/v1/events", handler.createEvent)
@@ -345,7 +359,15 @@ func (h *Handler) principalFromRequest(r *http.Request) (principal, bool) {
 	if err != nil {
 		return principal{}, false
 	}
-	return principal{UserID: claims.UserID, Role: claims.Role}, true
+	subject, err := h.introspector.Introspect(r.Context(), token)
+	if err != nil || subject.UserID != claims.UserID {
+		return principal{}, false
+	}
+	role := identity.NormalizeRole(string(subject.Role))
+	if !identity.ValidRole(role) {
+		return principal{}, false
+	}
+	return principal{UserID: subject.UserID, Role: role}, true
 }
 
 func (h *Handler) userIDFromRequest(r *http.Request) (string, bool) {
@@ -354,15 +376,17 @@ func (h *Handler) userIDFromRequest(r *http.Request) (string, bool) {
 }
 
 func (h *Handler) optionalUserIDFromRequest(r *http.Request) (string, bool) {
-	token, ok := authn.BearerToken(r)
-	if !ok {
+	if _, ok := authn.BearerToken(r); !ok {
 		return "", true
 	}
-	claims, err := h.tokens.Verify(token)
-	if err != nil {
-		return "", false
-	}
-	return claims.UserID, true
+	principal, ok := h.principalFromRequest(r)
+	return principal.UserID, ok
+}
+
+type denyIntrospector struct{}
+
+func (denyIntrospector) Introspect(context.Context, string) (authn.Subject, error) {
+	return authn.Subject{}, authn.ErrInvalidToken
 }
 
 func writeEventError(w http.ResponseWriter, err error) {

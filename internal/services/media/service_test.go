@@ -6,10 +6,22 @@ import (
 	"time"
 )
 
+type allowEventAuthorizer struct{}
+
+func (allowEventAuthorizer) AuthorizeCreateMedia(context.Context, EventMediaAuthorization) error {
+	return nil
+}
+
+type forbiddenEventAuthorizer struct{}
+
+func (forbiddenEventAuthorizer) AuthorizeCreateMedia(context.Context, EventMediaAuthorization) error {
+	return ErrForbidden
+}
+
 func TestServiceCreateUploadMarkUploadedAndWorkerReady(t *testing.T) {
 	repo := NewMemoryRepository()
 	storage := NewMemoryStorage()
-	service := NewService(repo, storage, "bucket")
+	service := NewService(repo, storage, "bucket", allowEventAuthorizer{})
 	service.now = func() time.Time { return time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC) }
 
 	intent, err := service.CreateUpload(context.Background(), UploadCommand{
@@ -47,6 +59,20 @@ func TestServiceCreateUploadMarkUploadedAndWorkerReady(t *testing.T) {
 	}
 }
 
+func TestServiceCreateUploadRequiresEventAuthorization(t *testing.T) {
+	service := NewService(NewMemoryRepository(), NewMemoryStorage(), "bucket", forbiddenEventAuthorizer{})
+	_, err := service.CreateUpload(context.Background(), UploadCommand{
+		EventID:     "event-1",
+		UploaderID:  "user-1",
+		Filename:    "banner.jpg",
+		ContentType: "image/jpeg",
+		SizeBytes:   10,
+	})
+	if err != ErrForbidden {
+		t.Fatalf("create upload error = %v, want ErrForbidden", err)
+	}
+}
+
 func TestWorkerMarksMismatchedObjectMetadataFailed(t *testing.T) {
 	for name, put := range map[string]func(*MemoryStorage, Asset){
 		"size": func(storage *MemoryStorage, asset Asset) {
@@ -59,7 +85,7 @@ func TestWorkerMarksMismatchedObjectMetadataFailed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			repo := NewMemoryRepository()
 			storage := NewMemoryStorage()
-			service := NewService(repo, storage, "bucket")
+			service := NewService(repo, storage, "bucket", allowEventAuthorizer{})
 			intent, err := service.CreateUpload(context.Background(), UploadCommand{
 				EventID:     "event-1",
 				UploaderID:  "user-1",
@@ -92,7 +118,7 @@ func TestWorkerMarksMismatchedObjectMetadataFailed(t *testing.T) {
 func TestWorkerMarksMissingObjectFailed(t *testing.T) {
 	repo := NewMemoryRepository()
 	storage := NewMemoryStorage()
-	service := NewService(repo, storage, "bucket")
+	service := NewService(repo, storage, "bucket", allowEventAuthorizer{})
 	intent, err := service.CreateUpload(context.Background(), UploadCommand{
 		EventID:     "event-1",
 		UploaderID:  "user-1",

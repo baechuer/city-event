@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"crypto/subtle"
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/health"
@@ -50,11 +52,29 @@ func newBaseRouterWithRateLimitStore(cfg config.Config, logger *slog.Logger, sto
 	})
 
 	r.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		if !authorizedForMetrics(cfg, r) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="cityevents-metrics"`)
+			http.Error(w, "metrics authentication required", http.StatusUnauthorized)
+			return
+		}
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		_, _ = w.Write([]byte(observability.MetricsText()))
 	})
 
 	return r
+}
+
+func authorizedForMetrics(cfg config.Config, r *http.Request) bool {
+	expected := strings.TrimSpace(cfg.MetricsBearerToken)
+	if expected == "" {
+		return true
+	}
+	header := strings.TrimSpace(r.Header.Get("Authorization"))
+	token, ok := strings.CutPrefix(header, "Bearer ")
+	if !ok {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(strings.TrimSpace(token)), []byte(expected)) == 1
 }
 
 func localCORSMiddleware(cfg config.Config) func(http.Handler) http.Handler {

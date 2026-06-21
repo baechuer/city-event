@@ -48,6 +48,7 @@ for file in \
   frontend/package-lock.json \
   frontend/playwright.config.mjs \
   frontend/e2e/cityevents.spec.mjs \
+  scripts/verify-frontend.sh \
   internal/platform/httpapi/rate_limit.go \
   deploy/kubernetes/poddisruptionbudgets.yaml \
   scripts/failure-test-kubernetes.sh; do
@@ -70,7 +71,7 @@ log "Kubernetes failure-test static gate"
 bash "$REPO_ROOT/scripts/failure-test-kubernetes.sh"
 
 log "Frontend unit checks"
-(cd frontend && run_npm run verify)
+bash "$REPO_ROOT/scripts/verify-frontend.sh"
 
 if [[ "$run_e2e" == true ]]; then
   log "Playwright browser E2E"

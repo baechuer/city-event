@@ -7,10 +7,11 @@ import (
 )
 
 type Service struct {
-	repo    Repository
-	storage Storage
-	bucket  string
-	now     func() time.Time
+	repo            Repository
+	storage         Storage
+	eventAuthorizer EventAuthorizer
+	bucket          string
+	now             func() time.Time
 }
 
 type UploadIntent struct {
@@ -20,21 +21,33 @@ type UploadIntent struct {
 	UploadForm   map[string]string `json:"uploadForm,omitempty"`
 }
 
-func NewService(repo Repository, storage Storage, bucket string) *Service {
+func NewService(repo Repository, storage Storage, bucket string, eventAuthorizer EventAuthorizer) *Service {
+	if eventAuthorizer == nil {
+		eventAuthorizer = denyEventAuthorizer{}
+	}
 	return &Service{
-		repo:    repo,
-		storage: storage,
-		bucket:  strings.TrimSpace(bucket),
-		now:     time.Now,
+		repo:            repo,
+		storage:         storage,
+		eventAuthorizer: eventAuthorizer,
+		bucket:          strings.TrimSpace(bucket),
+		now:             time.Now,
 	}
 }
 
 func (s *Service) CreateUpload(ctx context.Context, cmd UploadCommand) (UploadIntent, error) {
-	if err := s.storage.EnsureBucket(ctx, s.bucket); err != nil {
-		return UploadIntent{}, err
-	}
 	asset, err := NewAsset(cmd, s.bucket, s.now())
 	if err != nil {
+		return UploadIntent{}, err
+	}
+	if err := s.eventAuthorizer.AuthorizeCreateMedia(ctx, EventMediaAuthorization{
+		EventID:     asset.EventID,
+		UserID:      asset.UploaderID,
+		Role:        cmd.UploaderRole,
+		AccessToken: cmd.AccessToken,
+	}); err != nil {
+		return UploadIntent{}, err
+	}
+	if err := s.storage.EnsureBucket(ctx, s.bucket); err != nil {
 		return UploadIntent{}, err
 	}
 	target, err := s.storage.PresignedUpload(ctx, asset.Bucket, asset.ObjectKey, asset.ContentType, asset.SizeBytes, 15*time.Minute)

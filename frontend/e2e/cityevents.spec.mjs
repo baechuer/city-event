@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 const apiBase = (process.env.CITYEVENTS_API_BASE || 'http://127.0.0.1:8080').replace(/\/+$/, '');
 const adminEmail = process.env.CITYEVENTS_E2E_ADMIN_EMAIL || 'admin@cityevents.local';
 const adminPassword = process.env.CITYEVENTS_E2E_ADMIN_PASSWORD || 'AdminPass12345';
+const metricsBearerToken = process.env.METRICS_BEARER_TOKEN || '';
 const testPassword = 'StrongerPass123';
 
 test('organizer publishes an event and an attendee joins it', async ({ page, request }) => {
@@ -53,7 +54,9 @@ test('organizer publishes an event and an attendee joins it', async ({ page, req
   await expect(page.getByText('You are going.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Joined' })).toBeVisible();
 
-  const metrics = await request.get(`${apiBase}/metrics`);
+  const metrics = await request.get(`${apiBase}/metrics`, {
+    headers: metricsBearerToken ? { Authorization: `Bearer ${metricsBearerToken}` } : {},
+  });
   expect(metrics.ok()).toBeTruthy();
   await expect(metrics.text()).resolves.toContain('cityevents_http_request_duration_seconds_bucket');
 });

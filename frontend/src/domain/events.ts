@@ -274,7 +274,7 @@ export function rsvpHeadline(event: CityEvent, joinStatus: string, isLive: boole
 
 export function rsvpDetail(joinStatus: string, isLive: boolean, user: User | null): string {
   if (!isLive) return 'This card shows the discovery experience. Live RSVP is available for events created in CityEvents.';
-  if (!user?.id) return 'Browsing stays open. Sign in only when you want to join, publish, or manage media.';
+  if (!user?.id) return 'Browsing stays open. Sign in when you want to join, publish, or manage organizer media.';
   switch (joinStatus) {
     case 'CONFIRMED': return 'Your spot is confirmed. Cancel if plans change.';
     case 'WAITLISTED': return 'You are in line if another attendee cancels.';

@@ -54,6 +54,7 @@ for file in \
   scripts/k8s-live-smoke.sh \
   scripts/failure-test-dependencies.sh \
   scripts/route-correctness-evidence.sh \
+  scripts/security-error-evidence.sh \
   scripts/load-test-local.sh \
   scripts/load-sweep-local.sh \
   scripts/inspect-async-ops.sh \
@@ -96,6 +97,7 @@ require_contains .github/workflows/heavy-evidence.yml "load-sweep-evidence"
 require_contains .github/workflows/heavy-evidence.yml "run_dependency_failures"
 require_contains .github/workflows/heavy-evidence.yml "dependency-failure-evidence"
 require_contains .github/workflows/ci.yml "route-correctness-evidence"
+require_contains .github/workflows/ci.yml "security-error-evidence"
 require_contains scripts/repair-minikube.sh "delete_profile=true"
 require_contains scripts/repair-minikube.sh "wait_for_cluster_access"
 require_contains scripts/k8s-live-smoke.sh "A completed run is local Kubernetes evidence"
@@ -122,6 +124,13 @@ require_contains scripts/route-correctness-evidence.sh "TestEventHandlersWorkflo
 require_contains scripts/route-correctness-evidence.sh "TestMediaHandlersWorkflow"
 require_contains scripts/route-correctness-evidence.sh "TestGatewayValidatesTokenAndStripsSpoofedIdentityHeaders"
 require_contains scripts/route-correctness-evidence.sh "TestOutboxAndConsumerMetrics"
+require_contains scripts/security-error-evidence.sh "Security And Error Evidence Summary"
+require_contains scripts/security-error-evidence.sh "TestAuthHandlersLoginFailures"
+require_contains scripts/security-error-evidence.sh "TestDecodeJSONLimitedRejectsLargeBody"
+require_contains scripts/security-error-evidence.sh "TestAuthHandlersRefreshRotatesCookieAndRejectsReuse"
+require_contains scripts/security-error-evidence.sh "TestGatewayValidatesTokenAndStripsSpoofedIdentityHeaders"
+require_contains scripts/security-error-evidence.sh "TestRateLimitRejectsRepeatedRequests"
+require_contains scripts/security-error-evidence.sh "TestMetricsRequiresBearerTokenWhenConfigured"
 require_contains scripts/load-test-local.sh "Diagnostic join latency p50 seconds"
 require_contains scripts/load-test-local.sh "Join latency p99 seconds"
 require_contains scripts/load-test-local.sh "Join throughput requests/second"

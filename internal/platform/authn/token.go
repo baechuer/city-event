@@ -96,6 +96,21 @@ func (m TokenManager) Verify(token string) (Claims, error) {
 		return Claims{}, ErrInvalidToken
 	}
 
+	var header struct {
+		Algorithm string `json:"alg"`
+		Type      string `json:"typ"`
+	}
+	rawHeader, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return Claims{}, ErrInvalidToken
+	}
+	if err := json.Unmarshal(rawHeader, &header); err != nil {
+		return Claims{}, ErrInvalidToken
+	}
+	if header.Algorithm != "HS256" || header.Type != "JWT" {
+		return Claims{}, ErrInvalidToken
+	}
+
 	unsigned := parts[0] + "." + parts[1]
 	expected := m.sign(unsigned)
 	if !hmac.Equal([]byte(expected), []byte(parts[2])) {

@@ -176,6 +176,44 @@ func TestCorrelationIDAndMetrics(t *testing.T) {
 	}
 }
 
+func TestMetricsRequiresBearerTokenWhenConfigured(t *testing.T) {
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		values := map[string]string{
+			"METRICS_BEARER_TOKEN": "metrics-token",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := NewRouter(cfg, nil)
+
+	unauthorized := httptest.NewRecorder()
+	router.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated metrics status = %d, want 401", unauthorized.Code)
+	}
+
+	wrongReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	wrongReq.Header.Set("Authorization", "Bearer wrong-token")
+	wrong := httptest.NewRecorder()
+	router.ServeHTTP(wrong, wrongReq)
+	if wrong.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong token metrics status = %d, want 401", wrong.Code)
+	}
+
+	validReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	validReq.Header.Set("Authorization", "Bearer metrics-token")
+	valid := httptest.NewRecorder()
+	router.ServeHTTP(valid, validReq)
+	if valid.Code != http.StatusOK {
+		t.Fatalf("valid token metrics status = %d body=%s", valid.Code, valid.Body.String())
+	}
+	if !strings.Contains(valid.Body.String(), "cityevents_http_requests_total") {
+		t.Fatalf("metrics body missing request counter: %s", valid.Body.String())
+	}
+}
+
 func TestRateLimitRejectsRepeatedRequests(t *testing.T) {
 	cfg, err := config.Load("api-gateway", func(key string) string {
 		values := map[string]string{

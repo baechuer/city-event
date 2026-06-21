@@ -43,6 +43,9 @@ func TestLoadDefaults(t *testing.T) {
 	if len(cfg.TrustedProxyCIDRs) != 0 {
 		t.Fatalf("trusted proxy cidrs should be empty by default: %+v", cfg.TrustedProxyCIDRs)
 	}
+	if cfg.MetricsBearerToken != "" {
+		t.Fatalf("metrics token should be empty for local defaults")
+	}
 	if cfg.AuthServiceURL != "http://127.0.0.1:8081" || cfg.EventServiceURL != "http://127.0.0.1:8082" {
 		t.Fatalf("expected local service URL defaults, got auth=%q event=%q", cfg.AuthServiceURL, cfg.EventServiceURL)
 	}
@@ -72,6 +75,7 @@ func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 		"RATE_LIMIT_AUTH_REQUESTS":       "5",
 		"RATE_LIMIT_MUTATION_REQUESTS":   "20",
 		"TRUSTED_PROXY_CIDRS":            "127.0.0.1/32,10.0.0.0/8",
+		"METRICS_BEARER_TOKEN":           "metrics-token",
 		"CORS_ALLOWED_ORIGINS":           "https://cityevents.example,http://localhost:18088",
 		"UNRELATED_SERVICE_HTTP_ADDR":    ":9200",
 	}
@@ -98,6 +102,9 @@ func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 	}
 	if len(cfg.TrustedProxyCIDRs) != 2 || cfg.TrustedProxyCIDRs[0] != "127.0.0.1/32" {
 		t.Fatalf("unexpected trusted proxy cidrs: %+v", cfg.TrustedProxyCIDRs)
+	}
+	if cfg.MetricsBearerToken != "metrics-token" {
+		t.Fatalf("metrics token = %q, want configured value", cfg.MetricsBearerToken)
 	}
 	if len(cfg.AllowedOrigins) != 2 || cfg.AllowedOrigins[0] != "https://cityevents.example" {
 		t.Fatalf("unexpected allowed origins: %+v", cfg.AllowedOrigins)
@@ -234,6 +241,26 @@ func TestValidateRejectsNonPositiveRedisRateLimitTimeout(t *testing.T) {
 
 	if err := cfg.Validate(); err == nil {
 		t.Fatalf("expected non-positive redis rate limit timeout to be rejected")
+	}
+}
+
+func TestValidateRequiresMetricsTokenOutsideLocalAndTest(t *testing.T) {
+	_, err := Load("api-gateway", mapGetenv(map[string]string{
+		"CITYEVENTS_ENV": "kubernetes",
+	}))
+	if err == nil {
+		t.Fatalf("expected missing metrics token to be rejected outside local/test")
+	}
+
+	cfg, err := Load("api-gateway", mapGetenv(map[string]string{
+		"CITYEVENTS_ENV":       "kubernetes",
+		"METRICS_BEARER_TOKEN": "metrics-token",
+	}))
+	if err != nil {
+		t.Fatalf("load config with metrics token: %v", err)
+	}
+	if cfg.MetricsBearerToken != "metrics-token" {
+		t.Fatalf("metrics token = %q, want configured value", cfg.MetricsBearerToken)
 	}
 }
 

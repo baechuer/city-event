@@ -79,6 +79,7 @@ valid_node_candidate() {
 node_bin() {
   local candidate
   for candidate in \
+    "${CITYEVENTS_NODE:-}" \
     "$(command -v node 2>/dev/null || true)" \
     "$(command -v node.exe 2>/dev/null || true)" \
     "/mnt/c/nvm4w/nodejs/node.exe" \
@@ -99,6 +100,54 @@ run_node() {
   "$node" "$@"
 }
 
+run_node_in_current_dir() {
+  local node="$1"
+  shift
+  "$node" "$@"
+}
+
+run_frontend_package_script_without_npm() {
+  local script="$1"
+  shift || true
+
+  local node
+  node="$(node_bin)"
+  require_file "node_modules/typescript/bin/tsc"
+
+  case "$script" in
+    typecheck)
+      run_node_in_current_dir "$node" node_modules/typescript/bin/tsc --noEmit "$@"
+      ;;
+    test)
+      require_file "node_modules/tsx/dist/cli.mjs"
+      run_node_in_current_dir "$node" node_modules/tsx/dist/cli.mjs --test src/api.test.ts src/state.test.ts "$@"
+      ;;
+    build)
+      require_file "node_modules/vite/bin/vite.js"
+      run_node_in_current_dir "$node" node_modules/typescript/bin/tsc --noEmit
+      run_node_in_current_dir "$node" node_modules/vite/bin/vite.js build "$@"
+      ;;
+    verify)
+      require_file "node_modules/tsx/dist/cli.mjs"
+      require_file "node_modules/vite/bin/vite.js"
+      run_node_in_current_dir "$node" node_modules/typescript/bin/tsc --noEmit
+      run_node_in_current_dir "$node" node_modules/tsx/dist/cli.mjs --test src/api.test.ts src/state.test.ts
+      run_node_in_current_dir "$node" node_modules/vite/bin/vite.js build
+      ;;
+    e2e)
+      require_file "node_modules/playwright/cli.js"
+      run_node_in_current_dir "$node" node_modules/playwright/cli.js test "$@"
+      ;;
+    e2e:headed)
+      require_file "node_modules/playwright/cli.js"
+      run_node_in_current_dir "$node" node_modules/playwright/cli.js test --headed "$@"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 run_npm() {
   if command -v npm >/dev/null 2>&1; then
     npm "$@"
@@ -111,6 +160,13 @@ run_npm() {
   if command -v cmd.exe >/dev/null 2>&1 && MSYS2_ARG_CONV_EXCL="*" cmd.exe /C where npm >/dev/null 2>&1; then
     MSYS2_ARG_CONV_EXCL="*" cmd.exe /C npm "$@"
     return
+  fi
+  if [[ "${1:-}" == "run" && $# -ge 2 ]]; then
+    local script="$2"
+    shift 2
+    if run_frontend_package_script_without_npm "$script" "$@"; then
+      return
+    fi
   fi
   die "npm was not found. Install Node/npm or use the bundled Codex runtime."
 }

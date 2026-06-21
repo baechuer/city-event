@@ -166,11 +166,24 @@ func TestAuthHandlersLoginFailures(t *testing.T) {
 	if unknown.Code != http.StatusUnauthorized {
 		t.Fatalf("unknown login status = %d", unknown.Code)
 	}
+	unknownErr := errorPayloadFromBody(t, unknown.Body.Bytes())
+	if unknownErr.Error.Code != "invalid_credentials" || unknownErr.Error.Message != "invalid email or password" {
+		t.Fatalf("unknown login error = %+v, want invalid_credentials", unknownErr.Error)
+	}
 
 	_ = doJSON(router, http.MethodPost, "/v1/auth/register", `{"email":"user@example.com","password":"StrongerPass123","displayName":"User"}`, "")
 	wrong := doJSON(router, http.MethodPost, "/v1/auth/login", `{"email":"user@example.com","password":"WrongPass123"}`, "")
 	if wrong.Code != http.StatusUnauthorized {
 		t.Fatalf("wrong login status = %d", wrong.Code)
+	}
+	wrongErr := errorPayloadFromBody(t, wrong.Body.Bytes())
+	if wrongErr.Error.Code != unknownErr.Error.Code || wrongErr.Error.Message != unknownErr.Error.Message {
+		t.Fatalf("login failures leak different public errors: unknown=%+v wrong=%+v", unknownErr.Error, wrongErr.Error)
+	}
+	for _, leaked := range []string{"account_not_found", "password_mismatch", "user not found", "wrong password"} {
+		if bytes.Contains(unknown.Body.Bytes(), []byte(leaked)) || bytes.Contains(wrong.Body.Bytes(), []byte(leaked)) {
+			t.Fatalf("login failure leaked private cause %q: unknown=%s wrong=%s", leaked, unknown.Body.String(), wrong.Body.String())
+		}
 	}
 }
 
@@ -293,6 +306,13 @@ func accessTokenFromBody(t *testing.T, body []byte) string {
 func authPayloadFromBody(t *testing.T, body []byte) AuthResult {
 	t.Helper()
 	var payload AuthResult
+	decodeJSONBody(t, body, &payload)
+	return payload
+}
+
+func errorPayloadFromBody(t *testing.T, body []byte) errorResponse {
+	t.Helper()
+	var payload errorResponse
 	decodeJSONBody(t, body, &payload)
 	return payload
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/health"
 	"github.com/baechuer/cityevents/internal/platform/httpapi"
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,8 +18,9 @@ import (
 const mediaJSONLimitBytes = 64 * 1024
 
 type Handler struct {
-	service *Service
-	tokens  authn.TokenManager
+	service      *Service
+	tokens       authn.TokenManager
+	introspector authn.Introspector
 }
 
 func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (http.Handler, func(context.Context) error, error) {
@@ -35,7 +37,12 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 		pool.Close()
 		return nil, nil, err
 	}
-	router := NewHTTPHandler(cfg, logger, NewService(NewPostgresRepository(pool), storage, cfg.MinIOBucket))
+	eventAuthorizer, err := NewHTTPEventAuthorizer(cfg.EventServiceURL, nil)
+	if err != nil {
+		pool.Close()
+		return nil, nil, err
+	}
+	router := NewHTTPHandler(cfg, logger, NewService(NewPostgresRepository(pool), storage, cfg.MinIOBucket, eventAuthorizer))
 	cleanup := func(context.Context) error {
 		pool.Close()
 		return nil
@@ -44,10 +51,23 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 }
 
 func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) http.Handler {
+	var introspector authn.Introspector
+	introspector, err := authn.NewHTTPIntrospector(cfg.AuthServiceURL, nil)
+	if err != nil {
+		introspector = denyIntrospector{}
+	}
+	return NewHTTPHandlerWithIntrospector(cfg, logger, service, introspector)
+}
+
+func NewHTTPHandlerWithIntrospector(cfg config.Config, logger *slog.Logger, service *Service, introspector authn.Introspector) http.Handler {
 	r := httpapi.NewBaseRouter(cfg, logger)
+	if introspector == nil {
+		introspector = denyIntrospector{}
+	}
 	handler := &Handler{
-		service: service,
-		tokens:  authn.NewTokenManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL),
+		service:      service,
+		tokens:       authn.NewTokenManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL),
+		introspector: introspector,
 	}
 	r.Post("/v1/media/uploads", handler.createUpload)
 	r.Post("/v1/media/{mediaID}/uploaded", handler.markUploaded)
@@ -56,7 +76,7 @@ func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) ht
 }
 
 func (h *Handler) createUpload(w http.ResponseWriter, r *http.Request) {
-	userID, ok := h.userIDFromRequest(r)
+	principal, ok := h.principalFromRequest(r)
 	if !ok {
 		writeMediaError(w, ErrUnauthorized)
 		return
@@ -67,11 +87,13 @@ func (h *Handler) createUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	intent, err := h.service.CreateUpload(r.Context(), UploadCommand{
-		EventID:     req.EventID,
-		UploaderID:  userID,
-		Filename:    req.Filename,
-		ContentType: req.ContentType,
-		SizeBytes:   req.SizeBytes,
+		EventID:      req.EventID,
+		UploaderID:   principal.UserID,
+		UploaderRole: principal.Role,
+		AccessToken:  principal.AccessToken,
+		Filename:     req.Filename,
+		ContentType:  req.ContentType,
+		SizeBytes:    req.SizeBytes,
 	})
 	if err != nil {
 		writeMediaError(w, err)
@@ -119,20 +141,49 @@ type errorBody struct {
 	Message string `json:"message"`
 }
 
+type principal struct {
+	UserID      string
+	Role        identity.Role
+	AccessToken string
+}
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any, maxBytes int64) error {
 	return httpapi.DecodeJSONLimited(w, r, target, maxBytes)
 }
 
 func (h *Handler) userIDFromRequest(r *http.Request) (string, bool) {
+	principal, ok := h.principalFromRequest(r)
+	return principal.UserID, ok
+}
+
+func (h *Handler) principalFromRequest(r *http.Request) (principal, bool) {
 	token, ok := authn.BearerToken(r)
 	if !ok {
-		return "", false
+		return principal{}, false
 	}
 	claims, err := h.tokens.Verify(token)
 	if err != nil {
-		return "", false
+		return principal{}, false
 	}
-	return claims.UserID, claims.UserID != ""
+	subject, err := h.introspector.Introspect(r.Context(), token)
+	if err != nil || subject.UserID != claims.UserID {
+		return principal{}, false
+	}
+	role := identity.NormalizeRole(string(subject.Role))
+	if !identity.ValidRole(role) {
+		return principal{}, false
+	}
+	return principal{
+		UserID:      subject.UserID,
+		Role:        role,
+		AccessToken: token,
+	}, true
+}
+
+type denyIntrospector struct{}
+
+func (denyIntrospector) Introspect(context.Context, string) (authn.Subject, error) {
+	return authn.Subject{}, authn.ErrInvalidToken
 }
 
 func writeMediaError(w http.ResponseWriter, err error) {

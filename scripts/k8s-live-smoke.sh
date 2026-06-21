@@ -12,6 +12,7 @@ target_deployment="api-gateway"
 local_port="18080"
 evidence_dir=""
 original_args="$*"
+metrics_bearer_token="${METRICS_BEARER_TOKEN:-local-kubernetes-metrics-token}"
 
 app_deployments=(
   "api-gateway"
@@ -78,6 +79,10 @@ Options:
   --evidence-dir DIR     Evidence output directory. Default: tmp/k8s-live-smoke/<timestamp>
   --cleanup              Delete the cityevents namespace at the end after success
   -h, --help             Show this help
+
+Environment:
+  METRICS_BEARER_TOKEN   Bearer token used when scraping /metrics. Defaults to
+                         the local Kubernetes overlay token.
 
 This script is heavy host-level evidence and is approved only inside GitHub
 Actions. It is not a production HA test because the local overlay uses
@@ -462,7 +467,7 @@ event_id="$(json_eval "data.event.id" "$event_json")"
 
 post_json "/v1/events/$event_id/join" '{}' -H "Authorization: Bearer $attendee_token" -H "Idempotency-Key: k8s-smoke-$suffix" >/dev/null
 curl_cmd -fsS -H "Authorization: Bearer $attendee_token" "$api_base/v1/events/$event_id/join" >"$evidence_dir/join-status.json"
-curl_cmd -fsS "$api_base/metrics" >"$evidence_dir/metrics.txt"
+curl_cmd -fsS -H "Authorization: Bearer $metrics_bearer_token" "$api_base/metrics" >"$evidence_dir/metrics.txt"
 grep -Fq "cityevents_http_request_duration_seconds" "$evidence_dir/metrics.txt" || die "metrics endpoint did not expose request duration histogram"
 record_result "Gateway workflow passed: register users, admin promotion, event creation, attendee join, and metrics."
 

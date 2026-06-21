@@ -12,7 +12,7 @@ export function AccountPage({ view }: { view: ViewModel }) {
         <div className="page-intro">
           <p className="eyebrow">Account</p>
           <h1>Sign in only when you are ready to act.</h1>
-          <p>Visitors can browse first. Joining, canceling, publishing, and media upload intents require identity.</p>
+          <p>Visitors can browse first. Joining and canceling require identity; publishing and media upload intents require organizer/admin access.</p>
         </div>
         <AuthPanel title="Enter CityEvents" detail="Use a 12+ character password with mixed case and a number." view={view} />
       </section>

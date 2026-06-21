@@ -45,6 +45,7 @@ type Config struct {
 	RateLimitAuthRequests       int
 	RateLimitMutationRequests   int
 	TrustedProxyCIDRs           []string
+	MetricsBearerToken          string
 	SeedAdminEmail              string
 	SeedAdminPass               string
 	SeedAdminName               string
@@ -171,6 +172,7 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 		RateLimitAuthRequests:       rateLimitAuthRequests,
 		RateLimitMutationRequests:   rateLimitMutationRequests,
 		TrustedProxyCIDRs:           parseCSV(env(getenv, "TRUSTED_PROXY_CIDRS", "")),
+		MetricsBearerToken:          env(getenv, "METRICS_BEARER_TOKEN", ""),
 		SeedAdminEmail:              env(getenv, "SEED_ADMIN_EMAIL", ""),
 		SeedAdminPass:               env(getenv, "SEED_ADMIN_PASSWORD", ""),
 		SeedAdminName:               env(getenv, "SEED_ADMIN_DISPLAY_NAME", "CityEvents Admin"),
@@ -253,6 +255,9 @@ func (c Config) Validate() error {
 			return fmt.Errorf("invalid trusted proxy cidr %q: %w", cidr, err)
 		}
 	}
+	if !isLocalEnvironment(c.Environment) && strings.TrimSpace(c.MetricsBearerToken) == "" {
+		return fmt.Errorf("metrics bearer token is required outside local/test")
+	}
 	for name, value := range map[string]string{
 		"auth service url":  c.AuthServiceURL,
 		"event service url": c.EventServiceURL,
@@ -264,6 +269,15 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+func isLocalEnvironment(environment string) bool {
+	switch strings.ToLower(strings.TrimSpace(environment)) {
+	case "local", "test":
+		return true
+	default:
+		return false
+	}
 }
 
 func ServiceNames() []string {

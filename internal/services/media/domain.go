@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 const (
@@ -46,11 +48,13 @@ type Asset struct {
 }
 
 type UploadCommand struct {
-	EventID     string
-	UploaderID  string
-	Filename    string
-	ContentType string
-	SizeBytes   int64
+	EventID      string
+	UploaderID   string
+	UploaderRole identity.Role
+	AccessToken  string
+	Filename     string
+	ContentType  string
+	SizeBytes    int64
 }
 
 func NewAsset(cmd UploadCommand, bucket string, now time.Time) (Asset, error) {

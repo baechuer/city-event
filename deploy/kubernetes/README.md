@@ -19,7 +19,7 @@ scaffolding.
 | `hpa.yaml` | CPU-based autoscaling intent. Requires metrics-server. |
 | `security-hardening.patch.yaml` | Non-root pods, dropped capabilities, read-only root filesystem, seccomp, no service account token automount. |
 | `topology-spread.patch.yaml` | Preferred spreading across hosts/zones while staying schedulable in Minikube. |
-| `network-policies.yaml` | Default deny, DNS egress, ingress-controller to gateway, same-namespace traffic. |
+| `network-policies.yaml` | Default deny, DNS egress, ingress-controller to gateway, and service-specific ingress/egress rules for gateway, app services, workers, and backing dependencies. |
 | `cert-manager-certificate.example.yaml` | Example cert-manager `Certificate` for the ingress TLS secret. |
 | `local/` | Local Minikube overlay with single-instance development dependencies and local secrets. |
 
@@ -45,7 +45,22 @@ origin. Internal services are not meant to be browser entry points.
 - `/livez` to `api-gateway`
 
 `/metrics` is intentionally not exposed publicly. Metrics should be scraped
-inside the cluster.
+inside the cluster with the `METRICS_BEARER_TOKEN` credential.
+
+## Internal Security Paths
+
+`network-policies.yaml` keeps default deny semantics and opens only expected
+service paths. Protected event/media routes now verify JWTs locally and call
+`auth-service /v1/auth/me` for revocation/current-role introspection, so the
+policies explicitly allow:
+
+- `api-gateway` to `auth-service`, `event-registration-service`,
+  `feed-service`, and `media-service`.
+- `event-registration-service` and `media-service` to `auth-service` for
+  introspection.
+- `media-service` to `event-registration-service` for event ownership checks.
+
+This is intentional defense-in-depth, not a public exposure path.
 
 ## Build Images
 
@@ -78,6 +93,7 @@ At minimum, provide production-safe values for:
 - `MINIO_ACCESS_KEY`
 - `MINIO_SECRET_KEY`
 - `JWT_SECRET`
+- `METRICS_BEARER_TOKEN`
 - seed admin values, if seeding is enabled
 
 For production, prefer external secret management instead of committing secret
@@ -148,7 +164,9 @@ replacement.
 - Disabled service account token automount.
 - HPA manifests for autoscaling intent.
 - Topology spread constraints.
-- NetworkPolicies for default deny and controlled access.
+- NetworkPolicies for default deny, DNS egress, ingress-to-gateway routing,
+  gateway-to-service HTTP flows, media-to-event authorization lookup, and
+  service/worker access to only required backing dependencies.
 - HTTPS ingress configuration and cert-manager example.
 
 ## Production Evolution
@@ -210,7 +228,7 @@ These manifests demonstrate:
 Kubernetes-ready manifests with replicated workloads, probes, resource limits,
 ConfigMap/Secret separation, TLS ingress, cert-manager example,
 PodDisruptionBudgets, HPA intent, topology spread, security contexts, and
-NetworkPolicies.
+service-specific NetworkPolicies.
 ```
 
 The production evolution is:

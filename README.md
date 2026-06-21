@@ -77,7 +77,7 @@ behind the gateway and own their own business responsibilities.
 | `event-registration-service` | Authoritative event state, capacity, waitlist, RSVPs, cancellation, attendee moderation, event audit events, outbox writes | `/v1/events`, `/join`, `/registrations/{userID}` |
 | `feed-service` | Read-optimized event feed backed by PostgreSQL and Redis cache | `/v1/feed/events` |
 | `notification-service` | Notification records and delivery state | Internal service plus worker-owned async path |
-| `media-service` | Upload intents, presigned POST policy, object metadata, media state | `/v1/media/uploads`, `/v1/media/{id}` |
+| `media-service` | Organizer/admin-authorized upload intents, presigned POST policy, object metadata, media state | `/v1/media/uploads`, `/v1/media/{id}` |
 | `outbox-relay` | Polls PostgreSQL outbox rows and publishes to RabbitMQ with confirms | Worker process |
 | `feed-worker` | Projects event messages into feed read models and Redis cache | RabbitMQ consumer |
 | `notification-worker` | Creates notification records and local Mailpit delivery attempts | RabbitMQ consumer |
@@ -120,7 +120,8 @@ Only `ORGANIZER` and `ADMIN` users can publish.
 ```text
 POST /v1/events
   -> gateway validates the bearer token with auth-service /me
-  -> event-registration-service verifies the bearer JWT again
+  -> event-registration-service verifies the JWT locally
+  -> event-registration-service introspects auth-service for revocation/current role
   -> PostgreSQL transaction inserts:
        event row
        outbox message
@@ -159,6 +160,10 @@ traceable.
 
 ```text
 POST /v1/media/uploads
+  -> gateway validates the bearer token with auth-service /me
+  -> media-service verifies the JWT locally
+  -> media-service introspects auth-service for revocation/current role
+  -> media-service checks event existence and organizer/admin permission
   -> media-service creates metadata and presigned POST policy
   -> browser uploads object to MinIO
   -> media-worker validates object metadata
@@ -272,14 +277,21 @@ Security features implemented in the repo:
 - CSRF protection for refresh/logout cookie flows.
 - Backend-enforced roles: `USER`, `ORGANIZER`, `ADMIN`.
 - Gateway strips browser-supplied identity headers.
-- Internal services verify JWTs for protected operations.
+- Internal event/media services verify JWTs locally and introspect auth-service
+  for revocation/current role before protected operations.
+- JWT verification rejects unexpected token headers and only accepts the
+  `HS256`/`JWT` shape this system issues.
+- Media upload intents require the event organizer or an admin, verified against
+  event-registration state.
 - Explicit CORS allowlist.
 - Route-specific JSON body limits and unknown-field rejection.
 - HTTP read/write/idle timeouts and header limits.
 - Redis-backed shared rate limiting.
 - Audit tables for role and event-management actions.
 - CSP/security headers and script nonces in the frontend static server.
-- Public Kubernetes ingress does not expose `/metrics`.
+- Public Kubernetes ingress does not expose `/metrics`; service metrics can be
+  protected with `METRICS_BEARER_TOKEN`, which is required outside local/test
+  environments.
 
 ## Observability And Operations
 
@@ -334,7 +346,9 @@ Requirements:
 - Go 1.25.11, matching `go.mod`
 - Docker Desktop with Docker Compose v2
 - Bash such as Git Bash or WSL
-- Node.js 22+ and npm for frontend commands
+- Node.js 22+ and npm for frontend commands. The Bash verification scripts can
+  also use `CITYEVENTS_NODE` with existing `frontend/node_modules` when npm is
+  not on PATH.
 
 Start the full app:
 
@@ -386,8 +400,10 @@ Fast checks:
 ```bash
 go test ./...
 docker compose config --quiet
-cd frontend && npm run verify
+bash ./scripts/verify-frontend.sh
 ```
+
+`cd frontend && npm run verify` is equivalent when npm is available.
 
 Browser E2E:
 

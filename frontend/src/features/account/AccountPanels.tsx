@@ -3,7 +3,7 @@ import { StateMessage } from '../../components/StateMessage';
 import type { MediaUploadPayload } from '../../api';
 import type { ViewModel } from '../../appView';
 import { canManageEvent, defaultStartAt, formatCompactDate, type CityEvent } from '../../domain/events';
-import { statusLabel, statusTone, type User } from '../../state';
+import { canPublish, statusLabel, statusTone, type User } from '../../state';
 
 export function CreateEventForm({ view }: { view: ViewModel }) {
   return (
@@ -52,6 +52,20 @@ export function RoleBlockedPanel({ user, view }: { user: User | null; view: View
 export function MediaPanel({ view }: { view: ViewModel }) {
   const event = view.getEventForDisplay(view.selectedEvent);
   const liveSelected = Boolean(event && event.source !== 'demo');
+  const canCreateMedia = canPublish(view.auth.user);
+
+  if (!canCreateMedia) {
+    return (
+      <section className="compact-panel">
+        <div className="section-heading">
+          <span><strong>Media upload</strong></span>
+          <span className="label-pill soft">ORGANIZER</span>
+        </div>
+        <StateMessage title="Organizer role required" detail="Media upload intents are limited to event organizers and admins." />
+      </section>
+    );
+  }
+
   return (
     <section className="compact-panel">
       <div className="section-heading">
@@ -82,7 +96,7 @@ export function MediaPanel({ view }: { view: ViewModel }) {
           <input name="sizeBytes" type="number" min="1" defaultValue="1024" required />
         </label>
         <button type="submit" className="secondary-button" disabled={!liveSelected || view.isPending('media')}>{view.isPending('media') ? 'Creating' : 'Create upload intent'}</button>
-        {view.media ? <MediaResult media={view.media} /> : <p className="form-hint">Media is available for live events created in CityEvents.</p>}
+        {view.media ? <MediaResult media={view.media} /> : <p className="form-hint">Media is available to event organizers and admins for live events created in CityEvents.</p>}
       </form>
     </section>
   );

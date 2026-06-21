@@ -18,7 +18,7 @@ func TestPostgresMediaRepositoryAndMinIOReadyFlow(t *testing.T) {
 	ctx := context.Background()
 	pool := setupMediaPostgres(t, ctx)
 	storage := setupMediaStorage(t, ctx)
-	service := NewService(NewPostgresRepository(pool), storage, testMediaBucket())
+	service := NewService(NewPostgresRepository(pool), storage, testMediaBucket(), allowEventAuthorizer{})
 	worker := NewWorker(NewPostgresRepository(pool), storage)
 
 	intent := createMediaIntent(t, ctx, service, "event-1", "user-1", "banner.jpg")
@@ -48,7 +48,7 @@ func TestPostgresMediaWorkerMarksMissingObjectFailed(t *testing.T) {
 	ctx := context.Background()
 	pool := setupMediaPostgres(t, ctx)
 	storage := setupMediaStorage(t, ctx)
-	service := NewService(NewPostgresRepository(pool), storage, testMediaBucket())
+	service := NewService(NewPostgresRepository(pool), storage, testMediaBucket(), allowEventAuthorizer{})
 	worker := NewWorker(NewPostgresRepository(pool), storage)
 
 	intent := createMediaIntent(t, ctx, service, "event-1", "user-1", "missing.jpg")
@@ -72,7 +72,7 @@ func TestPostgresMediaWorkerProcessesFiftyAssets(t *testing.T) {
 	pool := setupMediaPostgres(t, ctx)
 	storage := setupMediaStorage(t, ctx)
 	repo := NewPostgresRepository(pool)
-	service := NewService(repo, storage, testMediaBucket())
+	service := NewService(repo, storage, testMediaBucket(), allowEventAuthorizer{})
 	worker := NewWorker(repo, storage)
 
 	for i := 0; i < 50; i++ {
@@ -107,7 +107,7 @@ func TestPostgresMediaConcurrentWorkerClaim(t *testing.T) {
 	pool := setupMediaPostgres(t, ctx)
 	storage := setupMediaStorage(t, ctx)
 	repo := NewPostgresRepository(pool)
-	service := NewService(repo, storage, testMediaBucket())
+	service := NewService(repo, storage, testMediaBucket(), allowEventAuthorizer{})
 	intent := createMediaIntent(t, ctx, service, "event-1", "user-1", "banner.jpg")
 	if err := storage.PutObject(ctx, intent.Asset.Bucket, intent.Asset.ObjectKey, bytes.NewReader([]byte("image-bytes")), int64(len("image-bytes")), intent.Asset.ContentType); err != nil {
 		t.Fatalf("put object: %v", err)
