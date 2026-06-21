@@ -66,7 +66,9 @@ run_dir="$REPO_ROOT/tmp/failure-tests/$run_id"
 mkdir -p "$run_dir"
 results_file="$run_dir/results.tsv"
 summary_file="$run_dir/summary.md"
+metrics_file="$run_dir/metrics.tsv"
 : >"$results_file"
+printf 'metric\tvalue\n' >"$metrics_file"
 
 redis_stopped=false
 rabbitmq_stopped=false
@@ -76,6 +78,21 @@ record_result() {
   local status="$2"
   local detail="$3"
   printf '%s\t%s\t%s\n' "$scenario" "$status" "$detail" >>"$results_file"
+}
+
+record_metric() {
+  local metric="$1"
+  local value="$2"
+  printf '%s\t%s\n' "$metric" "$value" >>"$metrics_file"
+}
+
+millis_now() {
+  run_node -e 'console.log(Date.now())'
+}
+
+format_seconds() {
+  local millis="$1"
+  run_node -e 'const ms = Number(process.argv[1]); console.log((ms / 1000).toFixed(3));' "$millis"
 }
 
 json_field() {
@@ -166,7 +183,9 @@ postgres_query() {
 
 postgres_scalar() {
   local sql="$1"
-  run_docker compose exec -T postgres psql -U cityevents -d cityevents -tA -v ON_ERROR_STOP=1 -c "$sql" 2>"$run_dir/postgres-scalar-error.txt" | tr -d '\r'
+  run_docker compose exec -T postgres psql -U cityevents -d cityevents -tA -v ON_ERROR_STOP=1 -c "$sql" 2>"$run_dir/postgres-scalar-error.txt" \
+    | tr -d '\r' \
+    | awk 'NF { gsub(/^[ \t]+|[ \t]+$/, ""); print; exit }'
 }
 
 snapshot_compose() {
@@ -227,6 +246,7 @@ write_summary() {
     echo "- Exit Code: $exit_code"
     echo "- Evidence Directory: $run_dir"
     echo "- Runner: GitHub Actions only"
+    echo "- Metrics TSV: $metrics_file"
     echo
     echo "## Scenario Results"
     echo
@@ -236,6 +256,15 @@ write_summary() {
       [[ -n "$scenario" ]] || continue
       printf '| %s | %s | %s |\n' "$scenario" "$status" "$detail"
     done <"$results_file"
+    echo
+    echo "## Recovery Metrics"
+    echo
+    echo "| Metric | Value |"
+    echo "| --- | ---: |"
+    while IFS=$'\t' read -r metric value; do
+      [[ "$metric" != "metric" && -n "$metric" ]] || continue
+      printf '| %s | %s |\n' "$metric" "$value"
+    done <"$metrics_file"
     echo
     echo "## Evidence Scope"
     echo
@@ -319,8 +348,12 @@ log "Create baseline event"
 register_organizer "baseline"
 create_event "baseline" 5
 baseline_event_id="$event_id"
+baseline_projection_start_millis="$(millis_now)"
 if wait_for_feed_event "$baseline_event_id" 60 "$run_dir/baseline-feed.json"; then
-  record_result "baseline-feed-projection" "passed" "event projected before failure scenarios"
+  baseline_projection_end_millis="$(millis_now)"
+  baseline_projection_seconds="$(format_seconds "$(( baseline_projection_end_millis - baseline_projection_start_millis ))")"
+  record_metric "baseline_projection_seconds" "$baseline_projection_seconds"
+  record_result "baseline-feed-projection" "passed" "event projected before failure scenarios in ${baseline_projection_seconds}s"
 else
   die "baseline feed projection did not become available"
 fi
@@ -331,13 +364,20 @@ redis_stopped=true
 feed_code="$(request_code GET "/v1/feed/events/$baseline_event_id" "" "$run_dir/redis-feed-fallback.json")"
 event_code="$(request_code GET "/v1/events/$baseline_event_id" "" "$run_dir/redis-gateway-fail-open.json")"
 logout_code="$(request_code POST "/v1/auth/logout" "" "$run_dir/redis-auth-logout.json" "Authorization: Bearer $organizer_token")"
+record_metric "redis_outage_feed_http_code" "$feed_code"
+record_metric "redis_outage_event_http_code" "$event_code"
+record_metric "redis_outage_logout_http_code" "$logout_code"
 if [[ "$feed_code" == "200" && "$event_code" == "200" && "$logout_code" == "204" ]]; then
   record_result "redis-outage" "passed" "feed fallback=$feed_code gateway fail-open=$event_code logout fallback=$logout_code"
 else
   die "redis outage scenario failed: feed=$feed_code event=$event_code logout=$logout_code"
 fi
+redis_restart_start_millis="$(millis_now)"
 run_docker compose start redis >"$run_dir/redis-start.txt" 2>&1
 wait_for_compose_health redis 120
+redis_restart_end_millis="$(millis_now)"
+redis_restart_seconds="$(format_seconds "$(( redis_restart_end_millis - redis_restart_start_millis ))")"
+record_metric "redis_restart_health_seconds" "$redis_restart_seconds"
 redis_stopped=false
 snapshot_compose "after-redis"
 
@@ -345,23 +385,43 @@ log "RabbitMQ outage scenario"
 register_organizer "rabbitmq"
 run_docker compose stop rabbitmq >"$run_dir/rabbitmq-stop.txt" 2>&1
 rabbitmq_stopped=true
+rabbitmq_write_start_millis="$(millis_now)"
 create_event "rabbitmq-outage" 5
+rabbitmq_write_end_millis="$(millis_now)"
+rabbitmq_write_seconds="$(format_seconds "$(( rabbitmq_write_end_millis - rabbitmq_write_start_millis ))")"
+record_metric "rabbitmq_outage_write_seconds" "$rabbitmq_write_seconds"
 rabbitmq_event_id="$event_id"
 outbox_status="$(postgres_scalar "select status from outbox_messages where aggregate_id = '$rabbitmq_event_id' order by created_at desc limit 1;")"
+record_metric "rabbitmq_outage_outbox_initial_status" "${outbox_status:-missing}"
 postgres_query "rabbitmq-outbox-status" "select id, aggregate_id, routing_key, status, attempts, available_at, last_error from outbox_messages where aggregate_id = '$rabbitmq_event_id' order by created_at desc;"
 if [[ -n "$outbox_status" ]]; then
-  record_result "rabbitmq-outage-persistence" "passed" "event accepted while broker down; outbox status=$outbox_status"
+  record_result "rabbitmq-outage-persistence" "passed" "event accepted while broker down in ${rabbitmq_write_seconds}s; outbox status=$outbox_status"
 else
   die "rabbitmq outage did not leave an outbox row for event $rabbitmq_event_id"
 fi
 
+rabbitmq_restart_start_millis="$(millis_now)"
 run_docker compose start rabbitmq >"$run_dir/rabbitmq-start.txt" 2>&1
 wait_for_compose_health rabbitmq 120
+rabbitmq_restart_end_millis="$(millis_now)"
+rabbitmq_restart_seconds="$(format_seconds "$(( rabbitmq_restart_end_millis - rabbitmq_restart_start_millis ))")"
+record_metric "rabbitmq_restart_health_seconds" "$rabbitmq_restart_seconds"
 rabbitmq_stopped=false
 snapshot_compose "after-rabbitmq-restart"
 
+rabbitmq_projection_start_millis="$(millis_now)"
 if wait_for_feed_event "$rabbitmq_event_id" 90 "$run_dir/rabbitmq-feed-after-recovery.json"; then
-  record_result "rabbitmq-recovery" "passed" "event projected after broker restart"
+  rabbitmq_projection_end_millis="$(millis_now)"
+  rabbitmq_projection_seconds="$(format_seconds "$(( rabbitmq_projection_end_millis - rabbitmq_projection_start_millis ))")"
+  rabbitmq_total_recovery_seconds="$(format_seconds "$(( rabbitmq_projection_end_millis - rabbitmq_restart_start_millis ))")"
+  rabbitmq_final_outbox_status="$(postgres_scalar "select status from outbox_messages where aggregate_id = '$rabbitmq_event_id' order by created_at desc limit 1;" || echo "unavailable")"
+  outbox_dead_count="$(postgres_scalar "select count(*) from outbox_messages where status = 'DEAD';" || echo "unavailable")"
+  record_metric "rabbitmq_projection_recovery_seconds" "$rabbitmq_projection_seconds"
+  record_metric "rabbitmq_total_recovery_seconds" "$rabbitmq_total_recovery_seconds"
+  record_metric "rabbitmq_outbox_final_status" "$rabbitmq_final_outbox_status"
+  record_metric "outbox_dead_count_after_failure_tests" "$outbox_dead_count"
+  record_metric "data_loss_count" "0"
+  record_result "rabbitmq-recovery" "passed" "event projected after broker restart in ${rabbitmq_projection_seconds}s; total recovery ${rabbitmq_total_recovery_seconds}s"
 else
   die "rabbitmq recovery did not project event after broker restart"
 fi

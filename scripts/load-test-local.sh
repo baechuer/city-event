@@ -10,6 +10,7 @@ concurrency=20
 request_timeout=10
 start_stack=false
 frontend_port=18088
+run_label=""
 skip_feed_check=false
 skip_refresh_check=false
 feed_timeout_seconds=30
@@ -40,6 +41,7 @@ Options:
   --users N              Number of attendee users to register and join. Default: 80
   --capacity N           Event capacity. Default: 25
   --concurrency N        Concurrent join workers per batch. Default: 20
+  --run-label LABEL      Optional artifact label for this run.
   --start-stack          Start ./scripts/start-local.sh for this run and stop app processes afterward
   --frontend-port PORT   Frontend port when --start-stack is used. Default: 18088
   --skip-feed-check      Do not wait for eventual feed projection
@@ -89,6 +91,11 @@ while [[ $# -gt 0 ]]; do
     --concurrency)
       [[ $# -ge 2 ]] || die "--concurrency requires a value"
       concurrency="$2"
+      shift 2
+      ;;
+    --run-label)
+      [[ $# -ge 2 ]] || die "--run-label requires a value"
+      run_label="$2"
       shift 2
       ;;
     --start-stack)
@@ -163,6 +170,9 @@ done
 [[ "$max_p95_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "--max-p95-seconds must be a non-negative number"
 [[ "$max_p99_seconds" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "--max-p99-seconds must be a non-negative number"
 [[ "$min_success_rate" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "--min-success-rate must be a non-negative number"
+if [[ -n "$run_label" && ! "$run_label" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  die "--run-label may contain only letters, numbers, dot, underscore, and dash"
+fi
 awk -v n="$min_success_rate" 'BEGIN { exit !(n >= 0 && n <= 100) }' || die "--min-success-rate must be between 0 and 100"
 (( users > 0 )) || die "--users must be greater than zero"
 (( capacity > 0 )) || die "--capacity must be greater than zero"
@@ -173,7 +183,11 @@ cd "$REPO_ROOT"
 require_github_actions_evidence_runner "scripts/load-test-local.sh"
 setup_go_cache
 
-run_id="$(date -u '+%Y%m%dT%H%M%SZ')-$RANDOM"
+run_id="$(date -u '+%Y%m%dT%H%M%SZ')"
+if [[ -n "$run_label" ]]; then
+  run_id="$run_id-$run_label"
+fi
+run_id="$run_id-$RANDOM"
 run_dir="$REPO_ROOT/tmp/load-test-local/$run_id"
 mkdir -p "$run_dir/users" "$run_dir/joins"
 
@@ -687,11 +701,55 @@ if (( gate_failures == 0 )); then
   max_stable_rps_candidate="$join_throughput"
 fi
 
+metrics_file="$run_dir/metrics.tsv"
+{
+  printf 'run_id\t%s\n' "$run_id"
+  printf 'run_label\t%s\n' "${run_label:-none}"
+  printf 'base_url\t%s\n' "$base_url"
+  printf 'event_id\t%s\n' "$event_id"
+  printf 'users\t%s\n' "$users"
+  printf 'capacity\t%s\n' "$capacity"
+  printf 'concurrency\t%s\n' "$concurrency"
+  printf 'threshold_p95_seconds\t%s\n' "$max_p95_seconds"
+  printf 'threshold_p99_seconds\t%s\n' "$max_p99_seconds"
+  printf 'threshold_min_success_rate_percent\t%s\n' "$min_success_rate"
+  printf 'join_duration_seconds\t%s\n' "$duration_seconds"
+  printf 'join_throughput_rps\t%s\n' "$join_throughput"
+  printf 'max_stable_rps_candidate\t%s\n' "$max_stable_rps_candidate"
+  printf 'join_http_success_count\t%s\n' "$total_ok"
+  printf 'join_http_total_count\t%s\n' "$users"
+  printf 'join_success_rate_percent\t%s\n' "$join_success_rate"
+  printf 'join_error_rate_percent\t%s\n' "$join_error_rate"
+  printf 'join_unexpected_4xx_count\t%s\n' "$join_4xx_count"
+  printf 'join_unexpected_5xx_count\t%s\n' "$join_5xx_count"
+  printf 'confirmed_joins\t%s\n' "$confirmed"
+  printf 'waitlisted_joins\t%s\n' "$waitlisted"
+  printf 'expected_confirmed_joins\t%s\n' "$expected_confirmed"
+  printf 'expected_waitlisted_joins\t%s\n' "$expected_waitlisted"
+  printf 'event_detail_confirmed_count\t%s\n' "$detail_confirmed"
+  printf 'join_latency_p50_seconds\t%s\n' "$p50"
+  printf 'join_latency_p95_seconds\t%s\n' "$p95"
+  printf 'join_latency_p99_seconds\t%s\n' "$p99"
+  printf 'join_latency_max_seconds\t%s\n' "$max_latency"
+  printf 'feed_projection_status\t%s\n' "$feed_status"
+  printf 'feed_projection_catchup_seconds\t%s\n' "$feed_catchup_seconds"
+  printf 'active_registration_count\t%s\n' "$active_registration_count"
+  printf 'duplicate_active_user_count\t%s\n' "$duplicate_active_user_count"
+  printf 'capacity_invariant_violations\t%s\n' "$capacity_invariant_violations"
+  printf 'outbox_dead_rows_after_joins\t%s\n' "$outbox_dead_count_after"
+  printf 'oldest_retryable_outbox_age_seconds_after_joins\t%s\n' "$oldest_retryable_outbox_age_after"
+  printf 'rabbitmq_dlq_depth_after_joins\t%s\n' "$dlq_depth_after"
+  printf 'rabbitmq_retry_queue_depth_after_joins\t%s\n' "$retry_queue_depth_after"
+  printf 'gate_failures\t%s\n' "$gate_failures"
+  printf 'result_dir\t%s\n' "$run_dir"
+} >"$metrics_file"
+
 {
 cat <<EOF
 # CI Load Evidence Summary
 
 - Run ID: $run_id
+- Run Label: ${run_label:-none}
 - Gateway: $base_url
 - Event ID: $event_id
 - Users: $users
@@ -725,6 +783,8 @@ cat <<EOF
 - RabbitMQ DLQ depth after joins: $dlq_depth_after
 - RabbitMQ retry queue depth after joins: $retry_queue_depth_after
 - Gate failures: $gate_failures
+- Metrics TSV: $metrics_file
+- Pass/fail gates TSV: $gates_file
 - Dependency snapshot before joins: $run_dir/dependencies-before-joins.md
 - Dependency snapshot after joins: $run_dir/dependencies-after-joins.md
 - Result files: $run_dir
