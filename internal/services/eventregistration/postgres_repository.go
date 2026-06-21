@@ -2,6 +2,7 @@ package eventregistration
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -119,6 +120,7 @@ func (r *PostgresRepository) CancelEvent(ctx context.Context, eventID, organizer
 	if event.OrganizerID != organizerID && !identity.CanAdmin(role) {
 		return EventDetail{}, ErrForbidden
 	}
+	previousStatus := event.Status
 	if event.Status != EventStatusCanceled {
 		event.Status = EventStatusCanceled
 		event.UpdatedAt = now.UTC()
@@ -139,6 +141,27 @@ func (r *PostgresRepository) CancelEvent(ctx context.Context, eventID, organizer
 		if err := insertOutbox(ctx, tx, "event", event.ID, RoutingEventCanceled, eventPayload(event), now); err != nil {
 			return EventDetail{}, err
 		}
+	}
+	result := "success"
+	if previousStatus == EventStatusCanceled {
+		result = "noop"
+	}
+	if err := insertEventAuditEvent(ctx, tx, AuditEvent{
+		ID:            NewID(),
+		ActorUserID:   organizerID,
+		Action:        "event.cancel",
+		TargetID:      eventID,
+		TargetType:    "event",
+		Result:        result,
+		CorrelationID: observability.CorrelationIDFromContext(ctx),
+		Metadata: map[string]any{
+			"role":           role,
+			"previousStatus": previousStatus,
+			"newStatus":      event.Status,
+		},
+		CreatedAt: now.UTC(),
+	}); err != nil {
+		return EventDetail{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return EventDetail{}, err
@@ -304,6 +327,23 @@ func (r *PostgresRepository) CancelRegistration(ctx context.Context, eventID, ac
 	}
 	result, err := cancelRegistrationTx(ctx, tx, eventID, targetUserID, now)
 	if err != nil {
+		return CancelJoinResult{}, err
+	}
+	if err := insertEventAuditEvent(ctx, tx, AuditEvent{
+		ID:            NewID(),
+		ActorUserID:   actorID,
+		Action:        "registration.cancel_by_manager",
+		TargetID:      targetUserID,
+		TargetType:    "registration",
+		Result:        "success",
+		CorrelationID: observability.CorrelationIDFromContext(ctx),
+		Metadata: map[string]any{
+			"eventId": eventID,
+			"role":    role,
+			"status":  result.Status,
+		},
+		CreatedAt: now.UTC(),
+	}); err != nil {
 		return CancelJoinResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -548,6 +588,27 @@ func insertOutbox(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, ro
 		INSERT INTO outbox_messages (id, aggregate_type, aggregate_id, routing_key, payload, status, created_at, available_at)
 		VALUES ($1, $2, $3, $4, $5, 'PENDING', $6, $6)
 	`, NewID(), aggregateType, aggregateID, routingKey, raw, now.UTC())
+	return err
+}
+
+func insertEventAuditEvent(ctx context.Context, tx pgx.Tx, event AuditEvent) error {
+	if event.ID == "" {
+		event.ID = NewID()
+	}
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now().UTC()
+	}
+	rawMetadata, err := json.Marshal(event.Metadata)
+	if err != nil {
+		return err
+	}
+	if rawMetadata == nil {
+		rawMetadata = []byte(`{}`)
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO event_audit_events (id, actor_user_id, action, target_id, target_type, result, correlation_id, metadata, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, event.ID, event.ActorUserID, event.Action, event.TargetID, event.TargetType, event.Result, event.CorrelationID, rawMetadata, event.CreatedAt.UTC())
 	return err
 }
 

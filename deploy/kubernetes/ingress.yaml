@@ -41,10 +41,3 @@ spec:
                 name: api-gateway
                 port:
                   name: http
-          - path: /metrics
-            pathType: Prefix
-            backend:
-              service:
-                name: api-gateway
-                port:
-                  name: http

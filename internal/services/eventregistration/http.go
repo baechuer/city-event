@@ -2,13 +2,13 @@ package eventregistration
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/authn"
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/health"
 	"github.com/baechuer/cityevents/internal/platform/httpapi"
@@ -17,8 +17,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const eventJSONLimitBytes = 128 * 1024
+
 type Handler struct {
 	service *Service
+	tokens  authn.TokenManager
 }
 
 func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (http.Handler, func(context.Context) error, error) {
@@ -43,7 +46,10 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 
 func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) http.Handler {
 	r := httpapi.NewBaseRouter(cfg, logger)
-	handler := &Handler{service: service}
+	handler := &Handler{
+		service: service,
+		tokens:  authn.NewTokenManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL),
+	}
 
 	r.Post("/v1/events", handler.createEvent)
 	r.Get("/v1/events", handler.listEvents)
@@ -59,14 +65,14 @@ func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) ht
 }
 
 func (h *Handler) createEvent(w http.ResponseWriter, r *http.Request) {
-	principal, ok := principalFromHeader(r)
+	principal, ok := h.principalFromRequest(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
 	}
 	var req createEventRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
+	if err := decodeJSON(w, r, &req, eventJSONLimitBytes); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 	detail, err := h.service.CreateEvent(r.Context(), CreateEventCommand{
@@ -87,14 +93,14 @@ func (h *Handler) createEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateEvent(w http.ResponseWriter, r *http.Request) {
-	principal, ok := principalFromHeader(r)
+	principal, ok := h.principalFromRequest(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
 	}
 	var req updateEventRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
+	if err := decodeJSON(w, r, &req, eventJSONLimitBytes); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 	detail, err := h.service.UpdateEvent(r.Context(), chi.URLParam(r, "eventID"), principal.UserID, principal.Role, UpdateEventCommand{
@@ -113,7 +119,7 @@ func (h *Handler) updateEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) cancelEvent(w http.ResponseWriter, r *http.Request) {
-	principal, ok := principalFromHeader(r)
+	principal, ok := h.principalFromRequest(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
@@ -140,7 +146,11 @@ func (h *Handler) listEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getEvent(w http.ResponseWriter, r *http.Request) {
-	viewerID, _ := userIDFromHeader(r)
+	viewerID, ok := h.optionalUserIDFromRequest(r)
+	if !ok {
+		writeEventError(w, ErrUnauthorized)
+		return
+	}
 	detail, err := h.service.GetEventDetail(r.Context(), chi.URLParam(r, "eventID"), viewerID)
 	if err != nil {
 		writeEventError(w, err)
@@ -150,7 +160,7 @@ func (h *Handler) getEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) joinEvent(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromHeader(r)
+	userID, ok := h.userIDFromRequest(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
@@ -164,7 +174,7 @@ func (h *Handler) joinEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) cancelJoin(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromHeader(r)
+	userID, ok := h.userIDFromRequest(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
@@ -178,7 +188,7 @@ func (h *Handler) cancelJoin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) cancelRegistration(w http.ResponseWriter, r *http.Request) {
-	principal, ok := principalFromHeader(r)
+	principal, ok := h.principalFromRequest(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
@@ -192,7 +202,7 @@ func (h *Handler) cancelRegistration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getJoinStatus(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromHeader(r)
+	userID, ok := h.userIDFromRequest(r)
 	if !ok {
 		writeEventError(w, ErrUnauthorized)
 		return
@@ -317,11 +327,8 @@ func cancelJoinResponseFromDomain(result CancelJoinResult) cancelJoinResponse {
 	return resp
 }
 
-func decodeJSON(r *http.Request, target any) error {
-	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	return decoder.Decode(target)
+func decodeJSON(w http.ResponseWriter, r *http.Request, target any, maxBytes int64) error {
+	return httpapi.DecodeJSONLimited(w, r, target, maxBytes)
 }
 
 type principal struct {
@@ -329,18 +336,33 @@ type principal struct {
 	Role   identity.Role
 }
 
-func principalFromHeader(r *http.Request) (principal, bool) {
-	userID := strings.TrimSpace(r.Header.Get(identity.HeaderUserID))
-	if userID == "" {
+func (h *Handler) principalFromRequest(r *http.Request) (principal, bool) {
+	token, ok := authn.BearerToken(r)
+	if !ok {
 		return principal{}, false
 	}
-	role := identity.NormalizeRole(r.Header.Get(identity.HeaderUserRole))
-	return principal{UserID: userID, Role: role}, true
+	claims, err := h.tokens.Verify(token)
+	if err != nil {
+		return principal{}, false
+	}
+	return principal{UserID: claims.UserID, Role: claims.Role}, true
 }
 
-func userIDFromHeader(r *http.Request) (string, bool) {
-	principal, ok := principalFromHeader(r)
+func (h *Handler) userIDFromRequest(r *http.Request) (string, bool) {
+	principal, ok := h.principalFromRequest(r)
 	return principal.UserID, ok
+}
+
+func (h *Handler) optionalUserIDFromRequest(r *http.Request) (string, bool) {
+	token, ok := authn.BearerToken(r)
+	if !ok {
+		return "", true
+	}
+	claims, err := h.tokens.Verify(token)
+	if err != nil {
+		return "", false
+	}
+	return claims.UserID, true
 }
 
 func writeEventError(w http.ResponseWriter, err error) {
@@ -360,6 +382,14 @@ func writeEventError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal server error")
 	}
+}
+
+func writeDecodeError(w http.ResponseWriter, err error) {
+	if errors.Is(err, httpapi.ErrRequestBodyTooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, "request_too_large", "request body is too large")
+		return
+	}
+	writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {

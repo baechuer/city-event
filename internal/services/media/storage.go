@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,8 +16,20 @@ import (
 
 type Storage interface {
 	EnsureBucket(context.Context, string) error
-	PresignedPutURL(context.Context, string, string, time.Duration) (string, error)
-	ObjectExists(context.Context, string, string) (bool, error)
+	PresignedUpload(context.Context, string, string, string, int64, time.Duration) (UploadTarget, error)
+	StatObject(context.Context, string, string) (ObjectInfo, error)
+}
+
+type UploadTarget struct {
+	URL      string            `json:"url"`
+	Method   string            `json:"method"`
+	FormData map[string]string `json:"formData,omitempty"`
+}
+
+type ObjectInfo struct {
+	Exists      bool
+	SizeBytes   int64
+	ContentType string
 }
 
 type MinIOStorage struct {
@@ -50,24 +64,40 @@ func (s *MinIOStorage) EnsureBucket(ctx context.Context, bucket string) error {
 	return s.client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
 }
 
-func (s *MinIOStorage) PresignedPutURL(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
-	raw, err := s.client.PresignedPutObject(ctx, bucket, objectKey, expiry)
-	if err != nil {
-		return "", err
+func (s *MinIOStorage) PresignedUpload(ctx context.Context, bucket, objectKey, contentType string, sizeBytes int64, expiry time.Duration) (UploadTarget, error) {
+	policy := minio.NewPostPolicy()
+	for _, step := range []func() error{
+		func() error { return policy.SetBucket(bucket) },
+		func() error { return policy.SetKey(objectKey) },
+		func() error { return policy.SetExpires(time.Now().UTC().Add(expiry)) },
+		func() error { return policy.SetContentType(contentType) },
+		func() error { return policy.SetContentLengthRange(1, sizeBytes) },
+	} {
+		if err := step(); err != nil {
+			return UploadTarget{}, err
+		}
 	}
-	return raw.String(), nil
+	raw, formData, err := s.client.PresignedPostPolicy(ctx, policy)
+	if err != nil {
+		return UploadTarget{}, err
+	}
+	return UploadTarget{URL: raw.String(), Method: http.MethodPost, FormData: formData}, nil
 }
 
-func (s *MinIOStorage) ObjectExists(ctx context.Context, bucket, objectKey string) (bool, error) {
-	_, err := s.client.StatObject(ctx, bucket, objectKey, minio.StatObjectOptions{})
+func (s *MinIOStorage) StatObject(ctx context.Context, bucket, objectKey string) (ObjectInfo, error) {
+	info, err := s.client.StatObject(ctx, bucket, objectKey, minio.StatObjectOptions{})
 	if err == nil {
-		return true, nil
+		return ObjectInfo{
+			Exists:      true,
+			SizeBytes:   info.Size,
+			ContentType: strings.ToLower(strings.TrimSpace(info.ContentType)),
+		}, nil
 	}
 	var minioErr minio.ErrorResponse
 	if errors.As(err, &minioErr) && minioErr.Code == "NoSuchKey" {
-		return false, nil
+		return ObjectInfo{}, nil
 	}
-	return false, err
+	return ObjectInfo{}, err
 }
 
 func (s *MinIOStorage) PutObject(ctx context.Context, bucket, objectKey string, reader io.Reader, size int64, contentType string) error {
@@ -76,32 +106,54 @@ func (s *MinIOStorage) PutObject(ctx context.Context, bucket, objectKey string, 
 }
 
 type MemoryStorage struct {
-	objects map[string]bool
+	objects map[string]ObjectInfo
 	err     error
 }
 
 func NewMemoryStorage() *MemoryStorage {
-	return &MemoryStorage{objects: map[string]bool{}}
+	return &MemoryStorage{objects: map[string]ObjectInfo{}}
 }
 
 func (s *MemoryStorage) EnsureBucket(context.Context, string) error {
 	return s.err
 }
 
-func (s *MemoryStorage) PresignedPutURL(_ context.Context, bucket, objectKey string, _ time.Duration) (string, error) {
+func (s *MemoryStorage) PresignedUpload(_ context.Context, bucket, objectKey, contentType string, sizeBytes int64, _ time.Duration) (UploadTarget, error) {
 	if s.err != nil {
-		return "", s.err
+		return UploadTarget{}, s.err
 	}
-	return "memory://" + bucket + "/" + objectKey, nil
+	return UploadTarget{
+		URL:    "memory://" + bucket + "/" + objectKey,
+		Method: http.MethodPost,
+		FormData: map[string]string{
+			"key":          objectKey,
+			"Content-Type": contentType,
+			"maxSizeBytes": strconv.FormatInt(sizeBytes, 10),
+		},
+	}, nil
 }
 
-func (s *MemoryStorage) ObjectExists(_ context.Context, bucket, objectKey string) (bool, error) {
+func (s *MemoryStorage) StatObject(_ context.Context, bucket, objectKey string) (ObjectInfo, error) {
 	if s.err != nil {
-		return false, s.err
+		return ObjectInfo{}, s.err
 	}
-	return s.objects[bucket+"/"+objectKey], nil
+	info, ok := s.objects[bucket+"/"+objectKey]
+	if !ok {
+		return ObjectInfo{}, nil
+	}
+	info.Exists = true
+	info.ContentType = strings.ToLower(strings.TrimSpace(info.ContentType))
+	return info, nil
 }
 
 func (s *MemoryStorage) Put(bucket, objectKey string) {
-	s.objects[bucket+"/"+objectKey] = true
+	s.PutObjectInfo(bucket, objectKey, 1, "image/jpeg")
+}
+
+func (s *MemoryStorage) PutObjectInfo(bucket, objectKey string, sizeBytes int64, contentType string) {
+	s.objects[bucket+"/"+objectKey] = ObjectInfo{
+		Exists:      true,
+		SizeBytes:   sizeBytes,
+		ContentType: strings.ToLower(strings.TrimSpace(contentType)),
+	}
 }

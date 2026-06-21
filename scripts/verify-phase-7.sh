@@ -89,7 +89,8 @@ if ! wait_for_http "http://127.0.0.1:$port/readyz" 20; then
 fi
 
 body='{"eventId":"phase7-event","filename":"banner.jpg","contentType":"image/jpeg","sizeBytes":10}'
-created="$(http_curl -fsS -X POST "http://127.0.0.1:$port/v1/media/uploads" -H "Content-Type: application/json" -H "X-User-ID: phase7-user" --data "$body")"
+phase7_token="$(jwt_for_user phase7-user USER)"
+created="$(http_curl -fsS -X POST "http://127.0.0.1:$port/v1/media/uploads" -H "Content-Type: application/json" -H "Authorization: Bearer $phase7_token" --data "$body")"
 grep -Fq '"uploadUrl"' <<<"$created" || die "create upload did not return upload URL."
 asset_id="$(json_string_field "$created" id)"
 [[ -n "$asset_id" ]] || die "create upload did not return asset id."

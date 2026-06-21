@@ -223,9 +223,11 @@ check_all_processes() {
 apply_postgres_migrations() {
   local migrations=(
     "migrations/auth/001_init.sql"
+    "migrations/auth/002_audit_events.sql"
     "migrations/eventregistration/001_init.sql"
     "migrations/eventregistration/002_outbox_relay.sql"
     "migrations/eventregistration/003_outbox_dead_state.sql"
+    "migrations/eventregistration/004_audit_events.sql"
     "migrations/feed/001_init.sql"
     "migrations/notification/001_init.sql"
     "migrations/notification/002_delivery_intents.sql"

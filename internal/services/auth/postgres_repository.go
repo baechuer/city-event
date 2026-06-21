@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -54,6 +55,31 @@ func (r *PostgresRepository) UpdateUserRole(ctx context.Context, id string, role
 		WHERE id = $1
 		RETURNING id, email, display_name, role, password_hash, created_at, updated_at
 	`, id, identity.NormalizeRole(string(role))))
+}
+
+func (r *PostgresRepository) UpdateUserRoleWithAudit(ctx context.Context, id string, role identity.Role, event AuditEvent) (User, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return User{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	updated, err := scanUser(tx.QueryRow(ctx, `
+		UPDATE auth_users
+		SET role = $2, updated_at = now()
+		WHERE id = $1
+		RETURNING id, email, display_name, role, password_hash, created_at, updated_at
+	`, id, identity.NormalizeRole(string(role))))
+	if err != nil {
+		return User{}, err
+	}
+	if err := insertAuthAuditEvent(ctx, tx, event); err != nil {
+		return User{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return User{}, err
+	}
+	return updated, nil
 }
 
 func (r *PostgresRepository) RevokeToken(ctx context.Context, tokenID, userID string, expiresAt time.Time) error {
@@ -225,4 +251,28 @@ func revokeRefreshFamilyTx(ctx context.Context, tx pgx.Tx, familyID string, now 
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func insertAuthAuditEvent(ctx context.Context, tx pgx.Tx, event AuditEvent) error {
+	if event.ID == "" {
+		event.ID = NewID()
+	}
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now().UTC()
+	}
+	if event.TargetType == "" {
+		event.TargetType = "user"
+	}
+	rawMetadata, err := json.Marshal(event.Metadata)
+	if err != nil {
+		return err
+	}
+	if rawMetadata == nil {
+		rawMetadata = []byte(`{}`)
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO auth_audit_events (id, actor_user_id, action, target_user_id, target_type, result, correlation_id, metadata, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	`, event.ID, event.ActorUserID, event.Action, event.TargetUserID, event.TargetType, event.Result, event.CorrelationID, rawMetadata, event.CreatedAt.UTC())
+	return err
 }

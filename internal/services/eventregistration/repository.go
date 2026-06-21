@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/identity"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 )
 
 type Repository interface {
@@ -35,11 +36,24 @@ type OutboxMessage struct {
 	SentAt        *time.Time
 }
 
+type AuditEvent struct {
+	ID            string
+	ActorUserID   string
+	Action        string
+	TargetID      string
+	TargetType    string
+	Result        string
+	CorrelationID string
+	Metadata      map[string]any
+	CreatedAt     time.Time
+}
+
 type MemoryRepository struct {
 	mu            sync.Mutex
 	events        map[string]Event
 	registrations map[string]Registration
 	outbox        []OutboxMessage
+	auditEvents   []AuditEvent
 }
 
 func NewMemoryRepository() *MemoryRepository {
@@ -47,6 +61,7 @@ func NewMemoryRepository() *MemoryRepository {
 		events:        map[string]Event{},
 		registrations: map[string]Registration{},
 		outbox:        []OutboxMessage{},
+		auditEvents:   []AuditEvent{},
 	}
 }
 
@@ -106,7 +121,7 @@ func (r *MemoryRepository) UpdateEvent(_ context.Context, eventID, organizerID s
 	return r.detailLocked(eventID, ""), nil
 }
 
-func (r *MemoryRepository) CancelEvent(_ context.Context, eventID, organizerID string, role identity.Role, now time.Time) (EventDetail, error) {
+func (r *MemoryRepository) CancelEvent(ctx context.Context, eventID, organizerID string, role identity.Role, now time.Time) (EventDetail, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -118,8 +133,13 @@ func (r *MemoryRepository) CancelEvent(_ context.Context, eventID, organizerID s
 		return EventDetail{}, ErrForbidden
 	}
 	if event.Status == EventStatusCanceled {
+		r.addAuditEvent(ctx, "event.cancel", organizerID, eventID, "event", "noop", map[string]any{
+			"role":   role,
+			"status": event.Status,
+		}, now)
 		return r.detailLocked(eventID, ""), nil
 	}
+	previousStatus := event.Status
 	event.Status = EventStatusCanceled
 	event.UpdatedAt = now.UTC()
 	r.events[eventID] = event
@@ -131,6 +151,11 @@ func (r *MemoryRepository) CancelEvent(_ context.Context, eventID, organizerID s
 		}
 	}
 	r.addOutbox("event", event.ID, RoutingEventCanceled, eventPayload(event), now)
+	r.addAuditEvent(ctx, "event.cancel", organizerID, eventID, "event", "success", map[string]any{
+		"role":           role,
+		"previousStatus": previousStatus,
+		"newStatus":      event.Status,
+	}, now)
 	return r.detailLocked(eventID, ""), nil
 }
 
@@ -215,7 +240,7 @@ func (r *MemoryRepository) CancelJoin(_ context.Context, eventID, userID string,
 	return r.cancelRegistrationLocked(eventID, userID, now)
 }
 
-func (r *MemoryRepository) CancelRegistration(_ context.Context, eventID, actorID string, role identity.Role, targetUserID string, now time.Time) (CancelJoinResult, error) {
+func (r *MemoryRepository) CancelRegistration(ctx context.Context, eventID, actorID string, role identity.Role, targetUserID string, now time.Time) (CancelJoinResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -226,7 +251,16 @@ func (r *MemoryRepository) CancelRegistration(_ context.Context, eventID, actorI
 	if event.OrganizerID != actorID && !identity.CanAdmin(role) {
 		return CancelJoinResult{}, ErrForbidden
 	}
-	return r.cancelRegistrationLocked(eventID, targetUserID, now)
+	result, err := r.cancelRegistrationLocked(eventID, targetUserID, now)
+	if err != nil {
+		return CancelJoinResult{}, err
+	}
+	r.addAuditEvent(ctx, "registration.cancel_by_manager", actorID, targetUserID, "registration", "success", map[string]any{
+		"eventId": eventID,
+		"role":    role,
+		"status":  result.Status,
+	}, now)
+	return result, nil
 }
 
 func (r *MemoryRepository) cancelRegistrationLocked(eventID, userID string, now time.Time) (CancelJoinResult, error) {
@@ -306,6 +340,15 @@ func (r *MemoryRepository) ActiveRegistrationCount(eventID, userID string) int {
 		}
 	}
 	return count
+}
+
+func (r *MemoryRepository) AuditEvents() []AuditEvent {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	out := make([]AuditEvent, len(r.auditEvents))
+	copy(out, r.auditEvents)
+	return out
 }
 
 func (r *MemoryRepository) detailLocked(eventID, viewerID string) EventDetail {
@@ -396,6 +439,20 @@ func (r *MemoryRepository) addOutbox(aggregateType, aggregateID, routingKey stri
 		Status:        "PENDING",
 		CreatedAt:     now.UTC(),
 		AvailableAt:   now.UTC(),
+	})
+}
+
+func (r *MemoryRepository) addAuditEvent(ctx context.Context, action, actorID, targetID, targetType, result string, metadata map[string]any, now time.Time) {
+	r.auditEvents = append(r.auditEvents, AuditEvent{
+		ID:            NewID(),
+		ActorUserID:   actorID,
+		Action:        action,
+		TargetID:      targetID,
+		TargetType:    targetType,
+		Result:        result,
+		CorrelationID: observability.CorrelationIDFromContext(ctx),
+		Metadata:      metadata,
+		CreatedAt:     now.UTC(),
 	})
 }
 

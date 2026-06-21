@@ -62,23 +62,26 @@ fi
 
 starts_at="$(date -u -d '+1 day' '+%Y-%m-%dT%H:%M:%SZ')"
 create_body="$(printf '{"title":"Phase 3 Smoke Event","description":"Runtime smoke event","city":"Sydney","venue":"Town Hall","startsAt":"%s","capacity":1}' "$starts_at")"
-created="$(http_curl -fsS -X POST "http://127.0.0.1:$port/v1/events" -H "Content-Type: application/json" -H "X-User-ID: phase3-organizer" -H "X-User-Role: ORGANIZER" --data "$create_body")"
+organizer_token="$(jwt_for_user phase3-organizer ORGANIZER)"
+user_one_token="$(jwt_for_user phase3-user-1 USER)"
+user_two_token="$(jwt_for_user phase3-user-2 USER)"
+created="$(http_curl -fsS -X POST "http://127.0.0.1:$port/v1/events" -H "Content-Type: application/json" -H "Authorization: Bearer $organizer_token" --data "$create_body")"
 event_id="$(json_string_field "$created" id)"
 [[ -n "$event_id" ]] || die "create event did not return an event ID."
 
-join_one="$(http_curl -fsS -X POST "http://127.0.0.1:$port/v1/events/$event_id/join" -H "X-User-ID: phase3-user-1")"
+join_one="$(http_curl -fsS -X POST "http://127.0.0.1:$port/v1/events/$event_id/join" -H "Authorization: Bearer $user_one_token")"
 grep -Fq '"status":"CONFIRMED"' <<<"$join_one" || die "first join did not return CONFIRMED."
 
-join_two="$(http_curl -fsS -X POST "http://127.0.0.1:$port/v1/events/$event_id/join" -H "X-User-ID: phase3-user-2")"
+join_two="$(http_curl -fsS -X POST "http://127.0.0.1:$port/v1/events/$event_id/join" -H "Authorization: Bearer $user_two_token")"
 grep -Fq '"status":"WAITLISTED"' <<<"$join_two" || die "second join did not return WAITLISTED."
 
-cancel_one="$(http_curl -fsS -X DELETE "http://127.0.0.1:$port/v1/events/$event_id/join" -H "X-User-ID: phase3-user-1")"
+cancel_one="$(http_curl -fsS -X DELETE "http://127.0.0.1:$port/v1/events/$event_id/join" -H "Authorization: Bearer $user_one_token")"
 grep -Fq '"userId":"phase3-user-2"' <<<"$cancel_one" || die "cancel did not promote phase3-user-2."
 
-status_two="$(http_curl -fsS "http://127.0.0.1:$port/v1/events/$event_id/join" -H "X-User-ID: phase3-user-2")"
+status_two="$(http_curl -fsS "http://127.0.0.1:$port/v1/events/$event_id/join" -H "Authorization: Bearer $user_two_token")"
 grep -Fq '"status":"CONFIRMED"' <<<"$status_two" || die "promoted user status did not return CONFIRMED."
 
-detail="$(http_curl -fsS "http://127.0.0.1:$port/v1/events/$event_id" -H "X-User-ID: phase3-user-2")"
+detail="$(http_curl -fsS "http://127.0.0.1:$port/v1/events/$event_id" -H "Authorization: Bearer $user_two_token")"
 grep -Fq '"confirmedCount":1' <<<"$detail" || die "event detail did not return confirmed count."
 grep -Fq '"viewerJoinStatus":"CONFIRMED"' <<<"$detail" || die "event detail did not return viewer status."
 

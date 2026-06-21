@@ -163,17 +163,19 @@ func setupAuthPostgres(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		t.Fatalf("ping postgres: %v", err)
 	}
 
-	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS refresh_tokens; DROP TABLE IF EXISTS revoked_tokens; DROP TABLE IF EXISTS auth_users;`); err != nil {
+	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS auth_audit_events; DROP TABLE IF EXISTS refresh_tokens; DROP TABLE IF EXISTS revoked_tokens; DROP TABLE IF EXISTS auth_users;`); err != nil {
 		t.Fatalf("reset auth tables: %v", err)
 	}
 
-	migrationPath := filepath.Join("..", "..", "..", "migrations", "auth", "001_init.sql")
-	migration, err := os.ReadFile(migrationPath)
-	if err != nil {
-		t.Fatalf("read migration: %v", err)
-	}
-	if _, err := pool.Exec(ctx, string(migration)); err != nil {
-		t.Fatalf("apply migration: %v", err)
+	for _, name := range []string{"001_init.sql", "002_audit_events.sql"} {
+		migrationPath := filepath.Join("..", "..", "..", "migrations", "auth", name)
+		migration, err := os.ReadFile(migrationPath)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", name, err)
+		}
+		if _, err := pool.Exec(ctx, string(migration)); err != nil {
+			t.Fatalf("apply migration %s: %v", name, err)
+		}
 	}
 	return pool
 }

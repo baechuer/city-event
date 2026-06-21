@@ -227,7 +227,7 @@ func createMediaIntent(t *testing.T, ctx context.Context, service *Service, even
 		UploaderID:  uploaderID,
 		Filename:    filename,
 		ContentType: "image/jpeg",
-		SizeBytes:   10,
+		SizeBytes:   int64(len("image-bytes")),
 	})
 	if err != nil {
 		t.Fatalf("create upload: %v", err)

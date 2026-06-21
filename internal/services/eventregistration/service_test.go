@@ -67,11 +67,15 @@ func TestServiceDuplicateJoinReturnsExistingRegistration(t *testing.T) {
 }
 
 func TestServiceRejectsCanceledEventJoin(t *testing.T) {
-	svc, _ := testEventService()
+	svc, repo := testEventService()
 	ctx := context.Background()
 	event := createTestEvent(t, svc, "organizer-1", 10)
 	if _, err := svc.CancelEvent(ctx, event.Event.ID, "organizer-1", identity.RoleOrganizer); err != nil {
 		t.Fatalf("cancel event: %v", err)
+	}
+	events := repo.AuditEvents()
+	if len(events) != 1 || events[0].Action != "event.cancel" || events[0].ActorUserID != "organizer-1" || events[0].TargetID != event.Event.ID {
+		t.Fatalf("audit events = %+v", events)
 	}
 	if _, err := svc.JoinEvent(ctx, event.Event.ID, "user-1", ""); !errors.Is(err, ErrEventCanceled) {
 		t.Fatalf("expected canceled event join to fail, got %v", err)
@@ -140,6 +144,9 @@ func TestServiceOrganizerCancelRegistrationPromotesWaitlist(t *testing.T) {
 	if _, err := svc.CancelRegistration(ctx, event.Event.ID, "organizer-2", identity.RoleOrganizer, "user-1"); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("expected non-owner organizer moderation to fail, got %v", err)
 	}
+	if events := repo.AuditEvents(); len(events) != 0 {
+		t.Fatalf("forbidden moderation should not create audit event, got %+v", events)
+	}
 
 	result, err := svc.CancelRegistration(ctx, event.Event.ID, "organizer-1", identity.RoleOrganizer, "user-1")
 	if err != nil {
@@ -150,6 +157,10 @@ func TestServiceOrganizerCancelRegistrationPromotesWaitlist(t *testing.T) {
 	}
 	if confirmed := repo.ConfirmedCount(event.Event.ID); confirmed != 1 {
 		t.Fatalf("confirmed count = %d, want 1", confirmed)
+	}
+	events := repo.AuditEvents()
+	if len(events) != 1 || events[0].Action != "registration.cancel_by_manager" || events[0].ActorUserID != "organizer-1" || events[0].TargetID != "user-1" {
+		t.Fatalf("audit events = %+v", events)
 	}
 }
 

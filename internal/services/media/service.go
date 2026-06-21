@@ -14,8 +14,10 @@ type Service struct {
 }
 
 type UploadIntent struct {
-	Asset     Asset  `json:"asset"`
-	UploadURL string `json:"uploadUrl"`
+	Asset        Asset             `json:"asset"`
+	UploadURL    string            `json:"uploadUrl"`
+	UploadMethod string            `json:"uploadMethod"`
+	UploadForm   map[string]string `json:"uploadForm,omitempty"`
 }
 
 func NewService(repo Repository, storage Storage, bucket string) *Service {
@@ -35,7 +37,7 @@ func (s *Service) CreateUpload(ctx context.Context, cmd UploadCommand) (UploadIn
 	if err != nil {
 		return UploadIntent{}, err
 	}
-	uploadURL, err := s.storage.PresignedPutURL(ctx, asset.Bucket, asset.ObjectKey, 15*time.Minute)
+	target, err := s.storage.PresignedUpload(ctx, asset.Bucket, asset.ObjectKey, asset.ContentType, asset.SizeBytes, 15*time.Minute)
 	if err != nil {
 		return UploadIntent{}, err
 	}
@@ -43,7 +45,7 @@ func (s *Service) CreateUpload(ctx context.Context, cmd UploadCommand) (UploadIn
 	if err != nil {
 		return UploadIntent{}, err
 	}
-	return UploadIntent{Asset: created, UploadURL: uploadURL}, nil
+	return UploadIntent{Asset: created, UploadURL: target.URL, UploadMethod: target.Method, UploadForm: target.FormData}, nil
 }
 
 func (s *Service) MarkUploaded(ctx context.Context, mediaID, userID string) (Asset, error) {
@@ -72,13 +74,21 @@ func (w *Worker) ProcessOne(ctx context.Context) (bool, error) {
 	if err != nil || !ok {
 		return ok, err
 	}
-	exists, err := w.storage.ObjectExists(ctx, asset.Bucket, asset.ObjectKey)
+	info, err := w.storage.StatObject(ctx, asset.Bucket, asset.ObjectKey)
 	if err != nil {
 		_, _ = w.repo.MarkFailed(ctx, asset.ID, err.Error(), w.now())
 		return true, err
 	}
-	if !exists {
+	if !info.Exists {
 		_, err := w.repo.MarkFailed(ctx, asset.ID, "object missing", w.now())
+		return true, err
+	}
+	if info.SizeBytes != asset.SizeBytes {
+		_, err := w.repo.MarkFailed(ctx, asset.ID, "object size does not match upload intent", w.now())
+		return true, err
+	}
+	if strings.ToLower(strings.TrimSpace(info.ContentType)) != asset.ContentType {
+		_, err := w.repo.MarkFailed(ctx, asset.ID, "object content type does not match upload intent", w.now())
 		return true, err
 	}
 	_, err = w.repo.MarkReady(ctx, asset.ID, w.now())

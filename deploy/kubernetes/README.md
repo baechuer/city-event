@@ -62,7 +62,7 @@ production dependency architecture.
 
 ## Ingress
 
-`ingress.yaml` routes `cityevents.local/v1`, `/readyz`, `/livez`, and `/metrics` to the API gateway. It assumes an ingress controller that supports `ingressClassName: nginx`. The manifest declares TLS for `cityevents.local`, references the `cityevents-tls` secret, and enables NGINX SSL redirect annotations.
+`ingress.yaml` routes `cityevents.local/v1`, `/readyz`, and `/livez` to the API gateway. It assumes an ingress controller that supports `ingressClassName: nginx`. The manifest declares TLS for `cityevents.local`, references the `cityevents-tls` secret, and enables NGINX SSL redirect annotations. `/metrics` remains an internal service endpoint for Prometheus-style scraping and is not exposed through the public ingress.
 
 If you switch to a public hostname, update `ingress.yaml`, `configmap.yaml` `CORS_ALLOWED_ORIGINS`, and `cert-manager-certificate.example.yaml` together.
 

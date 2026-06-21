@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -29,6 +28,8 @@ const (
 	refreshCookieName = "cityevents_refresh"
 	csrfCookieName    = "cityevents_csrf"
 	csrfHeaderName    = "X-CSRF-Token"
+
+	authJSONLimitBytes = 32 * 1024
 )
 
 func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (http.Handler, func(context.Context) error, error) {
@@ -102,8 +103,8 @@ func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) ht
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
+	if err := decodeJSON(w, r, &req, authJSONLimitBytes); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 
@@ -122,8 +123,8 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
+	if err := decodeJSON(w, r, &req, authJSONLimitBytes); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 
@@ -210,8 +211,8 @@ func (h *Handler) updateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req updateRoleRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
+	if err := decodeJSON(w, r, &req, authJSONLimitBytes); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 	updated, err := h.service.UpdateUserRole(r.Context(), UpdateRoleCommand{
@@ -250,11 +251,8 @@ type errorBody struct {
 	Message string `json:"message"`
 }
 
-func decodeJSON(r *http.Request, target any) error {
-	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	return decoder.Decode(target)
+func decodeJSON(w http.ResponseWriter, r *http.Request, target any, maxBytes int64) error {
+	return httpapi.DecodeJSONLimited(w, r, target, maxBytes)
 }
 
 func bearerToken(r *http.Request) (string, bool) {
@@ -388,6 +386,14 @@ func writeAuthError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal server error")
 	}
+}
+
+func writeDecodeError(w http.ResponseWriter, err error) {
+	if errors.Is(err, httpapi.ErrRequestBodyTooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, "request_too_large", "request body is too large")
+		return
+	}
+	writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {

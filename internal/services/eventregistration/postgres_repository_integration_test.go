@@ -385,6 +385,7 @@ func setupEventPostgres(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	})
 
 	if _, err := pool.Exec(ctx, `
+		DROP TABLE IF EXISTS event_audit_events;
 		DROP TABLE IF EXISTS outbox_messages;
 		DROP TABLE IF EXISTS event_registrations;
 		DROP TABLE IF EXISTS events;
@@ -392,13 +393,15 @@ func setupEventPostgres(t *testing.T, ctx context.Context) *pgxpool.Pool {
 		t.Fatalf("reset event-registration tables: %v", err)
 	}
 
-	migrationPath := filepath.Join("..", "..", "..", "migrations", "eventregistration", "001_init.sql")
-	migration, err := os.ReadFile(migrationPath)
-	if err != nil {
-		t.Fatalf("read migration: %v", err)
-	}
-	if _, err := pool.Exec(ctx, string(migration)); err != nil {
-		t.Fatalf("apply migration: %v", err)
+	for _, name := range []string{"001_init.sql", "002_outbox_relay.sql", "003_outbox_dead_state.sql", "004_audit_events.sql"} {
+		migrationPath := filepath.Join("..", "..", "..", "migrations", "eventregistration", name)
+		migration, err := os.ReadFile(migrationPath)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", name, err)
+		}
+		if _, err := pool.Exec(ctx, string(migration)); err != nil {
+			t.Fatalf("apply migration %s: %v", name, err)
+		}
 	}
 	return pool
 }

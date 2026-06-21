@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/baechuer/cityevents/internal/platform/identity"
+	"github.com/baechuer/cityevents/internal/platform/observability"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -153,7 +154,20 @@ func (s *Service) UpdateUserRole(ctx context.Context, cmd UpdateRoleCommand) (Pu
 	if !identity.CanAdmin(actor.Role) {
 		return PublicUser{}, ErrForbidden
 	}
-	updated, err := s.repo.UpdateUserRole(ctx, strings.TrimSpace(cmd.TargetUserID), role)
+	targetID := strings.TrimSpace(cmd.TargetUserID)
+	updated, err := s.repo.UpdateUserRoleWithAudit(ctx, targetID, role, AuditEvent{
+		ID:            NewID(),
+		ActorUserID:   actor.ID,
+		Action:        "auth.role_update",
+		TargetUserID:  targetID,
+		TargetType:    "user",
+		Result:        "success",
+		CorrelationID: observability.CorrelationIDFromContext(ctx),
+		Metadata: map[string]any{
+			"newRole": role,
+		},
+		CreatedAt: s.now().UTC(),
+	})
 	if err != nil {
 		return PublicUser{}, err
 	}

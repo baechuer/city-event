@@ -44,6 +44,7 @@ type Config struct {
 	RateLimitRequests           int
 	RateLimitAuthRequests       int
 	RateLimitMutationRequests   int
+	TrustedProxyCIDRs           []string
 	SeedAdminEmail              string
 	SeedAdminPass               string
 	SeedAdminName               string
@@ -169,6 +170,7 @@ func Load(serviceName string, getenv func(string) string) (Config, error) {
 		RateLimitRequests:           rateLimitRequests,
 		RateLimitAuthRequests:       rateLimitAuthRequests,
 		RateLimitMutationRequests:   rateLimitMutationRequests,
+		TrustedProxyCIDRs:           parseCSV(env(getenv, "TRUSTED_PROXY_CIDRS", "")),
 		SeedAdminEmail:              env(getenv, "SEED_ADMIN_EMAIL", ""),
 		SeedAdminPass:               env(getenv, "SEED_ADMIN_PASSWORD", ""),
 		SeedAdminName:               env(getenv, "SEED_ADMIN_DISPLAY_NAME", "CityEvents Admin"),
@@ -244,6 +246,11 @@ func (c Config) Validate() error {
 			if value <= 0 {
 				return fmt.Errorf("%s must be positive", name)
 			}
+		}
+	}
+	for _, cidr := range c.TrustedProxyCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("invalid trusted proxy cidr %q: %w", cidr, err)
 		}
 	}
 	for name, value := range map[string]string{

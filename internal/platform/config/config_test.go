@@ -40,6 +40,9 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.RateLimitEnabled || cfg.RateLimitBackend != "memory" || cfg.RateLimitWindow != time.Minute || cfg.RateLimitRedisTimeout != 200*time.Millisecond || !cfg.RateLimitRedisFailOpen || cfg.RateLimitRequests != 600 || cfg.RateLimitAuthRequests != 60 || cfg.RateLimitMutationRequests != 240 {
 		t.Fatalf("unexpected rate limit defaults: enabled=%v backend=%s window=%s redisTimeout=%s failOpen=%v requests=%d auth=%d mutation=%d", cfg.RateLimitEnabled, cfg.RateLimitBackend, cfg.RateLimitWindow, cfg.RateLimitRedisTimeout, cfg.RateLimitRedisFailOpen, cfg.RateLimitRequests, cfg.RateLimitAuthRequests, cfg.RateLimitMutationRequests)
 	}
+	if len(cfg.TrustedProxyCIDRs) != 0 {
+		t.Fatalf("trusted proxy cidrs should be empty by default: %+v", cfg.TrustedProxyCIDRs)
+	}
 	if cfg.AuthServiceURL != "http://127.0.0.1:8081" || cfg.EventServiceURL != "http://127.0.0.1:8082" {
 		t.Fatalf("expected local service URL defaults, got auth=%q event=%q", cfg.AuthServiceURL, cfg.EventServiceURL)
 	}
@@ -68,6 +71,7 @@ func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 		"RATE_LIMIT_REQUESTS":            "50",
 		"RATE_LIMIT_AUTH_REQUESTS":       "5",
 		"RATE_LIMIT_MUTATION_REQUESTS":   "20",
+		"TRUSTED_PROXY_CIDRS":            "127.0.0.1/32,10.0.0.0/8",
 		"CORS_ALLOWED_ORIGINS":           "https://cityevents.example,http://localhost:18088",
 		"UNRELATED_SERVICE_HTTP_ADDR":    ":9200",
 	}
@@ -91,6 +95,9 @@ func TestLoadServiceSpecificHTTPAddr(t *testing.T) {
 	}
 	if cfg.RateLimitBackend != "redis" || cfg.RateLimitWindow != 30*time.Second || cfg.RateLimitRedisTimeout != 50*time.Millisecond || cfg.RateLimitRedisFailOpen || cfg.RateLimitRequests != 50 || cfg.RateLimitAuthRequests != 5 || cfg.RateLimitMutationRequests != 20 {
 		t.Fatalf("unexpected rate limits: backend=%s window=%s redisTimeout=%s failOpen=%v requests=%d auth=%d mutation=%d", cfg.RateLimitBackend, cfg.RateLimitWindow, cfg.RateLimitRedisTimeout, cfg.RateLimitRedisFailOpen, cfg.RateLimitRequests, cfg.RateLimitAuthRequests, cfg.RateLimitMutationRequests)
+	}
+	if len(cfg.TrustedProxyCIDRs) != 2 || cfg.TrustedProxyCIDRs[0] != "127.0.0.1/32" {
+		t.Fatalf("unexpected trusted proxy cidrs: %+v", cfg.TrustedProxyCIDRs)
 	}
 	if len(cfg.AllowedOrigins) != 2 || cfg.AllowedOrigins[0] != "https://cityevents.example" {
 		t.Fatalf("unexpected allowed origins: %+v", cfg.AllowedOrigins)
@@ -153,6 +160,11 @@ func TestLoadRejectsInvalidRefreshConfig(t *testing.T) {
 		"RATE_LIMIT_REQUESTS": "not-a-number",
 	})); err == nil {
 		t.Fatalf("expected invalid rate limit request count error")
+	}
+	if _, err := Load("auth-service", mapGetenv(map[string]string{
+		"TRUSTED_PROXY_CIDRS": "not-a-cidr",
+	})); err == nil {
+		t.Fatalf("expected invalid trusted proxy cidr error")
 	}
 }
 

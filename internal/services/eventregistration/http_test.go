@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/authn"
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/identity"
 )
@@ -81,6 +82,11 @@ func TestEventHandlersValidationAndAuthorization(t *testing.T) {
 	unauthorized := doEventJSON(router, http.MethodPost, "/v1/events", body, "", nil)
 	if unauthorized.Code != http.StatusUnauthorized {
 		t.Fatalf("create without user status = %d", unauthorized.Code)
+	}
+
+	spoofed := doEventJSON(router, http.MethodPost, "/v1/events", body, "", organizerHeaders())
+	if spoofed.Code != http.StatusUnauthorized {
+		t.Fatalf("create with spoofed identity headers status = %d body=%s", spoofed.Code, spoofed.Body.String())
 	}
 
 	plainUser := doEventJSON(router, http.MethodPost, "/v1/events", body, "user-1", nil)
@@ -205,9 +211,18 @@ func doEventJSON(handler http.Handler, method, path, body, userID string, header
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if userID != "" {
-		req.Header.Set(identity.HeaderUserID, userID)
+		role := identity.RoleUser
+		if headers != nil {
+			if headerRole := identity.NormalizeRole(headers[identity.HeaderUserRole]); identity.ValidRole(headerRole) {
+				role = headerRole
+			}
+		}
+		req.Header.Set("Authorization", "Bearer "+testEventAccessToken(userID, role))
 	}
 	for key, value := range headers {
+		if key == identity.HeaderUserID || key == identity.HeaderUserRole {
+			continue
+		}
 		req.Header.Set(key, value)
 	}
 	rec := httptest.NewRecorder()
@@ -217,6 +232,19 @@ func doEventJSON(handler http.Handler, method, path, body, userID string, header
 
 func organizerHeaders() map[string]string {
 	return map[string]string{identity.HeaderUserRole: string(identity.RoleOrganizer)}
+}
+
+func testEventAccessToken(userID string, role identity.Role) string {
+	manager := authn.NewTokenManager("dev-secret-change-me", "cityevents", time.Hour)
+	token, _, err := manager.Sign(authn.Subject{
+		UserID: userID,
+		Email:  userID + "@example.com",
+		Role:   role,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return token
 }
 
 func decodeBody(t *testing.T, body []byte, target any) {

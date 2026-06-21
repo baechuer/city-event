@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/authn"
 	"github.com/baechuer/cityevents/internal/platform/config"
+	"github.com/baechuer/cityevents/internal/platform/identity"
 )
 
 func TestMediaHandlersWorkflow(t *testing.T) {
@@ -19,7 +22,7 @@ func TestMediaHandlersWorkflow(t *testing.T) {
 	}
 	var intent UploadIntent
 	decodeMediaBody(t, create.Body.Bytes(), &intent)
-	if intent.Asset.ID == "" || intent.UploadURL == "" {
+	if intent.Asset.ID == "" || intent.UploadURL == "" || intent.UploadMethod == "" {
 		t.Fatalf("intent = %+v", intent)
 	}
 
@@ -55,6 +58,11 @@ func TestMediaHandlersValidation(t *testing.T) {
 		t.Fatalf("unauthorized status = %d", unauthorized.Code)
 	}
 
+	spoofed := doMediaJSONWithHeaders(router, http.MethodPost, "/v1/media/uploads", body, "", map[string]string{"X-User-ID": "spoofed"})
+	if spoofed.Code != http.StatusUnauthorized {
+		t.Fatalf("spoofed header status = %d body=%s", spoofed.Code, spoofed.Body.String())
+	}
+
 	missing := doMediaJSON(router, http.MethodGet, "/v1/media/missing", "", "")
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing status = %d", missing.Code)
@@ -71,16 +79,36 @@ func testMediaRouter(t *testing.T) http.Handler {
 }
 
 func doMediaJSON(handler http.Handler, method, path, body, userID string) *httptest.ResponseRecorder {
+	return doMediaJSONWithHeaders(handler, method, path, body, userID, nil)
+}
+
+func doMediaJSONWithHeaders(handler http.Handler, method, path, body, userID string, headers map[string]string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, bytes.NewReader([]byte(body)))
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	if userID != "" {
-		req.Header.Set("X-User-ID", userID)
+		req.Header.Set("Authorization", "Bearer "+testMediaAccessToken(userID))
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
+}
+
+func testMediaAccessToken(userID string) string {
+	manager := authn.NewTokenManager("dev-secret-change-me", "cityevents", time.Hour)
+	token, _, err := manager.Sign(authn.Subject{
+		UserID: userID,
+		Email:  userID + "@example.com",
+		Role:   identity.RoleUser,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return token
 }
 
 func decodeMediaBody(t *testing.T, body []byte, target any) {

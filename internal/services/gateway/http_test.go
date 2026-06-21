@@ -11,7 +11,7 @@ import (
 	"github.com/baechuer/cityevents/internal/platform/observability"
 )
 
-func TestGatewayInjectsTrustedIdentityAndStripsSpoofedHeaders(t *testing.T) {
+func TestGatewayValidatesTokenAndStripsSpoofedIdentityHeaders(t *testing.T) {
 	auth := newGatewayAuthStub(t)
 	var sawEvent bool
 	event := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -19,11 +19,14 @@ func TestGatewayInjectsTrustedIdentityAndStripsSpoofedHeaders(t *testing.T) {
 		if r.URL.Path != "/v1/events" {
 			t.Fatalf("path = %q, want /v1/events", r.URL.Path)
 		}
-		if got := r.Header.Get(identity.HeaderUserID); got != "user-123" {
-			t.Fatalf("user id header = %q, want trusted user-123", got)
+		if got := r.Header.Get(identity.HeaderUserID); got != "" {
+			t.Fatalf("user id header should be stripped before upstream, got %q", got)
 		}
-		if got := r.Header.Get(identity.HeaderUserRole); got != string(identity.RoleOrganizer) {
-			t.Fatalf("role header = %q, want ORGANIZER", got)
+		if got := r.Header.Get(identity.HeaderUserRole); got != "" {
+			t.Fatalf("role header should be stripped before upstream, got %q", got)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer valid-token" {
+			t.Fatalf("authorization header = %q, want original bearer token", got)
 		}
 		w.WriteHeader(http.StatusCreated)
 	}))

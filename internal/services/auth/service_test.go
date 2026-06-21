@@ -226,6 +226,10 @@ func TestServiceSeedAdminAndRoleUpdates(t *testing.T) {
 	if updated.Role != string(identity.RoleOrganizer) {
 		t.Fatalf("updated role = %q, want ORGANIZER", updated.Role)
 	}
+	events := repo.AuditEvents()
+	if len(events) != 1 || events[0].Action != "auth.role_update" || events[0].ActorUserID != admin.ID || events[0].TargetUserID != userResult.User.ID {
+		t.Fatalf("audit events = %+v", events)
+	}
 
 	plain, err := svc.Register(ctx, RegisterCommand{
 		Email:       "plain@example.com",
@@ -241,6 +245,9 @@ func TestServiceSeedAdminAndRoleUpdates(t *testing.T) {
 		Role:         identity.RoleAdmin,
 	}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("expected non-admin role update to be forbidden, got %v", err)
+	}
+	if events := repo.AuditEvents(); len(events) != 1 {
+		t.Fatalf("forbidden role update should not create audit event, got %+v", events)
 	}
 
 	stored, err := repo.FindUserByEmail(ctx, "organizer@example.com")

@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/authn"
 	"github.com/baechuer/cityevents/internal/platform/config"
+	"github.com/baechuer/cityevents/internal/platform/identity"
 	"github.com/baechuer/cityevents/internal/platform/observability"
 )
 
@@ -91,8 +93,8 @@ func TestCORSPreflight(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
 		t.Fatalf("allow credentials = %q", got)
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-User-ID") {
-		t.Fatalf("allow headers = %q", got)
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); strings.Contains(got, "X-User-ID") || strings.Contains(got, "X-User-Role") {
+		t.Fatalf("identity headers must not be allowed from browsers: %q", got)
 	}
 	if got := rec.Header().Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-CSRF-Token") {
 		t.Fatalf("allow headers = %q", got)
@@ -221,6 +223,96 @@ func TestRateLimitRejectsRepeatedRequests(t *testing.T) {
 	}
 }
 
+func TestRateLimitIgnoresForwardedForFromUntrustedPeer(t *testing.T) {
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		values := map[string]string{
+			"RATE_LIMIT_REQUESTS": "1",
+			"RATE_LIMIT_WINDOW":   "1m",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := NewBaseRouter(cfg, nil)
+	router.Get("/limited", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	first := httptest.NewRecorder()
+	firstReq := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	firstReq.RemoteAddr = "203.0.113.40:5000"
+	firstReq.Header.Set("X-Forwarded-For", "198.51.100.10")
+	router.ServeHTTP(first, firstReq)
+	if first.Code != http.StatusOK {
+		t.Fatalf("first request status = %d body=%s", first.Code, first.Body.String())
+	}
+
+	second := httptest.NewRecorder()
+	secondReq := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	secondReq.RemoteAddr = "203.0.113.40:5001"
+	secondReq.Header.Set("X-Forwarded-For", "198.51.100.11")
+	router.ServeHTTP(second, secondReq)
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request status = %d body=%s", second.Code, second.Body.String())
+	}
+}
+
+func TestRateLimitUsesForwardedForFromTrustedPeer(t *testing.T) {
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		values := map[string]string{
+			"RATE_LIMIT_REQUESTS": "1",
+			"RATE_LIMIT_WINDOW":   "1m",
+			"TRUSTED_PROXY_CIDRS": "127.0.0.1/32",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := NewBaseRouter(cfg, nil)
+	router.Get("/limited", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	for i, forwarded := range []string{"198.51.100.20", "198.51.100.21"} {
+		req := httptest.NewRequest(http.MethodGet, "/limited", nil)
+		req.RemoteAddr = "127.0.0.1:5000"
+		req.Header.Set("X-Forwarded-For", forwarded)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d status = %d body=%s", i+1, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func TestRateLimitKeysAuthenticatedRequestsByVerifiedUser(t *testing.T) {
+	cfg, err := config.Load("api-gateway", func(key string) string {
+		values := map[string]string{
+			"RATE_LIMIT_REQUESTS": "1",
+			"RATE_LIMIT_WINDOW":   "1m",
+		}
+		return values[key]
+	})
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := NewBaseRouter(cfg, nil)
+	router.Get("/limited", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	token := testRateLimitToken(t, cfg, "user-1")
+
+	for i, remoteAddr := range []string{"203.0.113.50:5000", "203.0.113.51:5000"} {
+		req := httptest.NewRequest(http.MethodGet, "/limited", nil)
+		req.RemoteAddr = remoteAddr
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if i == 0 && rec.Code != http.StatusOK {
+			t.Fatalf("first request status = %d body=%s", rec.Code, rec.Body.String())
+		}
+		if i == 1 && rec.Code != http.StatusTooManyRequests {
+			t.Fatalf("second request status = %d body=%s", rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestRateLimitUsesSharedStoreAcrossRouters(t *testing.T) {
 	cfg, err := config.Load("api-gateway", func(key string) string {
 		values := map[string]string{
@@ -262,6 +354,20 @@ func TestRateLimitUsesSharedStoreAcrossRouters(t *testing.T) {
 	if got := third.Header().Get("Retry-After"); got == "" {
 		t.Fatalf("expected Retry-After header")
 	}
+}
+
+func testRateLimitToken(t *testing.T, cfg config.Config, userID string) string {
+	t.Helper()
+	manager := authn.NewTokenManager(cfg.JWTSecret, cfg.JWTIssuer, time.Hour)
+	token, _, err := manager.Sign(authn.Subject{
+		UserID: userID,
+		Email:  userID + "@example.com",
+		Role:   identity.RoleUser,
+	})
+	if err != nil {
+		t.Fatalf("sign test token: %v", err)
+	}
+	return token
 }
 
 func TestRateLimitStoreErrorFailOpen(t *testing.T) {

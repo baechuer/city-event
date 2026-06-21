@@ -139,12 +139,12 @@ func (h *Handler) proxyEvents(w http.ResponseWriter, r *http.Request) {
 			h.eventProxy.ServeHTTP(w, sanitizedRequest(r))
 			return
 		}
-		user, err := h.authenticate(r.Context(), token)
+		_, err := h.authenticate(r.Context(), token)
 		if err != nil {
 			writeGatewayAuthError(w, err)
 			return
 		}
-		h.eventProxy.ServeHTTP(w, requestWithPrincipal(r, user))
+		h.eventProxy.ServeHTTP(w, sanitizedRequest(r))
 	default:
 		user, err := h.requirePrincipal(r)
 		if err != nil {
@@ -237,9 +237,8 @@ func eventAuthMode(r *http.Request) authMode {
 }
 
 func requestWithPrincipal(r *http.Request, user principal) *http.Request {
+	_ = user
 	req := sanitizedRequest(r)
-	req.Header.Set(identity.HeaderUserID, user.UserID)
-	req.Header.Set(identity.HeaderUserRole, string(user.Role))
 	return req
 }
 

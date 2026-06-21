@@ -2,12 +2,11 @@ package media
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 
+	"github.com/baechuer/cityevents/internal/platform/authn"
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/health"
 	"github.com/baechuer/cityevents/internal/platform/httpapi"
@@ -15,8 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const mediaJSONLimitBytes = 64 * 1024
+
 type Handler struct {
 	service *Service
+	tokens  authn.TokenManager
 }
 
 func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (http.Handler, func(context.Context) error, error) {
@@ -43,7 +45,10 @@ func NewRouter(ctx context.Context, cfg config.Config, logger *slog.Logger) (htt
 
 func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) http.Handler {
 	r := httpapi.NewBaseRouter(cfg, logger)
-	handler := &Handler{service: service}
+	handler := &Handler{
+		service: service,
+		tokens:  authn.NewTokenManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL),
+	}
 	r.Post("/v1/media/uploads", handler.createUpload)
 	r.Post("/v1/media/{mediaID}/uploaded", handler.markUploaded)
 	r.Get("/v1/media/{mediaID}", handler.getMedia)
@@ -51,14 +56,14 @@ func NewHTTPHandler(cfg config.Config, logger *slog.Logger, service *Service) ht
 }
 
 func (h *Handler) createUpload(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromHeader(r)
+	userID, ok := h.userIDFromRequest(r)
 	if !ok {
 		writeMediaError(w, ErrUnauthorized)
 		return
 	}
 	var req createUploadRequest
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
+	if err := decodeJSON(w, r, &req, mediaJSONLimitBytes); err != nil {
+		writeDecodeError(w, err)
 		return
 	}
 	intent, err := h.service.CreateUpload(r.Context(), UploadCommand{
@@ -76,7 +81,7 @@ func (h *Handler) createUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) markUploaded(w http.ResponseWriter, r *http.Request) {
-	userID, ok := userIDFromHeader(r)
+	userID, ok := h.userIDFromRequest(r)
 	if !ok {
 		writeMediaError(w, ErrUnauthorized)
 		return
@@ -114,16 +119,20 @@ type errorBody struct {
 	Message string `json:"message"`
 }
 
-func decodeJSON(r *http.Request, target any) error {
-	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	return decoder.Decode(target)
+func decodeJSON(w http.ResponseWriter, r *http.Request, target any, maxBytes int64) error {
+	return httpapi.DecodeJSONLimited(w, r, target, maxBytes)
 }
 
-func userIDFromHeader(r *http.Request) (string, bool) {
-	userID := strings.TrimSpace(r.Header.Get("X-User-ID"))
-	return userID, userID != ""
+func (h *Handler) userIDFromRequest(r *http.Request) (string, bool) {
+	token, ok := authn.BearerToken(r)
+	if !ok {
+		return "", false
+	}
+	claims, err := h.tokens.Verify(token)
+	if err != nil {
+		return "", false
+	}
+	return claims.UserID, claims.UserID != ""
 }
 
 func writeMediaError(w http.ResponseWriter, err error) {
@@ -139,6 +148,14 @@ func writeMediaError(w http.ResponseWriter, err error) {
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal server error")
 	}
+}
+
+func writeDecodeError(w http.ResponseWriter, err error) {
+	if errors.Is(err, httpapi.ErrRequestBodyTooLarge) {
+		writeError(w, http.StatusRequestEntityTooLarge, "request_too_large", "request body is too large")
+		return
+	}
+	writeError(w, http.StatusBadRequest, "invalid_request", "invalid JSON request")
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {

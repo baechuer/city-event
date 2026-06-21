@@ -20,11 +20,24 @@ type Repository interface {
 	FindUserByEmail(context.Context, string) (User, error)
 	FindUserByID(context.Context, string) (User, error)
 	UpdateUserRole(context.Context, string, identity.Role) (User, error)
+	UpdateUserRoleWithAudit(context.Context, string, identity.Role, AuditEvent) (User, error)
 	RevokeToken(context.Context, string, string, time.Time) error
 	IsTokenRevoked(context.Context, string) (bool, error)
 	CreateRefreshSession(context.Context, RefreshSession) error
 	RotateRefreshSession(context.Context, string, string, time.Time, time.Time) (User, RefreshSession, error)
 	RevokeRefreshSession(context.Context, string, time.Time) error
+}
+
+type AuditEvent struct {
+	ID            string
+	ActorUserID   string
+	Action        string
+	TargetUserID  string
+	TargetType    string
+	Result        string
+	CorrelationID string
+	Metadata      map[string]any
+	CreatedAt     time.Time
 }
 
 type MemoryRepository struct {
@@ -33,6 +46,7 @@ type MemoryRepository struct {
 	usersByEmail  map[string]User
 	revokedTokens map[string]revokedToken
 	refreshTokens map[string]RefreshSession
+	auditEvents   []AuditEvent
 }
 
 type revokedToken struct {
@@ -46,6 +60,7 @@ func NewMemoryRepository() *MemoryRepository {
 		usersByEmail:  map[string]User{},
 		revokedTokens: map[string]revokedToken{},
 		refreshTokens: map[string]RefreshSession{},
+		auditEvents:   []AuditEvent{},
 	}
 }
 
@@ -90,6 +105,28 @@ func (r *MemoryRepository) UpdateUserRole(_ context.Context, id string, role ide
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	return r.updateUserRoleLocked(id, role)
+}
+
+func (r *MemoryRepository) UpdateUserRoleWithAudit(_ context.Context, id string, role identity.Role, event AuditEvent) (User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	user, err := r.updateUserRoleLocked(id, role)
+	if err != nil {
+		return User{}, err
+	}
+	if event.ID == "" {
+		event.ID = NewID()
+	}
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now().UTC()
+	}
+	r.auditEvents = append(r.auditEvents, event)
+	return user, nil
+}
+
+func (r *MemoryRepository) updateUserRoleLocked(id string, role identity.Role) (User, error) {
 	user, exists := r.usersByID[id]
 	if !exists {
 		return User{}, ErrUserNotFound
@@ -99,6 +136,15 @@ func (r *MemoryRepository) UpdateUserRole(_ context.Context, id string, role ide
 	r.usersByID[id] = user
 	r.usersByEmail[NormalizeEmail(user.Email)] = user
 	return user, nil
+}
+
+func (r *MemoryRepository) AuditEvents() []AuditEvent {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	out := make([]AuditEvent, len(r.auditEvents))
+	copy(out, r.auditEvents)
+	return out
 }
 
 func (r *MemoryRepository) RevokeToken(_ context.Context, tokenID, userID string, expiresAt time.Time) error {

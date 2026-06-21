@@ -227,6 +227,33 @@ json_string_field() {
   printf '%s' "$json" | sed -n "s/.*\"$field\":\"\\([^\"]*\\)\".*/\\1/p"
 }
 
+jwt_for_user() {
+  local user_id="$1"
+  local role="${2:-USER}"
+  local secret="${JWT_SECRET:-dev-secret-change-me}"
+  local issuer="${JWT_ISSUER:-cityevents}"
+  run_node - "$user_id" "$role" "$secret" "$issuer" <<'NODE'
+const crypto = require('node:crypto');
+
+const [userID, role, secret, issuer] = process.argv.slice(2);
+const now = Math.floor(Date.now() / 1000);
+const base64url = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+const header = base64url({ alg: 'HS256', typ: 'JWT' });
+const payload = base64url({
+  sub: userID,
+  email: `${userID}@example.com`,
+  role,
+  jti: crypto.randomUUID(),
+  iss: issuer,
+  iat: now,
+  exp: now + 3600,
+});
+const unsigned = `${header}.${payload}`;
+const signature = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
+process.stdout.write(`${unsigned}.${signature}`);
+NODE
+}
+
 cleanup_pid() {
   local pid="${1:-}"
   if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then

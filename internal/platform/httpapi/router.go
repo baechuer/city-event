@@ -68,7 +68,7 @@ func localCORSMiddleware(cfg config.Config) func(http.Handler) http.Handler {
 				w.Header().Add("Vary", "Origin")
 			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-CSRF-Token, X-User-ID, X-User-Role, Idempotency-Key, X-Correlation-ID, traceparent, tracestate")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-CSRF-Token, Idempotency-Key, X-Correlation-ID, traceparent, tracestate")
 			w.Header().Set("Access-Control-Max-Age", "600")
 			if r.Method == http.MethodOptions {
 				w.WriteHeader(http.StatusNoContent)

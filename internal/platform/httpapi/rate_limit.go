@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/baechuer/cityevents/internal/platform/authn"
 	"github.com/baechuer/cityevents/internal/platform/config"
 	"github.com/baechuer/cityevents/internal/platform/observability"
 	"github.com/redis/go-redis/v9"
@@ -234,11 +235,19 @@ func rateLimitKey(cfg config.Config, r *http.Request, scope string) string {
 		"rate-limit",
 		cfg.Environment,
 		cfg.Service.Name,
-		clientAddress(r),
+		rateLimitIdentity(cfg, r),
 		scope,
 		r.Method,
 		r.URL.Path,
 	}, "|")
+}
+
+func rateLimitIdentity(cfg config.Config, r *http.Request) string {
+	tokens := authn.NewTokenManager(cfg.JWTSecret, cfg.JWTIssuer, cfg.AccessTokenTTL)
+	if claims, ok := tokens.ClaimsFromRequest(r); ok {
+		return "user:" + claims.UserID
+	}
+	return "ip:" + clientAddress(cfg, r)
 }
 
 func rateLimitFailureMode(cfg config.Config) string {
@@ -271,12 +280,44 @@ func skipRateLimit(r *http.Request) bool {
 	}
 }
 
-func clientAddress(r *http.Request) string {
+func clientAddress(cfg config.Config, r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil && host != "" {
-		return host
+	if err != nil {
+		host = strings.TrimSpace(r.RemoteAddr)
+	}
+	remoteIP := net.ParseIP(strings.TrimSpace(host))
+	if remoteIP != nil && isTrustedProxy(remoteIP, cfg.TrustedProxyCIDRs) {
+		if forwarded := firstForwardedIP(r.Header.Get("X-Forwarded-For")); forwarded != "" {
+			return forwarded
+		}
+	}
+	if strings.TrimSpace(host) != "" {
+		return strings.TrimSpace(host)
 	}
 	return strings.TrimSpace(r.RemoteAddr)
+}
+
+func isTrustedProxy(ip net.IP, cidrs []string) bool {
+	for _, cidr := range cidrs {
+		_, network, err := net.ParseCIDR(cidr)
+		if err == nil && network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func firstForwardedIP(header string) string {
+	for _, part := range strings.Split(header, ",") {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		if ip := net.ParseIP(value); ip != nil {
+			return ip.String()
+		}
+	}
+	return ""
 }
 
 func retryAfterSeconds(duration time.Duration) string {
