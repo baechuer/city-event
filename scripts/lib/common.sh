@@ -108,7 +108,7 @@ run_npm() {
     npm.cmd "$@"
     return
   fi
-  if command -v cmd.exe >/dev/null 2>&1; then
+  if command -v cmd.exe >/dev/null 2>&1 && cmd.exe /c "where npm" >/dev/null 2>&1; then
     cmd.exe /c npm $*
     return
   fi

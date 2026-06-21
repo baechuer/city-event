@@ -78,6 +78,7 @@ common_env=(
   "SMTP_ADDR=localhost:1025"
   "JWT_SECRET=local-dev-secret-not-for-production"
   "JWT_ISSUER=cityevents-local"
+  "CORS_ALLOWED_ORIGINS=http://127.0.0.1:$frontend_port,http://localhost:$frontend_port,http://127.0.0.1:18088,http://localhost:18088,http://cityevents.local,https://cityevents.local"
   "TOKEN_REVOCATION_CACHE_ENABLED=true"
   "RATE_LIMIT_ENABLED=true"
   "RATE_LIMIT_BACKEND=redis"
@@ -334,8 +335,21 @@ build_frontend() {
   log "Build frontend"
   (
     cd "$REPO_ROOT/frontend"
-    run_npm run build
+    if npm_available; then
+      run_npm run build
+    else
+      [[ -f "node_modules/typescript/bin/tsc" ]] || die "typescript is missing from frontend/node_modules and npm is unavailable."
+      [[ -f "node_modules/vite/bin/vite.js" ]] || die "vite is missing from frontend/node_modules and npm is unavailable."
+      run_node node_modules/typescript/bin/tsc --noEmit
+      run_node node_modules/vite/bin/vite.js build
+    fi
   )
+}
+
+npm_available() {
+  command -v npm >/dev/null 2>&1 ||
+    command -v npm.cmd >/dev/null 2>&1 ||
+    { command -v cmd.exe >/dev/null 2>&1 && cmd.exe /c "where npm" >/dev/null 2>&1; }
 }
 
 start_frontend_node() {
