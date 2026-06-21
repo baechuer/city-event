@@ -69,6 +69,10 @@ jobs:
             users: "80"
             capacity: "25"
             concurrency: "20"
+          - profile: 100-concurrent
+            users: "100"
+            capacity: "50"
+            concurrency: "100"
           - profile: stress
             users: "160"
             capacity: "50"
@@ -99,7 +103,14 @@ jobs:
             --start-stack \
             --users "${{ matrix.users }}" \
             --capacity "${{ matrix.capacity }}" \
-            --concurrency "${{ matrix.concurrency }}"
+            --concurrency "${{ matrix.concurrency }}" \
+            --min-success-rate 100 \
+            --max-p95-seconds 10 \
+            --max-p99-seconds 10 \
+            --max-5xx 0 \
+            --max-outbox-dead 0 \
+            --max-dlq-depth 0 \
+            --feed-timeout-seconds 30
 
       - name: Stop local stack
         if: always()
