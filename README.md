@@ -1,363 +1,366 @@
-# CityEvents V2
+# CityEvents
 
-CityEvents V2 is a clean rebuild of the city event platform.
+CityEvents is a full-stack city event platform I built to demonstrate
+microservices architecture, asynchronous messaging, transactional consistency,
+secure authentication, browser E2E testing, and Kubernetes deployment
+readiness.
 
-The current branch is in Phase 15+: reliability, observability, distributed rate-limit, load-evidence, and frontend-hardening work. It contains the Go service foundation, auth service with short-lived JWT access tokens, rotating HttpOnly refresh tokens, CSRF protection for cookie-auth flows, Redis-assisted token revocation checks, gateway JWT/RBAC boundary, core event-registration consistency boundary, asynchronous messaging path, Redis-backed feed reads, idempotent notification records, asynchronous media metadata processing, a browser demo, Redis-backed shared HTTP rate limiting, richer Prometheus-style request metrics, GitHub Actions CI gates, Playwright browser E2E coverage, Kubernetes replicated workload manifests, a local Kubernetes overlay, GitHub-Actions-only heavy evidence tooling, and resume-safe claim guidance.
+The product goal is simple: users can discover local events, create accounts,
+publish events as organizers, join events, cancel RSVPs, move through
+waitlists, and let organizers or admins manage registrations. The engineering
+goal is deeper: model the kind of tradeoffs a real distributed backend needs to
+make around consistency, retries, idempotency, security boundaries, caching,
+observability, and deployability.
 
-## Architecture Direction
+## Highlights
 
-The intended system is a RabbitMQ-based Go microservices platform:
+- Go microservices with an API gateway, independent service processes, and
+  separate async workers.
+- PostgreSQL as the authoritative system of record for users, events,
+  registrations, media metadata, outbox messages, and audit records.
+- RabbitMQ asynchronous workflows using transactional outbox, publisher
+  confirms, retry delays, dead-letter queues, and idempotent consumers.
+- Redis used intentionally as a non-authoritative cache/rate-limit store rather
+  than a source of truth.
+- React + TypeScript + Vite frontend with runtime API configuration and
+  Playwright browser E2E tests against the full local stack.
+- JWT/RBAC security with short-lived access tokens, rotating HttpOnly refresh
+  tokens, CSRF protection, backend-enforced roles, request limits, and audit
+  events.
+- Kubernetes manifests with replicated workloads, probes, TLS ingress,
+  ConfigMap/Secret separation, PDBs, HPA intent, security contexts, topology
+  spread, and NetworkPolicies.
+- CI and security workflows covering Go tests, frontend tests/build, Docker
+  image builds, Playwright E2E, govulncheck, npm audit, and CodeQL.
 
-- `api-gateway`
-- `auth-service`
-- `event-registration-service`
-- `feed-service`
-- `notification-service`
-- `media-service`
-- `media-worker`
+## Architecture
 
-The core consistency boundary is `event-registration-service`, which owns event creation, registration, capacity, waitlist, cancellation, promotion, and durable outbox writes.
+```mermaid
+flowchart LR
+  Browser["React + TypeScript frontend"] --> Gateway["api-gateway"]
 
-RabbitMQ is used for asynchronous projections and side effects. Delivery is at least once; consumers must provide idempotent business effects. Redis is used as a non-authoritative cache for feed reads and as a non-authoritative acceleration layer for access-token revocation checks.
+  Gateway --> Auth["auth-service"]
+  Gateway --> Events["event-registration-service"]
+  Gateway --> Feed["feed-service"]
+  Gateway --> Media["media-service"]
 
-Notification delivery is local-development evidence through Mailpit. Current async messages carry `userId`, not verified email addresses, so production email delivery is still a later claim.
+  Auth --> Postgres[(PostgreSQL)]
+  Events --> Postgres
+  Feed --> Postgres
+  Media --> Postgres
 
-Media uses Postgres metadata plus MinIO object storage locally. Media processing is asynchronous and state-based; it does not sit in the core event-registration transaction.
+  Events --> Outbox[(outbox_messages)]
+  Outbox --> Relay["outbox-relay"]
+  Relay --> RabbitMQ[(RabbitMQ)]
 
-The frontend is a dependency-light browser app with Playwright E2E coverage. React, TypeScript, and Vite remain a later frontend-hardening step.
+  RabbitMQ --> FeedWorker["feed-worker"]
+  RabbitMQ --> NotificationWorker["notification-worker"]
+  RabbitMQ --> MediaWorker["media-worker"]
 
-Services emit correlation IDs, structured request logs, Prometheus-style request counters, latency histograms, rate-limit counters, and async workflow metrics. This is not a full OpenTelemetry/Grafana stack yet.
+  FeedWorker --> FeedProjection[(feed_events)]
+  FeedWorker --> Redis[(Redis)]
+  NotificationWorker --> Notifications[(notifications)]
+  NotificationWorker --> Mailpit["Mailpit local SMTP"]
+  Media --> MinIO[(MinIO)]
+  MediaWorker --> MinIO
+```
 
-Kubernetes manifests are provided for deployment readiness with probes, ConfigMaps, Secret templates, ingress routing, resource limits, two replicas per workload, and PodDisruptionBudgets. A local overlay and Minikube smoke script exist for live evidence, but heavy evidence is blocked on the local workstation and must run through the manual GitHub Actions `Heavy Evidence` workflow. They do not prove high availability. Production HA still requires multi-node behavior, continuous traffic under failure, autoscaling policy, and highly available backing services.
+The public entry point is the frontend and API gateway. Internal services stay
+behind the gateway and own their own business responsibilities.
 
-High availability remains a later-stage claim. This public README keeps the
-claim boundary visible; detailed audits, rubrics, and resume notes are kept
-locally under the ignored `project-center/` folder.
+## Services
 
-## Local Requirements
+| Service | Responsibility | Main paths or role |
+| --- | --- | --- |
+| `api-gateway` | Public routing, CORS, request middleware, protected-route checks, proxying to internal services | `/v1/auth/*`, `/v1/events*`, `/v1/feed/*`, `/v1/media/*` |
+| `auth-service` | Users, password hashing, roles, JWT access tokens, rotating refresh tokens, logout revocation, auth audit events | `/v1/auth/register`, `/login`, `/refresh`, `/logout`, `/me`, `/users/{id}/role` |
+| `event-registration-service` | Authoritative event state, capacity, waitlist, RSVPs, cancellation, attendee moderation, event audit events, outbox writes | `/v1/events`, `/join`, `/registrations/{userID}` |
+| `feed-service` | Read-optimized event feed backed by PostgreSQL and Redis cache | `/v1/feed/events` |
+| `notification-service` | Notification records and delivery state | Internal service plus worker-owned async path |
+| `media-service` | Upload intents, presigned POST policy, object metadata, media state | `/v1/media/uploads`, `/v1/media/{id}` |
+| `outbox-relay` | Polls PostgreSQL outbox rows and publishes to RabbitMQ with confirms | Worker process |
+| `feed-worker` | Projects event messages into feed read models and Redis cache | RabbitMQ consumer |
+| `notification-worker` | Creates notification records and local Mailpit delivery attempts | RabbitMQ consumer |
+| `media-worker` | Validates uploaded objects and transitions media state | Worker process |
 
-- Go 1.25.11
+## Core Workflows
+
+### Browse Events
+
+Visitors can browse without logging in. The frontend calls the gateway, and the
+gateway routes feed reads to `feed-service`.
+
+```text
+Browser -> api-gateway -> feed-service -> Redis cache -> PostgreSQL fallback
+```
+
+I treat the feed as eventually consistent. The authoritative event state lives
+in `event-registration-service`; the feed is a projection optimized for fast
+discovery.
+
+### Register, Login, Refresh, Logout
+
+```text
+Browser
+  -> auth-service through api-gateway
+  -> PostgreSQL auth_users / refresh_tokens
+  -> short-lived JWT access token returned in JSON
+  -> opaque rotating refresh token stored as HttpOnly cookie
+```
+
+The frontend stores access tokens only in memory. Page reloads recover the
+session by calling `/v1/auth/refresh`. Refresh and logout use double-submit
+CSRF protection with a readable `cityevents_csrf` cookie and an
+`X-CSRF-Token` header.
+
+### Publish Event
+
+Only `ORGANIZER` and `ADMIN` users can publish.
+
+```text
+POST /v1/events
+  -> gateway validates the bearer token with auth-service /me
+  -> event-registration-service verifies the bearer JWT again
+  -> PostgreSQL transaction inserts:
+       event row
+       outbox message
+       audit event
+  -> outbox-relay publishes to RabbitMQ
+  -> feed-worker updates the feed projection
+```
+
+The key design choice is that event state and the outbox row are written in the
+same database transaction. That avoids the dual-write problem where the
+database commit succeeds but a queue publish is lost.
+
+### Join, Waitlist, Cancel
+
+```text
+POST   /v1/events/{eventID}/join
+DELETE /v1/events/{eventID}/join
+```
+
+Capacity and waitlist behavior are enforced in PostgreSQL, not in the frontend
+or Redis. When a confirmed attendee cancels, the service can promote the next
+waitlisted user and emit an outbox message for projections/notifications.
+
+### Organizer And Admin Management
+
+```text
+DELETE /v1/events/{eventID}/registrations/{userID}
+PATCH  /v1/auth/users/{userID}/role
+```
+
+Organizers can moderate events they own. Admins can manage roles and moderate
+across events. These operations write audit records so management actions are
+traceable.
+
+### Media Uploads
+
+```text
+POST /v1/media/uploads
+  -> media-service creates metadata and presigned POST policy
+  -> browser uploads object to MinIO
+  -> media-worker validates object metadata
+  -> media state transitions asynchronously
+```
+
+Media is intentionally outside the event-registration transaction. That keeps
+the RSVP consistency boundary small and lets slow object-storage work run
+asynchronously.
+
+## Design Choices And Tradeoffs
+
+### Microservices Instead Of A Modular Monolith
+
+I used microservices because the project is meant to demonstrate distributed
+system boundaries: gateway routing, service-owned data, async workers,
+idempotency, observability, and Kubernetes deployment shape.
+
+The tradeoff is operational complexity. For a real early-stage product, a
+modular monolith could be faster to build and easier to debug. Here,
+microservices are justified because the learning goal is to show the
+architecture and the tradeoffs explicitly.
+
+### Go With Lightweight HTTP Libraries
+
+The backend uses Go with `chi` instead of a large framework. Go keeps service
+binaries small, has strong standard-library networking support, and makes
+concurrency and worker processes straightforward. `chi` gives routing without
+forcing a heavy application framework.
+
+The tradeoff is that more platform behavior must be built deliberately:
+configuration, middleware, error handling, JSON limits, auth helpers, metrics,
+and startup wiring.
+
+### PostgreSQL As The Source Of Truth
+
+PostgreSQL owns the transactional state: users, events, registrations, outbox
+messages, notification records, media metadata, refresh tokens, revocation
+records, and audit events.
+
+This gives strong local consistency for the most important business operations.
+Redis and RabbitMQ are useful, but neither replaces the authoritative database.
+
+### RabbitMQ And Transactional Outbox
+
+RabbitMQ is used for asynchronous projections and side effects. The system does
+not depend on a queue publish inside the same transaction as the business write.
+Instead:
+
+1. `event-registration-service` writes business state and an outbox row in one
+   PostgreSQL transaction.
+2. `outbox-relay` reads available outbox rows using `FOR UPDATE SKIP LOCKED`.
+3. The relay publishes to RabbitMQ with publisher confirms.
+4. Consumers handle duplicate deliveries with processed-message records and
+   idempotent database updates.
+5. Retry delay and DLQ paths stop poison messages from retrying forever.
+
+This is an at-least-once messaging design that targets effectively-once
+business effects for database-backed consumers.
+
+Alternatives I considered:
+
+| Alternative | Why not here |
+| --- | --- |
+| Direct publish after DB commit | Simpler, but can lose messages if the service crashes after commit and before publish. |
+| Publish before DB commit | Can emit messages for business state that later rolls back. |
+| Debezium / CDC outbox | Stronger operational pattern later, but adds Kafka/connectors and more infrastructure. |
+| Event sourcing | Powerful audit/history model, but too large a redesign for this product scope. |
+| Managed FIFO queue | Useful cloud option, but broker dedupe is still not the same as end-to-end exactly-once business effects. |
+
+### Redis For Cache And Rate Limiting
+
+Redis is used where temporary state is valuable:
+
+- feed read caching,
+- distributed HTTP rate-limit counters,
+- token revocation cache acceleration.
+
+Redis is not the source of truth. If Redis is unavailable, authoritative
+business state still lives in PostgreSQL.
+
+### React + TypeScript + Vite Frontend
+
+The frontend uses React + TypeScript because the app has stateful workflows:
+auth state, route state, event detail state, role-based UI, RSVP actions, and
+runtime API configuration. TypeScript helps keep API payloads and UI state
+explicit. Vite keeps the development/build loop fast.
+
+The code is organized so `App.tsx` owns side effects and state orchestration,
+while route pages, feature modules, shared components, and pure event helpers
+stay separate.
+
+### Kubernetes Manifests As Deployment Readiness
+
+Kubernetes manifests demonstrate how the services would be deployed:
+replicas, probes, ConfigMaps, Secret examples, ingress, PDBs, HPA intent,
+security contexts, topology spread, and NetworkPolicies.
+
+The tradeoff is that manifests alone are not the same as a production
+operation. The next step would be running them on a real multi-node cluster
+with managed backing services and recorded failure evidence.
+
+## Security
+
+Security features implemented in the repo:
+
+- Short-lived JWT access tokens.
+- Memory-only browser access-token storage.
+- Rotating opaque refresh tokens in HttpOnly cookies.
+- Refresh-token hash/family tracking in PostgreSQL.
+- CSRF protection for refresh/logout cookie flows.
+- Backend-enforced roles: `USER`, `ORGANIZER`, `ADMIN`.
+- Gateway strips browser-supplied identity headers.
+- Internal services verify JWTs for protected operations.
+- Explicit CORS allowlist.
+- Route-specific JSON body limits and unknown-field rejection.
+- HTTP read/write/idle timeouts and header limits.
+- Redis-backed shared rate limiting.
+- Audit tables for role and event-management actions.
+- CSP/security headers and script nonces in the frontend static server.
+- Public Kubernetes ingress does not expose `/metrics`.
+
+## Observability And Operations
+
+The platform includes:
+
+- structured JSON logs,
+- request IDs and correlation IDs,
+- traceparent propagation,
+- Prometheus-style request counters and latency histograms,
+- rate-limit metrics,
+- async workflow metrics for outbox/consumer/DLQ behavior,
+- Prometheus alert-rule examples,
+- Grafana dashboard JSON for async operations,
+- OpenTelemetry collector configuration,
+- read-only inspection scripts and guarded repair scripts.
+
+## Testing And Evidence
+
+The repo includes layered verification:
+
+- Go unit and integration tests.
+- PostgreSQL/RabbitMQ/Redis/MinIO/Mailpit integration tests.
+- Frontend TypeScript checks and unit tests.
+- Playwright browser E2E against the full local stack.
+- Docker Compose validation.
+- Docker image build matrix.
+- Kubernetes static manifest checks.
+- GitHub Actions CI and security workflows.
+- Manual heavy-evidence workflow for Minikube smoke, load evidence, and
+  dependency failure evidence.
+
+Recent CI coverage includes:
+
+```text
+CI: Go tests, frontend verify, Docker Compose validation, phase gates,
+    container image builds, Playwright E2E
+
+Security: govulncheck, npm production dependency audit, CodeQL
+```
+
+## Run Locally
+
+Requirements:
+
+- Go 1.25.11, matching `go.mod`
 - Docker Desktop with Docker Compose v2
-- Bash, such as Git Bash or WSL on Windows
+- Bash such as Git Bash or WSL
+- Node.js 22+ and npm for frontend commands
 
-## Run Whole App
-
-The browser demo is the local entry point:
+Start the full app:
 
 ```bash
 ./scripts/start-local.sh
 ```
 
-The local stack seeds a development admin account:
+Open:
+
+```text
+http://127.0.0.1:18088
+```
+
+Seeded local admin:
 
 ```text
 email: admin@cityevents.local
 password: AdminPass12345
 ```
 
-Use the admin account to promote test users to `ORGANIZER` before publishing events through the frontend.
-
-Then open:
-
-```text
-http://127.0.0.1:18088
-```
-
-The launcher starts Docker dependencies, builds and runs all Go services, starts the RabbitMQ workers, and serves the static frontend. The frontend receives runtime API configuration from `/config.js` and defaults to the local API gateway at `http://127.0.0.1:8080`. Press `Ctrl-C` to stop the Go services and frontend.
-
-Auth uses a 15-minute JWT access token kept in browser memory and a rotating opaque refresh token stored as an HttpOnly cookie. The refresh-token hash and token-family state are stored in Postgres. Refresh-cookie operations use a double-submit CSRF token: auth-service sets a readable `cityevents_csrf` cookie and the frontend echoes it in `X-CSRF-Token` for refresh/logout.
-
-To point the local frontend at a Kubernetes ingress or another gateway host:
-
-```bash
-CITYEVENTS_API_BASE=http://cityevents.local ./scripts/serve-frontend.sh
-```
-
-The frontend API methods append `/v1/...`, so the base should be the gateway or ingress origin, not a service-specific path.
-
-From another terminal, stop the local app processes with:
-
-```bash
-./scripts/stop-local.sh
-```
-
-To also stop Docker Compose dependencies:
+Stop the app:
 
 ```bash
 ./scripts/stop-local.sh --with-infrastructure
 ```
 
-To remove local Docker data too, including Postgres, RabbitMQ, Redis, and MinIO volumes:
+Use another frontend port:
 
 ```bash
-./scripts/stop-local.sh --volumes
+./scripts/start-local.sh --frontend-port 18188
 ```
 
-For a non-interactive startup check:
-
-```bash
-./scripts/start-local.sh --check
-```
-
-## Verify Foundation
-
-```bash
-go test ./...
-docker compose config --quiet
-```
-
-Or run the Phase 1 verification script:
-
-```bash
-./scripts/verify-phase-1.sh
-```
-
-To also start local infrastructure when Docker Desktop is running:
-
-```bash
-./scripts/verify-phase-1.sh --start-infrastructure
-```
-
-## Verify Auth Service
-
-Phase 2 auth verification requires Postgres from Docker Compose.
-
-```bash
-./scripts/verify-phase-2.sh
-```
-
-This runs:
-
-- default Go tests
-- auth Postgres integration tests
-- runtime smoke for register -> login -> me -> logout -> revoked token fails
-- unit tests for refresh-token rotation, CSRF checks, and Redis-backed revocation-cache fallback
-
-## Verify Event Registration Service
-
-Phase 3 event-registration verification requires Postgres from Docker Compose.
-
-```bash
-./scripts/verify-phase-3.sh
-```
-
-This runs:
-
-- default Go tests
-- full integration tests with Postgres
-- runtime smoke for create event -> confirmed join -> waitlist join -> cancel and promote -> authoritative status/detail
-
-## Verify RabbitMQ Outbox And Consumers
-
-Phase 4 verification requires Postgres and RabbitMQ from Docker Compose.
-
-```bash
-./scripts/verify-phase-4.sh
-```
-
-This runs:
-
-- default Go tests
-- full integration tests with Postgres and RabbitMQ
-- outbox relay stress and retry tests
-- feed projection idempotency tests
-- worker binary builds for `outbox-relay` and `feed-worker`
-
-## Verify Feed Service
-
-Phase 5 verification requires Postgres, RabbitMQ, and Redis from Docker Compose because the full integration suite includes earlier async tests too.
-
-```bash
-./scripts/verify-phase-5.sh
-```
-
-This runs:
-
-- default Go tests
-- full integration tests with Postgres, RabbitMQ, and Redis
-- feed repository and cache fallback tests
-- 100-event bounded read test
-- feed service build and runtime route smoke
-
-## Verify Notification Service
-
-Phase 6 verification requires Postgres, RabbitMQ, Redis, and Mailpit from Docker Compose because the full integration suite includes earlier phases and local SMTP delivery.
-
-```bash
-./scripts/verify-phase-6.sh
-```
-
-This runs:
-
-- default Go tests
-- full integration tests with Postgres, RabbitMQ, Redis, and Mailpit
-- notification idempotency and duplicate-message tests
-- provider failure recording tests
-- 100-message notification stress test
-- local SMTP acceptance test through Mailpit
-- notification worker and service builds
-
-## Verify Media Service And Worker
-
-Phase 7 verification requires Postgres, RabbitMQ, Redis, MinIO, and Mailpit from Docker Compose because the full integration suite includes earlier phases too.
-
-```bash
-./scripts/verify-phase-7.sh
-```
-
-This runs:
-
-- default Go tests
-- full integration tests with Postgres, RabbitMQ, Redis, MinIO, and Mailpit
-- media metadata repository tests
-- MinIO bucket/object tests
-- 50-media processing stress test
-- concurrent media worker claim test
-- media service and worker builds
-- media-service runtime smoke for upload intent and detail
-
-## Verify Frontend Product Demo
-
-```bash
-./scripts/verify-phase-8.sh
-```
-
-This runs:
-
-- backend default Go tests
-- frontend JavaScript tests with Node's built-in test runner
-- static frontend file checks
-
-To run the browser demo:
-
-```bash
-./scripts/start-local.sh
-```
-
-Then open:
-
-```text
-http://127.0.0.1:18088
-```
-
-## Verify Observability And Debugging
-
-Phase 9 verification requires the full local dependency stack because it reruns the integration suite and checks the debugging walkthrough.
-
-```bash
-./scripts/verify-phase-9.sh
-```
-
-This runs:
-
-- default Go tests
-- full integration tests
-- correlation ID and metrics tests
-- outbox correlation propagation test
-- debugging walkthrough file checks
-
-## Verify Kubernetes Readiness
-
-Phase 10 verification validates the local test suite, Docker Compose config, Kubernetes manifest coverage, probes, resource limits, TLS ingress settings, the cert-manager certificate example, and optional `kubectl` dry-run when `kubectl` is available.
-
-```bash
-./scripts/verify-phase-10.sh
-```
-
-## Verify High Availability Decision
-
-Phase 11 verification keeps the project honest: it verifies the Kubernetes readiness evidence still passes and confirms the repository does not overclaim high availability.
-
-```bash
-./scripts/verify-phase-11.sh
-```
-
-## Verify Final Evidence Audit
-
-Phase 12 verification reruns the Kubernetes/HA claim gates and checks final resume evidence documents.
-
-```bash
-./scripts/verify-phase-12.sh
-```
-
-For the strongest local evidence run, include full Docker-backed integration tests:
-
-```bash
-./scripts/verify-phase-12.sh --run-full-integration
-```
-
-## Verify CI/E2E/Rate-Limit Hardening
-
-Phase 13 verification checks the CI workflow, Playwright E2E files, shared rate-limiting middleware, upgraded observability metrics, Kubernetes replicas/PDBs, failure-test harness, and related documentation.
-
-```bash
-./scripts/verify-phase-13.sh
-```
-
-To include the browser E2E flow, which starts the full local stack:
-
-```bash
-./scripts/verify-phase-13.sh --run-e2e
-```
-
-The browser E2E can also be run directly:
-
-```bash
-cd frontend
-npm run e2e
-```
-
-## Verify Kubernetes Live Smoke Readiness
-
-Phase 14 verification checks the local Kubernetes overlay and live-smoke script
-without requiring a running cluster:
-
-```bash
-./scripts/verify-phase-14.sh
-```
-
-To run live Minikube smoke, use the manual GitHub Actions `Heavy Evidence`
-workflow. The workflow runs:
-
-```bash
-./scripts/k8s-live-smoke.sh --start-minikube --run-failure
-```
-
-This uploads evidence from `tmp/k8s-live-smoke/<timestamp>/`. Passing this test
-supports CI Kubernetes deployment smoke evidence, not production high
-availability.
-
-## Run Load Evidence
-
-Load evidence exercises the public gateway path for admin login, organizer promotion, event creation, attendee registration, concurrent joins, capacity/waitlist invariants, CSRF refresh smoke, and eventual feed projection.
-
-Run it through the manual GitHub Actions `Heavy Evidence` workflow. The workflow
-executes a matrix of 40, 80, and 160 attendee runs, each with its own uploaded
-`load-evidence-*` artifact.
-
-This is CI correctness and regression evidence, not a production throughput
-benchmark. The heavy scripts are blocked on the local workstation by guards in
-`scripts/lib/common.sh`.
-
-## Run Dependency Failure Evidence
-
-Dependency failure evidence is also manual GitHub Actions-only. The
-`dependency-failure-evidence` job runs `scripts/failure-test-dependencies.sh`,
-which starts the local CI stack, stops Redis, verifies fallback/fail-open
-behavior, stops RabbitMQ, verifies outbox persistence, restarts RabbitMQ, and
-waits for projection recovery.
-
-This produces `tmp/failure-tests/<run-id>/summary.md` in the uploaded artifact.
-It supports a recovery-path discussion, not a production HA claim.
-
-## Run Local Infrastructure
-
-```bash
-docker compose up -d
-docker compose ps
-```
-
-Local dependency ports:
+## Local Dependency Ports
 
 | Dependency | URL |
 | --- | --- |
@@ -369,65 +372,68 @@ Local dependency ports:
 | MinIO Console | `http://localhost:9001` |
 | Mailpit UI | `http://localhost:8025` |
 
-Default local credentials are for development only:
+## Verification Commands
 
-- Postgres: `cityevents` / `cityevents`
-- RabbitMQ: `cityevents` / `cityevents`
-- MinIO: `cityevents` / `cityevents-password`
-
-## Run Service Skeletons
-
-Each service exposes `/livez` and `/readyz`.
+Fast checks:
 
 ```bash
-go run ./cmd/api-gateway
-go run ./cmd/auth-service
-go run ./cmd/event-registration-service
-go run ./cmd/feed-service
-go run ./cmd/notification-service
-go run ./cmd/media-service
-go run ./cmd/outbox-relay
-go run ./cmd/feed-worker
-go run ./cmd/notification-worker
-go run ./cmd/media-worker
+go test ./...
+docker compose config --quiet
+cd frontend && npm run verify
 ```
 
-Default service ports:
-
-| Service | Health URL |
-| --- | --- |
-| api-gateway | `http://localhost:8080/readyz` |
-| auth-service | `http://localhost:8081/readyz` |
-| event-registration-service | `http://localhost:8082/readyz` |
-| feed-service | `http://localhost:8083/readyz` |
-| notification-service | `http://localhost:8084/readyz` |
-| media-service | `http://localhost:8085/readyz` |
-| media-worker | `http://localhost:8086/readyz` |
-
-For startup wiring checks that exit immediately:
+Browser E2E:
 
 ```bash
-export CITYEVENTS_STARTUP_CHECK_ONLY=true
-go run ./cmd/api-gateway
-go run ./cmd/auth-service
-go run ./cmd/event-registration-service
-go run ./cmd/feed-service
-go run ./cmd/notification-service
-go run ./cmd/media-service
-go run ./cmd/media-worker
-unset CITYEVENTS_STARTUP_CHECK_ONLY
+cd frontend
+npm run e2e
 ```
 
-## Phase 14 Claim Boundary
+Phase gates:
 
-Allowed claim:
+```bash
+./scripts/verify-phase-1.sh
+./scripts/verify-phase-2.sh
+./scripts/verify-phase-3.sh
+./scripts/verify-phase-4.sh
+./scripts/verify-phase-5.sh
+./scripts/verify-phase-6.sh
+./scripts/verify-phase-7.sh
+./scripts/verify-phase-8.sh
+./scripts/verify-phase-9.sh
+./scripts/verify-phase-10.sh
+./scripts/verify-phase-11.sh
+./scripts/verify-phase-12.sh
+./scripts/verify-phase-13.sh
+./scripts/verify-phase-14.sh
+./scripts/verify-phase-15.sh
+```
+
+## Repository Map
 
 ```text
-Built a portfolio-grade Go microservices event platform with gateway JWT/RBAC, rotating refresh tokens, CSRF-protected cookie refresh, PostgreSQL-backed event registration, RabbitMQ asynchronous workflows, Redis caching, idempotent consumers, Redis-backed shared HTTP rate limiting, request metrics, Playwright browser E2E coverage, CI gates, Kubernetes-ready replicated manifests, GitHub-Actions-only Kubernetes/load evidence tooling, and documented production/HA limitations.
+cmd/                         service and worker entry points
+internal/platform/           shared app, config, HTTP, authn, logging, messaging
+internal/services/           domain service implementations
+migrations/                  PostgreSQL schemas
+frontend/                    React + TypeScript + Vite frontend and Playwright E2E
+deploy/kubernetes/           Kubernetes base and local overlay
+deploy/observability/        Prometheus, Grafana, OTel collector scaffolding
+scripts/                     local startup, verification, evidence, repair tools
+.github/workflows/           CI, security, heavy-evidence workflows
 ```
 
-Not yet allowed:
+The public repository focuses on the code, runnable demo, architecture, and
+verification evidence.
 
-```text
-Exactly-once RabbitMQ consumption, guaranteed no message loss, edge-grade DDoS protection, full OpenTelemetry/Grafana observability, highly available Kubernetes deployment, highly available production Kubernetes deployment, autoscaling under load, production cluster deployment, or HA RabbitMQ/Postgres/Redis.
-```
+## Roadmap
+
+The next engineering improvements I would make are:
+
+1. Deploy the stack to a real Kubernetes cluster.
+2. Replace local backing services with managed PostgreSQL, Redis, object
+   storage, and a production RabbitMQ/queue option.
+3. Connect the observability manifests to a live Prometheus/Grafana/OTel stack.
+4. Add provider-backed email idempotency keys.
+5. Record multi-node failure and autoscaling evidence.
+6. Add deeper frontend accessibility and component tests.

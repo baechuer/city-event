@@ -1,6 +1,6 @@
 # Product
 
-## Register
+## Name
 
 CityEvents
 
@@ -18,7 +18,7 @@ Casual, precise, city-smart. The interface should feel like a polished local dis
 
 ## Anti-references
 
-Avoid generic admin dashboards, oversized marketing heroes, Meetup cloning, purple-blue SaaS gradients, card-heavy template layouts, and UI text that explains the architecture instead of helping the user act. The previous command-center frontend is itself an anti-reference for this redesign.
+Avoid generic admin dashboards, oversized marketing heroes, Meetup cloning, purple-blue SaaS gradients, card-heavy template layouts, and UI text that explains the architecture instead of helping the user act.
 
 ## Design Principles
 
@@ -26,7 +26,7 @@ Avoid generic admin dashboards, oversized marketing heroes, Meetup cloning, purp
 - Make state impossible to miss: confirmed, waitlisted, canceled, loading, empty, and error states must have clear labels and affordances.
 - Keep the app customer-first: browsing is open; sign-in appears only when joining, publishing, or managing media.
 - Use technical polish sparingly: modern AI-tech styling should appear through crisp surfaces, OKLCH color, precise motion, and useful status treatment.
-- Stay resume-honest: the UI demonstrates local workflows and should not imply production deployment, high availability, or exactly-once messaging.
+- Keep the product scope clear: the UI should demonstrate the core event workflows while the public documentation explains which architecture qualities are implemented locally and which are planned production evolutions.
 
 ## Page Model
 
