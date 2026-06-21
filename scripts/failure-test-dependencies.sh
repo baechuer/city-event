@@ -72,6 +72,7 @@ printf 'metric\tvalue\n' >"$metrics_file"
 
 redis_stopped=false
 rabbitmq_stopped=false
+postgres_stopped=false
 
 record_result() {
   local scenario="$1"
@@ -226,6 +227,11 @@ stop_started_stack() {
 }
 
 restore_dependencies() {
+  if [[ "$postgres_stopped" == true ]]; then
+    run_docker compose start postgres >/dev/null 2>&1 || true
+    wait_for_compose_health postgres 120 || true
+    postgres_stopped=false
+  fi
   if [[ "$rabbitmq_stopped" == true ]]; then
     run_docker compose start rabbitmq >/dev/null 2>&1 || true
     rabbitmq_stopped=false
@@ -380,6 +386,44 @@ redis_restart_seconds="$(format_seconds "$(( redis_restart_end_millis - redis_re
 record_metric "redis_restart_health_seconds" "$redis_restart_seconds"
 redis_stopped=false
 snapshot_compose "after-redis"
+
+log "Postgres outage scenario"
+postgres_user_email="postgres-outage-$run_id@cityevents.local"
+postgres_event_title="Postgres Outage $run_id"
+postgres_event_body="$(printf '{"title":"%s","description":"Postgres outage evidence","city":"Sydney","venue":"Database Lab","startsAt":"%s","capacity":5}' "$postgres_event_title" "$(iso_tomorrow)")"
+postgres_register_body="$(printf '{"email":"%s","password":"FailurePass12345","displayName":"Postgres Outage"}' "$postgres_user_email")"
+postgres_stop_start_millis="$(millis_now)"
+run_docker compose stop postgres >"$run_dir/postgres-stop.txt" 2>&1
+postgres_stopped=true
+postgres_stop_end_millis="$(millis_now)"
+postgres_stop_seconds="$(format_seconds "$(( postgres_stop_end_millis - postgres_stop_start_millis ))")"
+record_metric "postgres_stop_seconds" "$postgres_stop_seconds"
+postgres_register_code="$(request_code POST "/v1/auth/register" "$postgres_register_body" "$run_dir/postgres-register-while-down.json")"
+postgres_event_code="$(request_code POST "/v1/events" "$postgres_event_body" "$run_dir/postgres-event-create-while-down.json" "Authorization: Bearer $organizer_token")"
+record_metric "postgres_outage_register_http_code" "$postgres_register_code"
+record_metric "postgres_outage_event_create_http_code" "$postgres_event_code"
+if [[ "$postgres_register_code" =~ ^5 && "$postgres_event_code" =~ ^5 ]]; then
+  record_result "postgres-outage-safe-failure" "passed" "register failed with $postgres_register_code; protected event write failed with $postgres_event_code"
+else
+  die "postgres outage safe failure expected 5xx responses, got register=$postgres_register_code event=$postgres_event_code"
+fi
+postgres_restart_start_millis="$(millis_now)"
+run_docker compose start postgres >"$run_dir/postgres-start.txt" 2>&1
+wait_for_compose_health postgres 120
+postgres_restart_end_millis="$(millis_now)"
+postgres_restart_seconds="$(format_seconds "$(( postgres_restart_end_millis - postgres_restart_start_millis ))")"
+record_metric "postgres_restart_health_seconds" "$postgres_restart_seconds"
+postgres_stopped=false
+postgres_user_count="$(postgres_scalar "select count(*) from auth_users where email = '$postgres_user_email';" || echo "unavailable")"
+postgres_event_count="$(postgres_scalar "select count(*) from events where title = '$postgres_event_title';" || echo "unavailable")"
+record_metric "postgres_outage_partial_user_rows" "$postgres_user_count"
+record_metric "postgres_outage_partial_event_rows" "$postgres_event_count"
+if [[ "$postgres_user_count" == "0" && "$postgres_event_count" == "0" ]]; then
+  record_result "postgres-outage-no-partial-writes" "passed" "no partial user/event rows after restore"
+else
+  die "postgres outage left partial rows: users=$postgres_user_count events=$postgres_event_count"
+fi
+snapshot_compose "after-postgres"
 
 log "RabbitMQ outage scenario"
 register_organizer "rabbitmq"

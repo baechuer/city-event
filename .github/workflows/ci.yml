@@ -35,6 +35,17 @@ jobs:
       - name: Test Go packages
         run: go test ./...
 
+      - name: Generate route correctness evidence
+        run: bash ./scripts/route-correctness-evidence.sh
+
+      - name: Upload route correctness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: route-correctness-evidence
+          path: tmp/route-correctness/**
+          if-no-files-found: ignore
+
       - name: Test frontend units
         working-directory: frontend
         run: npm run verify

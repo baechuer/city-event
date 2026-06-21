@@ -53,6 +53,7 @@ for file in \
   scripts/repair-minikube.sh \
   scripts/k8s-live-smoke.sh \
   scripts/failure-test-dependencies.sh \
+  scripts/route-correctness-evidence.sh \
   scripts/load-test-local.sh \
   scripts/load-sweep-local.sh \
   scripts/inspect-async-ops.sh \
@@ -94,6 +95,7 @@ require_contains .github/workflows/heavy-evidence.yml "run_load_sweep"
 require_contains .github/workflows/heavy-evidence.yml "load-sweep-evidence"
 require_contains .github/workflows/heavy-evidence.yml "run_dependency_failures"
 require_contains .github/workflows/heavy-evidence.yml "dependency-failure-evidence"
+require_contains .github/workflows/ci.yml "route-correctness-evidence"
 require_contains scripts/repair-minikube.sh "delete_profile=true"
 require_contains scripts/repair-minikube.sh "wait_for_cluster_access"
 require_contains scripts/k8s-live-smoke.sh "A completed run is local Kubernetes evidence"
@@ -111,6 +113,15 @@ require_contains scripts/failure-test-dependencies.sh "inspect-async-ops.sh"
 require_contains scripts/failure-test-dependencies.sh "metrics.tsv"
 require_contains scripts/failure-test-dependencies.sh "rabbitmq_total_recovery_seconds"
 require_contains scripts/failure-test-dependencies.sh "redis_restart_health_seconds"
+require_contains scripts/failure-test-dependencies.sh "postgres_restart_health_seconds"
+require_contains scripts/failure-test-dependencies.sh "postgres_outage_partial_user_rows"
+require_contains scripts/failure-test-dependencies.sh "postgres-outage-no-partial-writes"
+require_contains scripts/route-correctness-evidence.sh "Route Correctness Evidence Summary"
+require_contains scripts/route-correctness-evidence.sh "TestAuthHandlersRegisterValidationAndDuplicate"
+require_contains scripts/route-correctness-evidence.sh "TestEventHandlersWorkflow"
+require_contains scripts/route-correctness-evidence.sh "TestMediaHandlersWorkflow"
+require_contains scripts/route-correctness-evidence.sh "TestGatewayValidatesTokenAndStripsSpoofedIdentityHeaders"
+require_contains scripts/route-correctness-evidence.sh "TestOutboxAndConsumerMetrics"
 require_contains scripts/load-test-local.sh "Diagnostic join latency p50 seconds"
 require_contains scripts/load-test-local.sh "Join latency p99 seconds"
 require_contains scripts/load-test-local.sh "Join throughput requests/second"
