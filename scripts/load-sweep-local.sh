@@ -228,9 +228,11 @@ if ! wait_for_log_contains "$run_dir/start-local.log" "CityEvents local stack is
   die "local stack startup did not reach the running sentinel for load sweep."
 fi
 
-highest_passing_profile="none"
-highest_passing_rps="0"
-highest_passing_concurrency="0"
+highest_passing_load_profile="none"
+highest_passing_load_concurrency="0"
+max_rps_profile="none"
+max_rps="0"
+max_rps_concurrency="0"
 first_failed_profile="none"
 first_failed_reason="none"
 passing_count=0
@@ -302,10 +304,14 @@ for spec in "${profile_specs[@]}"; do
     if [[ "$profile" == "$required_profile" ]]; then
       required_profile_passed=true
     fi
-    if numeric_gt "$throughput" "$highest_passing_rps"; then
-      highest_passing_profile="$profile"
-      highest_passing_rps="$throughput"
-      highest_passing_concurrency="$concurrency"
+    if (( concurrency > highest_passing_load_concurrency )); then
+      highest_passing_load_profile="$profile"
+      highest_passing_load_concurrency="$concurrency"
+    fi
+    if numeric_gt "$throughput" "$max_rps"; then
+      max_rps_profile="$profile"
+      max_rps="$throughput"
+      max_rps_concurrency="$concurrency"
     fi
   elif [[ "$first_failed_profile" == "none" ]]; then
     first_failed_profile="$profile"
@@ -340,9 +346,11 @@ fi
 - Profiles: $profiles
 - Required passing profile: ${required_profile:-none}
 - Passing profiles: $passing_count
-- Highest passing profile: $highest_passing_profile
-- Highest passing concurrency: $highest_passing_concurrency
-- Max stable RPS candidate: $highest_passing_rps
+- Highest passing load profile: $highest_passing_load_profile
+- Highest passing load concurrency: $highest_passing_load_concurrency
+- Max stable RPS profile: $max_rps_profile
+- Max stable RPS profile concurrency: $max_rps_concurrency
+- Max stable RPS candidate: $max_rps
 - Saturation point: $saturation_point
 - First failed profile detail: $first_failed_reason
 - Sweep failures: $sweep_failures
@@ -351,9 +359,10 @@ fi
 
 ## Interpretation
 
-Max stable RPS candidate is the highest observed throughput among profiles
-where every load-test gate passed. It is a CI evidence number, not a production
-capacity guarantee.
+Highest passing load profile is the largest configured concurrency whose
+load-test gates passed. Max stable RPS candidate is the highest observed
+throughput among profiles where every load-test gate passed. Both are CI
+evidence numbers, not production capacity guarantees.
 
 Saturation point is the first configured profile whose load-test gates failed.
 If it says "not reached within tested profiles", the tested range was not high
