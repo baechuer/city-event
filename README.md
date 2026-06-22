@@ -346,9 +346,10 @@ traffic:
 
 | Area | Evidence |
 | --- | --- |
-| 100-concurrent join workload | 100 users joined through the API gateway with capacity 50: 50 confirmed, 50 waitlisted, 100/100 expected HTTP 200, 0 unexpected 5xx, p95 0.504s, p99 0.539s, feed projection catch-up 0.106s. |
-| Load sweep | Five profiles passed through 200 concurrent joins. The highest observed stable throughput in the configured sweep was 46.47 requests/second; saturation was not reached within the tested profiles. |
+| 100-concurrent join workload | Resource-aware CI run on 4 reported CPU units and 15,989 MB memory: 100 users joined through the API gateway with capacity 50, producing 50 confirmed and 50 waitlisted registrations, 100/100 expected HTTP 200, 0 unexpected 5xx, p95 0.911s, p99 0.963s, and feed projection catch-up 0.076s. |
+| Load sweep | Five resource-aware profiles passed through 200 concurrent joins. The highest observed stable throughput in the configured sweep was 40.81 requests/second; saturation was not reached within the tested profiles. |
 | Async health | Under the 100-concurrent workload, outbox `DEAD` rows were 0, RabbitMQ DLQ depth was 0, and retry queue depth was 0. |
+| Resource context | Heavy evidence artifacts include `nproc`, `lscpu`, `free -m`, Docker stats before/during/after, and Go service process CPU/RAM snapshots. In the 100-concurrent run, highest observed container CPU was 13.40%, highest container memory was 142.80 MB, highest Go process CPU was 44.90%, and highest Go process RSS was 22.65 MB. |
 | Dependency failure | RabbitMQ outage evidence persisted an outbox row while the broker was down and recovered it from `PENDING` to `SENT`; Redis outage paths returned configured fallback responses; Postgres outage tests produced safe failures with 0 partial user/event rows after restore. |
 | Kubernetes smoke | Minikube evidence applied the local overlay, ran migrations, passed the gateway workflow, deleted an `api-gateway` pod, and verified readiness after replacement. |
 | Route/security gates | Route evidence checked 27 route markers with 0 failures; security evidence checked 38 gates covering safe errors, CSRF, JWT/RBAC, rate limiting, CORS, metrics auth, revocation fallback, and gateway spoofed-header stripping. |
