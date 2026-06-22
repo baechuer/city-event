@@ -143,7 +143,7 @@ mkdir -p "$run_dir"
 results_file="$run_dir/profiles.tsv"
 summary_file="$run_dir/summary.md"
 
-printf 'profile\tusers\tcapacity\tconcurrency\texit_code\tgate_failures\tstatus\tthroughput_rps\tp95_seconds\tp99_seconds\tsuccess_rate_percent\terror_rate_percent\tfeed_catchup_seconds\toutbox_dead_rows\tdlq_depth\tresult_dir\n' >"$results_file"
+printf 'profile\tusers\tcapacity\tconcurrency\texit_code\tgate_failures\tstatus\tthroughput_rps\tp95_seconds\tp99_seconds\tsuccess_rate_percent\terror_rate_percent\tfeed_catchup_seconds\toutbox_dead_rows\tdlq_depth\tresource_context_status\trunner_nproc\thighest_container_cpu_percent\thighest_container_memory_mb\thighest_go_process_cpu_percent\thighest_go_process_rss_mb\tresult_dir\n' >"$results_file"
 
 wait_for_url() {
   local url="$1"
@@ -284,6 +284,12 @@ for spec in "${profile_specs[@]}"; do
     feed_catchup="$(metric_value "$metrics_file" "feed_projection_catchup_seconds" || echo "unavailable")"
     outbox_dead="$(metric_value "$metrics_file" "outbox_dead_rows_after_joins" || echo "unavailable")"
     dlq_depth="$(metric_value "$metrics_file" "rabbitmq_dlq_depth_after_joins" || echo "unavailable")"
+    resource_context="$(metric_value "$metrics_file" "resource_context_status" || echo "unavailable")"
+    runner_nproc="$(metric_value "$metrics_file" "runner_nproc" || echo "unavailable")"
+    highest_container_cpu="$(metric_value "$metrics_file" "highest_container_cpu_percent" || echo "unavailable")"
+    highest_container_memory="$(metric_value "$metrics_file" "highest_container_memory_mb" || echo "unavailable")"
+    highest_go_cpu="$(metric_value "$metrics_file" "highest_go_process_cpu_percent" || echo "unavailable")"
+    highest_go_rss="$(metric_value "$metrics_file" "highest_go_process_rss_mb" || echo "unavailable")"
   else
     gate_failures="unavailable"
     throughput="0"
@@ -294,6 +300,12 @@ for spec in "${profile_specs[@]}"; do
     feed_catchup="unavailable"
     outbox_dead="unavailable"
     dlq_depth="unavailable"
+    resource_context="unavailable"
+    runner_nproc="unavailable"
+    highest_container_cpu="unavailable"
+    highest_container_memory="unavailable"
+    highest_go_cpu="unavailable"
+    highest_go_rss="unavailable"
     result_dir="unavailable"
   fi
 
@@ -318,9 +330,10 @@ for spec in "${profile_specs[@]}"; do
     first_failed_reason="exit_code=$exit_code gate_failures=$gate_failures"
   fi
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$profile" "$users" "$capacity" "$concurrency" "$exit_code" "$gate_failures" "$status" "$throughput" \
-    "$p95" "$p99" "$success_rate" "$error_rate" "$feed_catchup" "$outbox_dead" "$dlq_depth" "$result_dir" \
+    "$p95" "$p99" "$success_rate" "$error_rate" "$feed_catchup" "$outbox_dead" "$dlq_depth" \
+    "$resource_context" "$runner_nproc" "$highest_container_cpu" "$highest_container_memory" "$highest_go_cpu" "$highest_go_rss" "$result_dir" \
     >>"$results_file"
 done
 
@@ -370,10 +383,10 @@ enough to identify the bottleneck.
 
 ## Profile Results
 
-| Profile | Users | Capacity | Concurrency | Status | Exit | Gate Failures | RPS | p95 | p99 | Success % | Error % | Feed Catch-up | Outbox DEAD | DLQ Depth |
-| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Profile | Users | Capacity | Concurrency | Status | Exit | Gate Failures | RPS | p95 | p99 | Success % | Error % | Feed Catch-up | Outbox DEAD | DLQ Depth | Resource Context | nproc | Container CPU % | Container Mem MB | Go CPU % | Go RSS MB |
+| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |
 EOF
-  tail -n +2 "$results_file" | awk -F '\t' '{ printf "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n", $1, $2, $3, $4, $7, $5, $6, $8, $9, $10, $11, $12, $13, $14, $15 }'
+  tail -n +2 "$results_file" | awk -F '\t' '{ printf "| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n", $1, $2, $3, $4, $7, $5, $6, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21 }'
 } >"$summary_file"
 
 cat "$summary_file"

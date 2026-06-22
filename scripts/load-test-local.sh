@@ -356,6 +356,175 @@ dependency_snapshot() {
   } >"$outfile" 2>&1 || true
 }
 
+go_service_process_stats() {
+  local outfile="$1"
+  local pid_file="$REPO_ROOT/tmp/local-run/pids.tsv"
+
+  printf 'service\tpid\tcommand\tcpu_percent\tmemory_percent\trss_kb\tvsz_kb\telapsed\targs\n' >"$outfile"
+  if [[ ! -f "$pid_file" ]]; then
+    return 0
+  fi
+
+  while IFS=$'\t' read -r service pid log_file; do
+    case "$service" in
+      api-gateway|auth-service|event-registration-service|feed-service|notification-service|media-service|outbox-relay|feed-worker|notification-worker|media-worker)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    if [[ -z "${pid:-}" ]] || ! kill -0 "$pid" >/dev/null 2>&1; then
+      printf '%s\t%s\tnot-running\t0\t0\t0\t0\tunavailable\t%s\n' "$service" "${pid:-unavailable}" "${log_file:-}" >>"$outfile"
+      continue
+    fi
+
+    ps -p "$pid" -o pid= -o comm= -o pcpu= -o pmem= -o rss= -o vsz= -o etime= -o args= 2>/dev/null \
+      | awk -v service="$service" '
+          NF {
+            pid = $1
+            command = $2
+            cpu = $3
+            mem = $4
+            rss = $5
+            vsz = $6
+            elapsed = $7
+            $1 = $2 = $3 = $4 = $5 = $6 = $7 = ""
+            sub(/^[ \t]+/, "", $0)
+            printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", service, pid, command, cpu, mem, rss, vsz, elapsed, $0
+          }
+        ' >>"$outfile" || printf '%s\t%s\tunavailable\t0\t0\t0\t0\tunavailable\tps failed\n' "$service" "$pid" >>"$outfile"
+  done <"$pid_file"
+}
+
+resource_snapshot() {
+  local label="$1"
+  local context_file="$run_dir/resource-context-$label.md"
+  local nproc_file="$run_dir/nproc-$label.txt"
+  local lscpu_file="$run_dir/lscpu-$label.txt"
+  local free_file="$run_dir/free-$label.txt"
+  local docker_file="$run_dir/docker-stats-$label.tsv"
+  local process_file="$run_dir/process-stats-$label.tsv"
+
+  {
+    if command -v nproc >/dev/null 2>&1; then nproc; else echo "unavailable"; fi
+  } >"$nproc_file" 2>&1 || true
+
+  {
+    if command -v lscpu >/dev/null 2>&1; then lscpu; else echo "unavailable"; fi
+  } >"$lscpu_file" 2>&1 || true
+
+  {
+    if command -v free >/dev/null 2>&1; then free -m; else echo "unavailable"; fi
+  } >"$free_file" 2>&1 || true
+
+  printf 'container\tcpu_percent\tmemory_usage\tnet_io\tblock_io\n' >"$docker_file"
+  if command -v docker >/dev/null 2>&1; then
+    docker stats --no-stream --format '{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}' >>"$docker_file" 2>/dev/null || true
+  fi
+
+  go_service_process_stats "$process_file"
+
+  {
+    echo "# Resource Context Snapshot: $label"
+    echo
+    echo "- Captured At: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    echo "- nproc: $nproc_file"
+    echo "- lscpu: $lscpu_file"
+    echo "- free -m: $free_file"
+    echo "- Docker stats TSV: $docker_file"
+    echo "- Go process stats TSV: $process_file"
+    echo
+    echo "## nproc"
+    echo
+    echo '```text'
+    cat "$nproc_file" || true
+    echo '```'
+    echo
+    echo "## free -m"
+    echo
+    echo '```text'
+    cat "$free_file" || true
+    echo '```'
+    echo
+    echo "## Docker Stats"
+    echo
+    echo '```text'
+    cat "$docker_file" || true
+    echo '```'
+    echo
+    echo "## Go Process Stats"
+    echo
+    echo '```text'
+    cat "$process_file" || true
+    echo '```'
+  } >"$context_file" 2>&1 || true
+}
+
+resource_status() {
+  local status="complete"
+  for label in before during after; do
+    [[ -s "$run_dir/resource-context-$label.md" ]] || status="partial"
+    [[ -s "$run_dir/nproc-$label.txt" ]] || status="partial"
+    [[ -s "$run_dir/lscpu-$label.txt" ]] || status="partial"
+    [[ -s "$run_dir/free-$label.txt" ]] || status="partial"
+    [[ -s "$run_dir/docker-stats-$label.tsv" ]] || status="partial"
+    [[ -s "$run_dir/process-stats-$label.tsv" ]] || status="partial"
+  done
+  if [[ "$(cat "$run_dir/nproc-before.txt" 2>/dev/null || echo unavailable)" == "unavailable" ]]; then
+    status="partial"
+  fi
+  printf '%s\n' "$status"
+}
+
+free_metric() {
+  local file="$1"
+  local row="$2"
+  local column="$3"
+  awk -v row="$row" -v column="$column" '$1 == row ":" { print $column; found = 1; exit } END { if (!found) print "unavailable" }' "$file"
+}
+
+highest_container_cpu_percent() {
+  awk -F '\t' 'NR > 1 {
+    value = $2
+    gsub(/%/, "", value)
+    if (value + 0 > max) max = value + 0
+    found = 1
+  } END { if (found) printf "%.2f", max; else print "unavailable" }' "$run_dir"/docker-stats-*.tsv 2>/dev/null || echo "unavailable"
+}
+
+highest_container_memory_mb() {
+  awk -F '\t' 'NR > 1 {
+    split($3, parts, " / ")
+    value = parts[1]
+    gsub(/^[ \t]+|[ \t]+$/, "", value)
+    multiplier = 1
+    if (value ~ /GiB$/) { multiplier = 1024; sub(/GiB$/, "", value) }
+    else if (value ~ /MiB$/) { multiplier = 1; sub(/MiB$/, "", value) }
+    else if (value ~ /KiB$/) { multiplier = 1 / 1024; sub(/KiB$/, "", value) }
+    else if (value ~ /GB$/) { multiplier = 1000; sub(/GB$/, "", value) }
+    else if (value ~ /MB$/) { multiplier = 1; sub(/MB$/, "", value) }
+    mb = (value + 0) * multiplier
+    if (mb > max) max = mb
+    found = 1
+  } END { if (found) printf "%.2f", max; else print "unavailable" }' "$run_dir"/docker-stats-*.tsv 2>/dev/null || echo "unavailable"
+}
+
+highest_go_process_cpu_percent() {
+  awk -F '\t' 'NR > 1 && $4 ~ /^[0-9.]+$/ {
+    if ($4 + 0 > max) max = $4 + 0
+    found = 1
+  } END { if (found) printf "%.2f", max; else print "unavailable" }' "$run_dir"/process-stats-*.tsv 2>/dev/null || echo "unavailable"
+}
+
+highest_go_process_rss_mb() {
+  awk -F '\t' 'NR > 1 && $6 ~ /^[0-9]+$/ {
+    mb = ($6 + 0) / 1024
+    if (mb > max) max = mb
+    found = 1
+  } END { if (found) printf "%.2f", max; else print "unavailable" }' "$run_dir"/process-stats-*.tsv 2>/dev/null || echo "unavailable"
+}
+
 request_json() {
   local expected="$1"
   local method="$2"
@@ -502,6 +671,7 @@ for i in $(seq 1 "$users"); do
   json_field "$user_json" "accessToken" >"$run_dir/users/$i.token"
 done
 
+resource_snapshot "before"
 dependency_snapshot "before-joins"
 
 join_user() {
@@ -527,6 +697,8 @@ join_user() {
 }
 
 log "Run concurrent joins users=$users capacity=$capacity concurrency=$concurrency"
+resource_snapshot "during" &
+resource_snapshot_pid=$!
 start_millis="$(millis_now)"
 batch=()
 for i in $(seq 1 "$users"); do
@@ -542,6 +714,7 @@ done
 for pid in "${batch[@]}"; do
   wait "$pid"
 done
+wait "$resource_snapshot_pid" >/dev/null 2>&1 || true
 end_millis="$(millis_now)"
 
 cat "$run_dir"/joins/*.tsv >"$run_dir/join-results.tsv"
@@ -606,6 +779,7 @@ if [[ "$skip_feed_check" == false ]]; then
   done
 fi
 
+resource_snapshot "after"
 dependency_snapshot "after-joins"
 
 event_id_sql="$(sql_escape_literal "$event_id")"
@@ -701,6 +875,17 @@ if (( gate_failures == 0 )); then
   max_stable_rps_candidate="$join_throughput"
 fi
 
+resource_context_status="$(resource_status)"
+runner_nproc="$(tr -d '[:space:]' <"$run_dir/nproc-before.txt" 2>/dev/null || true)"
+[[ -n "$runner_nproc" ]] || runner_nproc="unavailable"
+runner_memory_total_mb="$(free_metric "$run_dir/free-before.txt" "Mem" 2)"
+runner_memory_available_before_mb="$(free_metric "$run_dir/free-before.txt" "Mem" 7)"
+runner_swap_used_before_mb="$(free_metric "$run_dir/free-before.txt" "Swap" 3)"
+highest_container_cpu="$(highest_container_cpu_percent)"
+highest_container_memory="$(highest_container_memory_mb)"
+highest_go_cpu="$(highest_go_process_cpu_percent)"
+highest_go_rss="$(highest_go_process_rss_mb)"
+
 metrics_file="$run_dir/metrics.tsv"
 {
   printf 'run_id\t%s\n' "$run_id"
@@ -740,6 +925,15 @@ metrics_file="$run_dir/metrics.tsv"
   printf 'oldest_retryable_outbox_age_seconds_after_joins\t%s\n' "$oldest_retryable_outbox_age_after"
   printf 'rabbitmq_dlq_depth_after_joins\t%s\n' "$dlq_depth_after"
   printf 'rabbitmq_retry_queue_depth_after_joins\t%s\n' "$retry_queue_depth_after"
+  printf 'runner_nproc\t%s\n' "$runner_nproc"
+  printf 'runner_memory_total_mb\t%s\n' "$runner_memory_total_mb"
+  printf 'runner_memory_available_before_mb\t%s\n' "$runner_memory_available_before_mb"
+  printf 'runner_swap_used_before_mb\t%s\n' "$runner_swap_used_before_mb"
+  printf 'resource_context_status\t%s\n' "$resource_context_status"
+  printf 'highest_container_cpu_percent\t%s\n' "$highest_container_cpu"
+  printf 'highest_container_memory_mb\t%s\n' "$highest_container_memory"
+  printf 'highest_go_process_cpu_percent\t%s\n' "$highest_go_cpu"
+  printf 'highest_go_process_rss_mb\t%s\n' "$highest_go_rss"
   printf 'gate_failures\t%s\n' "$gate_failures"
   printf 'result_dir\t%s\n' "$run_dir"
 } >"$metrics_file"
@@ -782,11 +976,26 @@ cat <<EOF
 - Oldest retryable outbox age seconds after joins: $oldest_retryable_outbox_age_after
 - RabbitMQ DLQ depth after joins: $dlq_depth_after
 - RabbitMQ retry queue depth after joins: $retry_queue_depth_after
+- Resource context status: $resource_context_status
+- Runner nproc: $runner_nproc
+- Runner memory total MB: $runner_memory_total_mb
+- Runner memory available before workload MB: $runner_memory_available_before_mb
+- Runner swap used before workload MB: $runner_swap_used_before_mb
+- Highest observed container CPU percent: $highest_container_cpu
+- Highest observed container memory MB: $highest_container_memory
+- Highest observed Go process CPU percent: $highest_go_cpu
+- Highest observed Go process RSS MB: $highest_go_rss
 - Gate failures: $gate_failures
 - Metrics TSV: $metrics_file
 - Pass/fail gates TSV: $gates_file
 - Dependency snapshot before joins: $run_dir/dependencies-before-joins.md
 - Dependency snapshot after joins: $run_dir/dependencies-after-joins.md
+- Resource context before joins: $run_dir/resource-context-before.md
+- Resource context during joins: $run_dir/resource-context-during.md
+- Resource context after joins: $run_dir/resource-context-after.md
+- Go process stats before joins: $run_dir/process-stats-before.tsv
+- Go process stats during joins: $run_dir/process-stats-during.tsv
+- Go process stats after joins: $run_dir/process-stats-after.tsv
 - Result files: $run_dir
 EOF
 
